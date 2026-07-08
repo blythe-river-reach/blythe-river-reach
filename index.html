@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e1726'/%3E%3Ccircle cx='45' cy='19' r='8' fill='%23e8a15c'/%3E%3Cpath d='M6 38c6-9 14-9 20 0s14 9 20 0 9-7 12-5' stroke='%236fb7e0' stroke-width='5.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M6 51c6-9 14-9 20 0s14 9 20 0 9-7 12-5' stroke='%233f7ba6' stroke-width='5.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
 <meta name="description" content="Live Colorado River water levels, daily highs &amp; lows, and multi-day forecasts for every landmark from Lake Havasu to Walter's Camp — Parker Dam, the Parker Strip, Lost Lake, Water Wheel, Blythe, and beyond.">
 <meta property="og:title" content="Blythe River Reach — live river levels &amp; forecast">
 <meta property="og:description" content="Is the river up or down at your spot? Live sensors, tide tables, and the dam schedule, shifted to your stretch of the Colorado.">
@@ -86,8 +87,8 @@
   body.simple .adv-only{display:none}
   #mode-btn{background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:5px 10px; font-size:12px; cursor:pointer}
   #mode-btn:hover{color:var(--text)}
-  #tip-link{color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:5px 10px; font-size:12px; text-decoration:none}
-  #tip-link:hover{color:var(--text)}
+  #tip-link{background:rgba(232,150,90,0.14); color:var(--house); border:1px solid var(--house); border-radius:8px; padding:5px 10px; font-size:12px; font-weight:600; text-decoration:none; white-space:nowrap}
+  #tip-link:hover{background:rgba(232,150,90,0.28)}
   .skel-row{height:14px; margin:10px 0}
   @media (prefers-reduced-motion: no-preference){
     .spin{animation:spin .9s linear infinite}
@@ -105,7 +106,7 @@
   <span class="coords">Parker Dam &rarr; Blythe</span>
   <label class="coords" for="place-sel">Showing</label>
   <select id="place-sel" class="place"></select>
-  <span class="updated"><span id="load-spin" class="spin" style="display:none"></span><span id="updated">Loading&hellip;</span><a href="https://ko-fi.com/A7M322UKHV" target="_blank" rel="noopener" id="tip-link">\u2615 Tip</a><button id="mode-btn">Advanced</button><button id="refresh">Refresh</button></span>
+  <span class="updated"><span id="load-spin" class="spin" style="display:none"></span><span id="updated">Loading&hellip;</span><a href="https://ko-fi.com/blytheriverreach" target="_blank" rel="noopener" id="tip-link">🛟 Keep it afloat</a><button id="mode-btn">Advanced</button><button id="refresh">Refresh</button></span>
 </header>
 
 <div class="strip" id="strip"></div>
@@ -113,7 +114,7 @@
 <div class="banner" id="banner"></div>
 
 <div class="hero">
-  <div class="eyebrow" id="hero-eyebrow">Near Water Wheel right now</div>
+  <div class="eyebrow" id="hero-eyebrow">Near Aha Quin right now</div>
   <div class="status" id="hero-status">&mdash;</div>
   <div class="sub" id="hero-sub">Reading the closest sensor&hellip;</div>
   <div class="coming" id="hero-coming"></div>
@@ -166,13 +167,13 @@
 
 <section>
   <div class="section-panel">
-    <h2>Keep the river talking \u2615</h2>
-    <p class="lead">This site is a free, one-person project \u2014 the data comes from public sensors, but the domain and upkeep don\u2019t pay for themselves. If the tide table saved you a wasted trip to the ramp, you can <a class="site-link" href="https://ko-fi.com/A7M322UKHV" target="_blank" rel="noopener"><b>leave a tip on Ko-fi</b></a>. No account needed, and the site stays free either way.</p>
+    <h2>Keep this site afloat 🛟</h2>
+    <p class="lead">This site is a free, one-person project — the data comes from public sensors, but the domain and upkeep don’t pay for themselves. If the tide table saved you a wasted trip to the ramp, you can <a class="site-link" href="https://ko-fi.com/blytheriverreach" target="_blank" rel="noopener"><b>toss a few bucks in the tip jar</b></a>. No account needed, and the site stays free either way.</p>
   </div>
 </section>
 
 <footer>
-  <span style="color:var(--water)">Build 2026-07-08p (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span style="color:var(--water)">Build 2026-07-08q (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   Live USGS gauge fetched directly; Reclamation reach sensors and the Headgate forecast are fetched through a public read-only proxy (gov servers don&rsquo;t send browser-permission headers). All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
 </footer>
@@ -255,7 +256,7 @@ function fetchT(u, ms){
   var to = setTimeout(function(){ c.abort(); }, ms || 12000);
   return fetch(u, {signal: c.signal}).then(function(r){ clearTimeout(to); return r; }, function(e){ clearTimeout(to); throw e; });
 }
-function currentPlace(){ var k = store.get(PLACE_KEY) || "ww"; for(var i=0;i<PLACES.length;i++){ if(PLACES[i].key===k) return PLACES[i]; } for(var j=0;j<PLACES.length;j++){ if(PLACES[j].key==="ww") return PLACES[j]; } return PLACES[0]; }
+function currentPlace(){ var k = store.get(PLACE_KEY) || "ahaquin"; for(var i=0;i<PLACES.length;i++){ if(PLACES[i].key===k) return PLACES[i]; } for(var j=0;j<PLACES.length;j++){ if(PLACES[j].key==="ahaquin") return PLACES[j]; } return PLACES[0]; }
 function segFor(p){ if(p.seg) return p.seg; if(p.mile>HEADGATE_MILE) return "strip"; if(p.mile>=PVDAM_MILE) return "mid"; return "below"; }
 var SEG_REFS = { lake:["parker"], strip:["parker"], mid:["parkergage","waterwheel"], below:["i10","belowpv","mcintyrepark","taylor","oxbow","cibola"] };
 function sensorInfo(key){ for(var i=0;i<SENSORS.length;i++){ if(SENSORS[i].key===key) return SENSORS[i]; } return null; }
