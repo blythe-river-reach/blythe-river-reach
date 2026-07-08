@@ -1,0 +1,48 @@
+name: Update river data
+
+on:
+  schedule:
+    - cron: "8 * * * *"   # every hour at :08 (GitHub cron can drift a few minutes)
+  workflow_dispatch: {}    # lets you run it manually from the Actions tab
+  push:
+    branches:
+      - main
+      - dev
+    paths:
+      - "scripts/**"
+      - ".github/workflows/riverdata.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: riverdata-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install PDF parser
+        run: npm install pdf-parse@1.1.1 --no-save
+
+      - name: Fetch and parse river data
+        run: node scripts/build-data.cjs
+
+      - name: Use branch-specific data file (avoids PR conflicts)
+        if: github.ref_name != 'main'
+        run: mv data/riverdata.json "data/riverdata-${{ github.ref_name }}.json"
+
+      - name: Commit data (skips Netlify build)
+        run: |
+          git config user.name "river-bot"
+          git config user.email "river-bot@users.noreply.github.com"
+          git add data/
+          git diff --cached --quiet || git commit -m "river data $(date -u +%FT%TZ) [skip netlify]"
+          git push
