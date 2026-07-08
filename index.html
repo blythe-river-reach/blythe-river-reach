@@ -86,6 +86,8 @@
   body.simple .adv-only{display:none}
   #mode-btn{background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:5px 10px; font-size:12px; cursor:pointer}
   #mode-btn:hover{color:var(--text)}
+  #tip-link{color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:5px 10px; font-size:12px; text-decoration:none}
+  #tip-link:hover{color:var(--text)}
   .skel-row{height:14px; margin:10px 0}
   @media (prefers-reduced-motion: no-preference){
     .spin{animation:spin .9s linear infinite}
@@ -103,7 +105,7 @@
   <span class="coords">Parker Dam &rarr; Blythe</span>
   <label class="coords" for="place-sel">Showing</label>
   <select id="place-sel" class="place"></select>
-  <span class="updated"><span id="load-spin" class="spin" style="display:none"></span><span id="updated">Loading&hellip;</span><button id="mode-btn">Advanced</button><button id="refresh">Refresh</button></span>
+  <span class="updated"><span id="load-spin" class="spin" style="display:none"></span><span id="updated">Loading&hellip;</span><a href="https://ko-fi.com/A7M322UKHV" target="_blank" rel="noopener" id="tip-link">\u2615 Tip</a><button id="mode-btn">Advanced</button><button id="refresh">Refresh</button></span>
 </header>
 
 <div class="strip" id="strip"></div>
@@ -162,8 +164,15 @@
 
 
 
+<section>
+  <div class="section-panel">
+    <h2>Keep the river talking \u2615</h2>
+    <p class="lead">This site is a free, one-person project \u2014 the data comes from public sensors, but the domain and upkeep don\u2019t pay for themselves. If the tide table saved you a wasted trip to the ramp, you can <a class="site-link" href="https://ko-fi.com/A7M322UKHV" target="_blank" rel="noopener"><b>leave a tip on Ko-fi</b></a>. No account needed, and the site stays free either way.</p>
+  </div>
+</section>
+
 <footer>
-  <span style="color:var(--water)">Build 2026-07-08n (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span style="color:var(--water)">Build 2026-07-08p (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   Live USGS gauge fetched directly; Reclamation reach sensors and the Headgate forecast are fetched through a public read-only proxy (gov servers don&rsquo;t send browser-permission headers). All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
 </footer>
@@ -186,8 +195,6 @@ var PROXIES = [
 // ============ EDIT ME ============
 // GitHub data relay: your repo, so the page reads hourly data the bot fetched server-side.
 var GH_REPO = "blythe-river-reach/blythe-river-reach";
-// Optional tip jar: paste a Ko-fi / Buy Me a Coffee / PayPal link to show the support box.
-var SUPPORT_URL = "https://ko-fi.com/A7M322UKHV";
 var GH_BRANCH = "main";
 // Netlify branch deploys are served from "branch--sitename.netlify.app" \u2014 detect it
 // so the dev site previews the dev robot\u2019s data (falling back to main automatically).
@@ -923,12 +930,6 @@ var MODE_KEY="blythe_mode_v1";
     store.set(MODE_KEY, mode);
     apply(mode);
   });
-})();
-(function initSupport(){
-  if(SUPPORT_URL){
-    var box=document.getElementById("support-box"), a=document.getElementById("support-link");
-    if(box && a){ a.href=SUPPORT_URL; box.style.display="block"; }
-  }
 })();
 document.getElementById("refresh").addEventListener("click", loadAll);
 loadAll();
