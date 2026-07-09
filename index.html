@@ -173,7 +173,7 @@
 </section>
 
 <footer>
-  <span style="color:var(--water)">Build 2026-07-08r (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span style="color:var(--water)">Build 2026-07-08s (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   Live USGS gauge fetched directly; Reclamation reach sensors and the Headgate forecast are fetched through a public read-only proxy (gov servers don&rsquo;t send browser-permission headers). All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
 </footer>
@@ -436,7 +436,7 @@ function toPoints(s){
 var REACH = [
   { key:"parker",       name:"Parker Dam release", role:"Release upstream \u00b7 early warning", order:0, names:["havasu"], releaseType:"release" },
   { key:"parkergage",   name:"Parker gage",   role:"Below Headgate \u00b7 upper reach", order:1, names:["parker gage"] },
-  { key:"waterwheel",   name:"Water Wheel",   role:"Reference sensor \u00b7 mid reach", order:2, primary:true, names:["water wheel"] },
+  { key:"waterwheel",   name:"Water Wheel",   role:"Reclamation sensor \u00b7 mid reach", order:2, primary:true, names:["water wheel"] },
   { key:"i10",          name:"Blythe (I-10 bridge)", role:"Reclamation sensor \u00b7 at Blythe", order:3, names:["i-10","i 10","interstate","i10"] },
   { key:"mcintyrepark", name:"McIntyre Park", role:"Reclamation sensor \u00b7 south of Blythe", order:5, names:["mcintyre"] },
   { key:"taylor",       name:"Taylor Ferry",  role:"Reclamation sensor \u00b7 below Blythe", order:6, names:["taylor"] },
@@ -538,6 +538,7 @@ function getPrimary(){
       || STATIONS.find(function(s){ return s.flow.length||s.stage.length; }) || null;
 }
 function renderCards(){
+  var _pl=currentPlace(), _ref=refFor(_pl);
   var grid=document.getElementById("grid");
   if(!STATIONS.length){
     if(!loadingNow) grid.innerHTML='<div class="card" style="color:var(--muted)">No sensors reporting \u2014 try Refresh.</div>';
@@ -559,8 +560,8 @@ function renderCards(){
     var metaHtml;
     if(abl!=null){ metaHtml='<span>water <span class="mono">+'+abl.toFixed(1)+'</span> ft above wk low</span><span>swings <span class="mono">~'+(sw!=null?sw.toFixed(1):'\u2014')+'</span> ft/wk</span>'; }
     else { metaHtml='<span>release flow</span><span>7-day <span class="mono">'+fmt(lo)+'\u2013'+fmt(hi)+'</span> cfs</span>'; }
-    return '<div class="card'+(s.primary?' primary':'')+'">'+
-      '<div class="role"><span>'+s.role+'</span><span class="src">'+s.source+'</span></div>'+
+    return '<div class="card'+((_ref && s.key===_ref.key)?' primary':'')+'">'+
+      '<div class="role"><span>'+((_ref && s.key===_ref.key)?('Reference for '+esc(_pl.name)):s.role)+'</span><span class="src">'+s.source+'</span></div>'+
       '<div class="name">'+s.name+'</div>'+
       '<div class="big"><span class="cfs mono">'+fmt(f?f.v:null)+'</span><span class="unit">cfs</span>'+
         '<span class="trend" style="color:'+TCOLOR[tr]+'">'+TMARK[tr]+' '+TWORD[tr]+'</span></div>'+
@@ -628,7 +629,7 @@ function renderHero(){
   }
   var lv=levelInfo(series), levelPhrase=lv?LEVELWORD[lv.word]:"", abl=stageAboveLow(p.stage), sw=stageSwing(p.stage);
   var readAge=Date.now()-c.t;
-  elS.innerHTML='<span style="color:'+TCOLOR[tr]+'">'+TMARK[tr]+'</span> Water '+(readAge>90*60*1000?'was':'is')+' '+TWORD[tr]+(levelPhrase?' \u00b7 '+levelPhrase:'');
+  elS.innerHTML='<span style="color:'+TCOLOR[tr]+'">'+TMARK[tr]+'</span> Water '+(readAge>90*60*1000?'has been ':'is ')+TWORD[tr]+(levelPhrase?' \u00b7 '+levelPhrase:'');
   var lag=lagMsFrom(ref.mile, pl);
   var timing=(Math.abs(lag)>=3*60000) ? ' \u00b7 pulses arrive at '+pl.name+' '+lagLabel2(lag, ref.label) : ' \u00b7 from '+ref.label;
   var turn="";
@@ -643,12 +644,12 @@ function renderHero(){
       var when=hrs<1?'within the hour':(hrs<1.75?'in about an hour':'in ~'+Math.round(hrs)+' h');
       if(nxt.type==="low"){
         turn=(tr==="falling")
-          ? ' <b style="color:var(--text)">Bottoming out '+when+'</b> \u2014 low of '+lvl2+' around '+azTime(nxt.t)+'.'
-          : ' <b style="color:var(--text)">The schedule turns this around '+when+'</b> \u2014 dropping to '+lvl2+' by '+azTime(nxt.t)+'.';
+          ? ' <b style="color:var(--text)">Expect the low '+when+'</b> \u2014 about '+lvl2+' around '+azTime(nxt.t)+', then a rebound.'
+          : ' <b style="color:var(--text)">Expect it to start dropping '+when+'</b> \u2014 down to '+lvl2+' by '+azTime(nxt.t)+'.';
       } else {
         turn=(tr==="rising")
-          ? ' <b style="color:var(--text)">Cresting '+when+'</b> \u2014 high of '+lvl2+' around '+azTime(nxt.t)+'.'
-          : ' <b style="color:var(--text)">The schedule turns this around '+when+'</b> \u2014 climbing to '+lvl2+' by '+azTime(nxt.t)+'.';
+          ? ' <b style="color:var(--text)">Expect it to crest '+when+'</b> \u2014 about '+lvl2+' around '+azTime(nxt.t)+', then ease back.'
+          : ' <b style="color:var(--text)">Expect it to start rising '+when+'</b> \u2014 up to '+lvl2+' by '+azTime(nxt.t)+'.';
       }
     }
   }

@@ -40,7 +40,7 @@ function toPoints(s) {
 const REACH = [
   { key: "parker",       name: "Parker Dam release", role: "Release upstream \u00b7 early warning", order: 0, names: ["havasu"], releaseType: "release" },
   { key: "parkergage",   name: "Parker gage", role: "Below Headgate \u00b7 upper reach", order: 1, names: ["parker gage", "parker  gage"] },
-  { key: "waterwheel",   name: "Water Wheel", role: "Reference sensor \u00b7 mid reach", order: 2, primary: true, names: ["water wheel"] },
+  { key: "waterwheel",   name: "Water Wheel", role: "Reclamation sensor \u00b7 mid reach", order: 2, primary: true, names: ["water wheel"] },
   { key: "i10",          name: "Blythe (I-10 bridge)", role: "Reclamation sensor \u00b7 at Blythe", order: 3, names: ["i-10", "i 10", "interstate", "i10"] },
   { key: "mcintyrepark", name: "McIntyre Park", role: "Reclamation sensor \u00b7 south of Blythe", order: 5, names: ["mcintyre"] },
   { key: "taylor",       name: "Taylor Ferry", role: "Reclamation sensor \u00b7 below Blythe", order: 6, names: ["taylor"] },
