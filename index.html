@@ -177,7 +177,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-08x (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-08y (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   Live USGS gauge fetched directly; Reclamation reach sensors and the Headgate forecast are fetched through a public read-only proxy (gov servers don&rsquo;t send browser-permission headers).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -547,7 +547,9 @@ function rebuild(){
       }
     }
   });
-  st.sort(function(a,b){ return (a.order==null?9:a.order)-(b.order==null?9:b.order); });
+  var RIVER_ORDER={parker:0, critcanal:1, parkergage:2, wasteway:3, waterwheel:4, pvcanal:5, belowpv:6, i10:7, mcintyrepark:8, taylor:9, oxbow:10, cibola:11};
+  st.forEach(function(s){ if(RIVER_ORDER[s.key]!=null) s.order=RIVER_ORDER[s.key]; });
+  st.sort(function(a,b){ return (a.order==null?99:a.order)-(b.order==null?99:b.order); });
   STATIONS=st;
   renderCards(); renderHero(); renderHeadgate(); renderReach(); renderTide();
   (function staleCheck(){
@@ -577,7 +579,8 @@ function renderCards(){
     var vals=s.flow.map(function(p){return p.v;});
     var lo=vals.length?Math.min.apply(null,vals):null, hi=vals.length?Math.max.apply(null,vals):null;
     var when=(s.flow.length||s.stage.length)?azTime((cur(s.flow)||cur(s.stage)).t):"no data";
-    var link=s.link?('<a class="site-link" href="'+s.link+'" target="_blank" rel="noopener">USGS '+USGS_ID+' \u2197</a>'):s.source;
+    var siteNo=s.link?(s.link.match(/USGS-(\d+)/)||[])[1]:null;
+    var link=s.link?('<a class="site-link" href="'+s.link+'" target="_blank" rel="noopener">USGS '+(siteNo||"")+' \u2197</a>'):s.source;
     var lv=levelInfo(s.flow.length?s.flow:s.stage);
     var levelHtml="";
     if(lv){
@@ -880,9 +883,9 @@ function parseUsgs(json){
 }
 function loadUsgs(){
   var banner=document.getElementById("banner"); banner.style.display="none";
-  document.getElementById("updated").textContent="Updating\u2026";
+  document.getElementById("updated").textContent="Checking\u2026";
   return fetchT(USGS_API, 12000).then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
-    .then(function(json){ usgsData=parseUsgs(json); document.getElementById("updated").textContent="Updated "+new Date().toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}); })
+    .then(function(json){ usgsData=parseUsgs(json); document.getElementById("updated").textContent="Checked "+new Date().toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}); })
     .catch(function(e){ document.getElementById("updated").textContent="Couldn\u2019t update"; banner.style.display="block"; banner.innerHTML="Couldn\u2019t reach the USGS service. The gauge link in the card opens it directly."; });
 }
 function loadBor(){
@@ -961,7 +964,10 @@ function loadAll(){
     if(relayInfo){
       var mm=Math.max(0, Math.round((Date.now()-relayInfo.t)/60000));
       var u=document.getElementById("updated");
-      if(u && u.textContent.indexOf("relay")<0) u.textContent += " \u00b7 relay "+mm+"m old"+((relayInfo.branch && relayInfo.branch!=="main") ? " ("+relayInfo.branch+")" : "");
+      if(u && u.textContent.indexOf("gathered")<0){
+        u.textContent += " \u00b7 data gathered "+(mm<60? mm+"m" : (mm/60).toFixed(1)+"h")+" ago"+((relayInfo.branch && relayInfo.branch!=="main") ? " ("+relayInfo.branch+")" : "");
+        u.title="Checked = when this page last pulled fresh data.\nData gathered = when the GitHub robot last collected Reclamation\u2019s feed (runs ~3x/hour).\nEach card\u2019s \u2018reading\u2019 time = the sensor\u2019s own newest measurement (Reclamation posts hourly, often 1\u20133 h behind).";
+      }
     }
   }
   Promise.all([pU,pR]).then(done, done);
