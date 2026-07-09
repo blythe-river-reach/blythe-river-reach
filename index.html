@@ -205,7 +205,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09t (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09u (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -310,6 +310,7 @@ function refFor(p){
     var lagMin=(sm.mile>=p.mile?1:-1)*stretchHours(sm.mile, p.mile)*60; // + if upstream of the place
     var effStale=Math.max(0, ageMin - Math.max(0,lagMin) + Math.max(0,-lagMin));
     var score=effStale + d*DIST_MIN_PER_MILE;
+    if(sm.mile < p.mile - 2.5) score += 1e6; // HARD RULE: downstream refs only as a last resort \u2014 they describe this spot's past
     if(d<=2.5) score=-1e9 + d; // a sensor essentially AT the place always wins
     if(!best || score<best.score) best={st:st, mile:sm.mile, label:sm.label, key:sm.key, d:d, score:score};
   }
