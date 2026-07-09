@@ -173,7 +173,7 @@
 </section>
 
 <footer>
-  <span style="color:var(--water)">Build 2026-07-08q (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span style="color:var(--water)">Build 2026-07-08r (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   Live USGS gauge fetched directly; Reclamation reach sensors and the Headgate forecast are fetched through a public read-only proxy (gov servers don&rsquo;t send browser-permission headers). All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
 </footer>
@@ -627,11 +627,33 @@ function renderHero(){
     return;
   }
   var lv=levelInfo(series), levelPhrase=lv?LEVELWORD[lv.word]:"", abl=stageAboveLow(p.stage), sw=stageSwing(p.stage);
-  elS.innerHTML='<span style="color:'+TCOLOR[tr]+'">'+TMARK[tr]+'</span> Water is '+TWORD[tr]+(levelPhrase?' \u00b7 '+levelPhrase:'');
+  var readAge=Date.now()-c.t;
+  elS.innerHTML='<span style="color:'+TCOLOR[tr]+'">'+TMARK[tr]+'</span> Water '+(readAge>90*60*1000?'was':'is')+' '+TWORD[tr]+(levelPhrase?' \u00b7 '+levelPhrase:'');
   var lag=lagMsFrom(ref.mile, pl);
   var timing=(Math.abs(lag)>=3*60000) ? ' \u00b7 pulses arrive at '+pl.name+' '+lagLabel2(lag, ref.label) : ' \u00b7 from '+ref.label;
-  if(abl!=null){ elSub.innerHTML='The water is about <b style="color:var(--text)" class="mono">+'+abl.toFixed(1)+' ft</b> above this week\u2019s low'+(sw!=null?' (it rises and falls ~'+sw.toFixed(1)+' ft over the week)':'')+' \u2014 '+detail+timing; }
-  else { elSub.innerHTML='Closest live source reads '+detail+timing; }
+  var turn="";
+  var fc2=forecastSeriesFor(pl);
+  if(fc2 && fc2.arrival.length>=4){
+    var exF=findTides(fc2.arrival).filter(function(e2){ return e2.t>Date.now(); });
+    var nxt=exF.length?exF[0]:null;
+    if(nxt){
+      var toFt2=tideRating(pl), ft2=toFt2?toFt2(nxt.v):null;
+      var lvl2=(ft2!=null?'~+'+ft2.toFixed(1)+' ft':'~'+fmt(nxt.v)+' cfs');
+      var hrs=(nxt.t-Date.now())/3600000;
+      var when=hrs<1?'within the hour':(hrs<1.75?'in about an hour':'in ~'+Math.round(hrs)+' h');
+      if(nxt.type==="low"){
+        turn=(tr==="falling")
+          ? ' <b style="color:var(--text)">Bottoming out '+when+'</b> \u2014 low of '+lvl2+' around '+azTime(nxt.t)+'.'
+          : ' <b style="color:var(--text)">The schedule turns this around '+when+'</b> \u2014 dropping to '+lvl2+' by '+azTime(nxt.t)+'.';
+      } else {
+        turn=(tr==="rising")
+          ? ' <b style="color:var(--text)">Cresting '+when+'</b> \u2014 high of '+lvl2+' around '+azTime(nxt.t)+'.'
+          : ' <b style="color:var(--text)">The schedule turns this around '+when+'</b> \u2014 climbing to '+lvl2+' by '+azTime(nxt.t)+'.';
+      }
+    }
+  }
+  if(abl!=null){ elSub.innerHTML='The water is about <b style="color:var(--text)" class="mono">+'+abl.toFixed(1)+' ft</b> above this week\u2019s low'+(sw!=null?' (it rises and falls ~'+sw.toFixed(1)+' ft over the week)':'')+' \u2014 '+detail+timing+'.'+turn; }
+  else { elSub.innerHTML='Closest live source reads '+detail+timing+'.'+turn; }
   var parker=STATIONS.find(function(s){ return s.key==="parker" && s.flow.length; });
   if(parker && ref.key!=="parker"){
     var lagH=(PARKER_MILE - pl.mile)/WAVE_MPH;
