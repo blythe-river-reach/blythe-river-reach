@@ -76,13 +76,24 @@
   .note{color:var(--muted); font-size:12px; margin-top:10px}
   .banner{background:#2a1f14; border:1px solid #6b4a1e; color:#f0c98a; border-radius:10px; padding:12px 16px; font-size:13px; margin-bottom:18px; display:none}
   .fire{background:#12313a; border:1px solid #2f6b63; color:#9fe7db; border-radius:10px; padding:12px 16px; font-size:14px; margin-top:12px; display:none}
-  select.place{background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:5px 10px; font-size:13px}
+  select.place{background:var(--panel2); color:var(--text); border:2px solid var(--water); border-radius:14px; padding:12px 18px; font-size:18px; font-weight:700; cursor:pointer; box-shadow:0 0 0 4px rgba(127,192,232,0.14); max-width:min(62vw,360px)}
+  select.place:hover{box-shadow:0 0 0 6px rgba(127,192,232,0.28)}
+  .pick-label{font-size:17px; color:var(--text); font-weight:700; white-space:nowrap}
+  .picker-wrap{display:inline-flex; align-items:center; gap:10px; flex-wrap:nowrap}
+  @media (max-width:680px){
+    .picker-wrap{width:100%; order:5}
+    .picker-wrap select.place{flex:1; max-width:none}
+  }
+  @media (prefers-reduced-motion: no-preference){
+    select.place{animation:beckon 1.3s ease-in-out 3}
+  }
+  @keyframes beckon{0%,100%{box-shadow:0 0 0 4px rgba(127,192,232,0.14)} 50%{box-shadow:0 0 0 10px rgba(127,192,232,0.38)}}
   .spin{display:inline-block; width:12px; height:12px; border:2px solid var(--border); border-top-color:var(--water); border-radius:50%; vertical-align:-2px}
   .skel{position:relative; overflow:hidden; background:var(--panel2); border-radius:8px}
   .skel::after{content:""; position:absolute; top:0; left:0; right:0; bottom:0; transform:translateX(-100%); background:linear-gradient(90deg, transparent, rgba(140,170,200,0.13), transparent)}
   .skel-card{height:190px}
   .chart-skel{height:120px; margin:6px 0 4px}
-  .axis{position:relative; height:15px; margin-top:2px; font-size:11px; color:var(--muted); display:none}
+  .axis{position:relative; height:19px; margin-top:3px; font-size:12.5px; font-weight:600; color:var(--text); opacity:0.8; display:none}
   .axis span{position:absolute; top:0; white-space:nowrap}
   body.simple .adv-only{display:none}
   #tip-link,#mode-btn,#refresh{font-size:15px; padding:10px 18px; border-radius:12px; font-weight:700; cursor:pointer}
@@ -108,8 +119,7 @@
 <header>
   <h1>Blythe River Reach</h1>
   <span class="coords">Parker Dam &rarr; Blythe</span>
-  <label class="coords" for="place-sel">Showing</label>
-  <select id="place-sel" class="place"></select>
+  <span class="picker-wrap"><label class="pick-label" for="place-sel">📍 Your spot:</label><select id="place-sel" class="place"></select></span>
   <span class="updated"><span id="load-spin" class="spin" style="display:none"></span><span id="updated">Loading&hellip;</span><a href="https://ko-fi.com/blytheriverreach" target="_blank" rel="noopener" id="tip-link" title="This site is free — tips cover the domain and upkeep. Opens the Ko-fi tip jar in a new tab.">🛟 Tip jar</a><button id="mode-btn">Advanced</button><button id="refresh">Refresh</button></span>
 </header>
 
@@ -177,7 +187,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09d (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09h (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -390,6 +400,7 @@ function spark(series){
   series.forEach(function(p,i){ var x=pad+i*step, y=pad+(H-2*pad)*(1-(p.v-min)/span); d += (i?"L":"M")+x.toFixed(1)+" "+y.toFixed(1)+" "; });
   return '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none"><path d="'+d+'" fill="none" stroke="var(--water)" stroke-width="1.5" stroke-linejoin="round"/></svg>';
 }
+function azClock(ms){ return new Date(ms).toLocaleTimeString([], {timeZone:"America/Phoenix", hour:"numeric", minute:"2-digit"}); }
 function azDay(ms){ return new Date(ms).toLocaleDateString([], {timeZone:"America/Phoenix", weekday:"short", month:"numeric", day:"numeric"}).replace(",", ""); }
 function areaChart(svg, series, color, dashed, axisId, showNow){
   var W=900,H=120,pad=6, vals=series.map(function(p){return p.v;}), min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), span=(max-min)||1, step=(W-2*pad)/(series.length-1), line="", area="";
@@ -403,14 +414,26 @@ function areaChart(svg, series, color, dashed, axisId, showNow){
   var days=(t1-t0)/86400000, every=days>4.5?2:1, k=0;
   for(; m<=t1; m+=86400000, k++){
     var x=X(m);
-    marks += '<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+H+'" stroke="var(--border)" stroke-width="1" opacity="0.7"/>';
-    if(k%every===0) labels.push({pct:x/W*100, txt:azDay(m), now:false});
+    marks += '<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+H+'" stroke="var(--border)" stroke-width="1.2" opacity="1"/>';
+    if(k%every===0) labels.push({pct:x/W*100, txt:azDay(m)});
+    var noon=m-43200000; // the noon before this midnight
+    if(noon>t0 && noon<t1){
+      var xd=X(noon);
+      marks += '<line x1="'+xd.toFixed(1)+'" y1="'+(H*0.45).toFixed(0)+'" x2="'+xd.toFixed(1)+'" y2="'+H+'" stroke="var(--border)" stroke-width="1" opacity="0.45"/>';
+      if(days<=4.5 && every===1) labels.push({pct:xd/W*100, txt:"noon", minor:true});
+    }
+  }
+  var lastNoon=m-43200000; // noon after the final midnight, if in range
+  if(lastNoon>t0 && lastNoon<t1){
+    var xl=X(lastNoon);
+    marks += '<line x1="'+xl.toFixed(1)+'" y1="'+(H*0.45).toFixed(0)+'" x2="'+xl.toFixed(1)+'" y2="'+H+'" stroke="var(--border)" stroke-width="1" opacity="0.45"/>';
+    if(days<=4.5 && every===1) labels.push({pct:xl/W*100, txt:"noon", minor:true});
   }
   var nowT=Date.now();
   if(showNow && nowT>t0 && nowT<t1){
     var xn=X(nowT);
-    marks += '<line x1="'+xn.toFixed(1)+'" y1="0" x2="'+xn.toFixed(1)+'" y2="'+H+'" stroke="var(--water)" stroke-width="1.5" opacity="0.85"/>';
-    labels.push({pct:xn/W*100, txt:"now", now:true});
+    marks += '<line x1="'+xn.toFixed(1)+'" y1="0" x2="'+xn.toFixed(1)+'" y2="'+H+'" stroke="var(--water)" stroke-width="2" opacity="0.95"/>';
+    labels.push({pct:xn/W*100, txt:"now \u00b7 "+azClock(nowT), now:true});
   }
   svg.innerHTML = marks + '<path d="'+area+'" fill="'+color+'" opacity="0.11"/><path d="'+line+'" fill="none" stroke="'+color+'" stroke-width="1.5"'+(dashed?' stroke-dasharray="5 4"':'')+'/>';
   svg.style.display="block";
@@ -418,7 +441,7 @@ function areaChart(svg, series, color, dashed, axisId, showNow){
   if(ax){
     ax.innerHTML = labels.map(function(L){
       var tr = L.pct<4 ? "translateX(0)" : (L.pct>96 ? "translateX(-100%)" : "translateX(-50%)");
-      return '<span style="left:'+L.pct.toFixed(2)+'%; transform:'+tr+';'+(L.now?' color:var(--water); font-weight:600;':'')+'">'+L.txt+'</span>';
+      return '<span style="left:'+L.pct.toFixed(2)+'%; transform:'+tr+';'+(L.now?' color:var(--water); font-weight:700;':'')+(L.minor?' font-size:10.5px; opacity:0.65; font-weight:400;':'')+'">'+L.txt+'</span>';
     }).join("");
     ax.style.display = labels.length ? "block" : "none";
   }
