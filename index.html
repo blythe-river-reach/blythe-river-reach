@@ -197,7 +197,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09p (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09q (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -287,13 +287,23 @@ function segFor(p){ if(p.seg) return p.seg; if(p.mile>HEADGATE_MILE) return "str
 var SEG_REFS = { lake:["parker"], strip:["parker"], mid:["parkergage","waterwheel"], below:["i10","belowpv","mcintyrepark","taylor","oxbow","cibola"] };
 function sensorInfo(key){ for(var i=0;i<SENSORS.length;i++){ if(SENSORS[i].key===key) return SENSORS[i]; } return null; }
 function refFor(p){
-  var cands=SEG_REFS[segFor(p)]||["waterwheel"], best=null;
+  // Score = how stale each sensor's information is ONCE SHIFTED to this place,
+  // plus a distortion penalty per mile. An upstream sensor has already seen the
+  // water that's here now (fresh, negative lag-staleness, clamped at 0); a
+  // downstream sensor only knows this spot's past (age + travel time).
+  var cands=SEG_REFS[segFor(p)]||["waterwheel"], best=null, DIST_MIN_PER_MILE=12;
   for(var i=0;i<cands.length;i++){
     var sm=sensorInfo(cands[i]); if(!sm) continue;
     var st=STATIONS.find(function(s){ return s.key===sm.key && (s.flow.length||s.stage.length); });
     if(!st) continue;
     var d=Math.abs(sm.mile-p.mile);
-    if(!best || d<best.d) best={st:st, mile:sm.mile, label:sm.label, key:sm.key, d:d};
+    var pt=cur(st.flow.length?st.flow:st.stage);
+    var ageMin=pt ? Math.max(0,(Date.now()-pt.t)/60000) : 9999;
+    var lagMin=(sm.mile - p.mile)/WAVE_MPH*60; // + if upstream of the place
+    var effStale=Math.max(0, ageMin - Math.max(0,lagMin) + Math.max(0,-lagMin));
+    var score=effStale + d*DIST_MIN_PER_MILE;
+    if(d<=2.5) score=-1e9 + d; // a sensor essentially AT the place always wins
+    if(!best || score<best.score) best={st:st, mile:sm.mile, label:sm.label, key:sm.key, d:d, score:score};
   }
   if(!best){ var g=getPrimary(); if(g){ var smx=sensorInfo(g.key); best={st:g, mile:(smx?smx.mile:p.mile), label:(smx?smx.label:g.name), key:g.key, d:0}; } }
   return best;
@@ -799,7 +809,7 @@ function renderReach(){
     var seriesR=shiftedR ? st.flow.map(function(p){ return {t:p.t+lagR, v:p.v}; }) : st.flow;
     var r=areaChart(svg, rangeCut(seriesR), "var(--water)", false, "fc-axis", true);
     var d=Math.abs(ref.mile-pl.mile);
-    lead.innerHTML='The last '+rangeLabel()+' near '+esc(pl.name)+', from '+ref.label+(shiftedR ? ' \u2014 clock reads arrival at '+esc(pl.name) : '')+(d>=0.5 ? ' \u2014 the closest live sensor to '+esc(pl.name) : ' \u2014 right at '+esc(pl.name))+'.<span class="adv-only"> ('+(d>=0.5?d.toFixed(0)+' river mi away. ':'')+'Flow swings between <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b> and <b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs in a daily rhythm.)</span>';
+    lead.innerHTML='The last '+rangeLabel()+' near '+esc(pl.name)+', from '+ref.label+(shiftedR ? ' \u2014 clock reads arrival at '+esc(pl.name)+(lagR>0 ? '; the stretch past \u201cnow\u201d is water already released upstream, on its way here' : '') : '')+(d>=0.5 ? ' \u2014 the closest live sensor to '+esc(pl.name) : ' \u2014 right at '+esc(pl.name))+'.<span class="adv-only"> ('+(d>=0.5?d.toFixed(0)+' river mi away. ':'')+'Flow swings between <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b> and <b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs in a daily rhythm.)</span>';
   } else {
     svg.style.display="none"; now.innerHTML="";
     var fax=document.getElementById("fc-axis"); if(fax) fax.style.display="none";
@@ -845,8 +855,11 @@ function forecastSeriesFor(pl){
 }
 function tideRating(pl){
   var seg=segFor(pl);
-  if(seg==="mid") return buildRating("waterwheel");
-  if(seg==="below"){ var ref=refFor(pl); return ref ? buildRating(ref.key) : null; }
+  if(seg==="mid" || seg==="below"){
+    var ref=refFor(pl);
+    var r=ref ? buildRating(ref.key) : null;
+    return r || (seg==="mid" ? buildRating("waterwheel") : null);
+  }
   return null;
 }
 function renderHeadgate(){
