@@ -80,6 +80,9 @@
   select.place:hover{box-shadow:0 0 0 6px rgba(127,192,232,0.28)}
   .pick-label{font-size:17px; color:var(--text); font-weight:700; white-space:nowrap}
   .picker-wrap{display:inline-flex; align-items:center; gap:10px; flex-wrap:nowrap}
+  .range-picker{display:flex; gap:6px; margin:8px 0 2px}
+  .range-picker button{font-size:12px; padding:4px 12px; border-radius:999px; background:transparent; color:var(--muted); border:1px solid var(--border); cursor:pointer}
+  .range-picker button.on{color:var(--water); border-color:var(--water); background:rgba(127,192,232,0.10); font-weight:700}
   @media (max-width:680px){
     .picker-wrap{width:100%; order:5}
     .picker-wrap select.place{flex:1; max-width:none}
@@ -157,6 +160,9 @@
       <span class="fc-now" id="fc-now"></span>
     </div>
     <p class="lead" id="fc-lead">Loading Reclamation&rsquo;s hourly record at the Water Wheel reference sensor&hellip;</p>
+    <div class="range-picker" id="range-pick">
+      <button data-d="1">24h</button><button data-d="2">2 days</button><button data-d="4">4 days</button><button data-d="7">7 days</button>
+    </div>
     <div class="skel chart-skel" id="fc-skel"></div>
     <svg id="fc-chart" viewBox="0 0 900 120" preserveAspectRatio="none" style="display:none"></svg>
     <div class="axis" id="fc-axis"></div>
@@ -187,7 +193,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09h (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09i (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -726,19 +732,21 @@ function renderReach(){
     if(title) title.textContent="Recent \u2014 Lake Havasu elevation";
     var lc=havasuData[havasuData.length-1];
     now.innerHTML='Lake now <b class="mono">'+lc.v.toFixed(2)+' ft</b> \u00b7 '+azTime(lc.t)+' MST';
-    var lr=areaChart(svg, havasuData, "var(--water)", false, "fc-axis", false);
-    lead.innerHTML='The lake\u2019s elevation over the last 7 days \u2014 it ranged just <b class="mono" style="color:var(--text)">'+lr.min.toFixed(2)+'</b>\u2013<b class="mono" style="color:var(--text)">'+lr.max.toFixed(2)+' ft</b> while the river below swings several feet a day.';
+    var lr=areaChart(svg, rangeCut(havasuData), "var(--water)", false, "fc-axis", false);
+    lead.innerHTML='The lake\u2019s elevation over the last '+rangeLabel()+' \u2014 it ranged just <b class="mono" style="color:var(--text)">'+lr.min.toFixed(2)+'</b>\u2013<b class="mono" style="color:var(--text)">'+lr.max.toFixed(2)+' ft</b> while the river below swings several feet a day.';
     return;
   }
   var st=(ref && ref.st && ref.st.flow.length) ? ref.st : null;
   if(skel) skel.style.display = (st || borTried) ? "none" : "block";
   if(title) title.textContent = "Recent \u2014 " + (st ? st.name + " sensor" : "nearest sensor");
+  syncRangeButtons();
+  var rp=document.getElementById("range-pick"); if(rp) rp.style.display = st ? "flex" : "none";
   if(st){
     var c=cur(st.flow);
     now.innerHTML='Now at '+esc(st.name)+' <b class="mono">'+fmt(c.v)+' cfs</b> \u00b7 '+azTime(c.t)+' MST';
-    var r=areaChart(svg, st.flow, "var(--water)", false, "fc-axis", false);
+    var r=areaChart(svg, rangeCut(st.flow), "var(--water)", false, "fc-axis", false);
     var d=Math.abs(ref.mile-pl.mile);
-    lead.innerHTML='The last 7 days at '+ref.label+(d>=0.5 ? ' \u2014 the closest live sensor to '+esc(pl.name) : ' \u2014 right at '+esc(pl.name))+'.<span class="adv-only"> ('+(d>=0.5?d.toFixed(0)+' river mi away. ':'')+'Flow swings between <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b> and <b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs in a daily rhythm.)</span>';
+    lead.innerHTML='The last '+rangeLabel()+' at '+ref.label+(d>=0.5 ? ' \u2014 the closest live sensor to '+esc(pl.name) : ' \u2014 right at '+esc(pl.name))+'.<span class="adv-only"> ('+(d>=0.5?d.toFixed(0)+' river mi away. ':'')+'Flow swings between <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b> and <b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs in a daily rhythm.)</span>';
   } else {
     svg.style.display="none"; now.innerHTML="";
     var fax=document.getElementById("fc-axis"); if(fax) fax.style.display="none";
@@ -1015,6 +1023,28 @@ function loadAll(){
   }).join("");
   sel.value=currentPlace().key;
   sel.addEventListener("change", function(){ store.set(PLACE_KEY, sel.value); rebuild(); });
+})();
+var RANGE_KEY="blythe_range_v1";
+function rangeDays(){ var d=parseInt(store.get(RANGE_KEY)||"7",10); return [1,2,4,7].indexOf(d)>=0 ? d : 7; }
+function rangeCut(series){
+  var d=rangeDays();
+  if(d>=7 || !series || !series.length) return series;
+  var cut=series[series.length-1].t - d*86400000;
+  var out=series.filter(function(p){ return p.t>=cut; });
+  return out.length>=6 ? out : series;
+}
+function rangeLabel(){ var d=rangeDays(); return d===1 ? "24 hours" : d+" days"; }
+function syncRangeButtons(){
+  var rp=document.getElementById("range-pick");
+  if(!rp || !rp.children) return;
+  for(var i=0;i<rp.children.length;i++){ var b=rp.children[i]; b.className = (parseInt(b.getAttribute("data-d"),10)===rangeDays()) ? "on" : ""; }
+}
+(function initRange(){
+  var rp=document.getElementById("range-pick");
+  if(rp) rp.addEventListener("click", function(ev){
+    var d=ev.target && ev.target.getAttribute && ev.target.getAttribute("data-d");
+    if(d){ store.set(RANGE_KEY, d); rebuild(); }
+  });
 })();
 var MODE_KEY="blythe_mode_v1";
 (function initMode(){
