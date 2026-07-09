@@ -193,7 +193,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09i (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09k (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -420,19 +420,19 @@ function areaChart(svg, series, color, dashed, axisId, showNow){
   var days=(t1-t0)/86400000, every=days>4.5?2:1, k=0;
   for(; m<=t1; m+=86400000, k++){
     var x=X(m);
-    marks += '<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+H+'" stroke="var(--border)" stroke-width="1.2" opacity="1"/>';
+    marks += '<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.55)" stroke-width="1.5" opacity="1"/>';
     if(k%every===0) labels.push({pct:x/W*100, txt:azDay(m)});
     var noon=m-43200000; // the noon before this midnight
     if(noon>t0 && noon<t1){
       var xd=X(noon);
-      marks += '<line x1="'+xd.toFixed(1)+'" y1="'+(H*0.45).toFixed(0)+'" x2="'+xd.toFixed(1)+'" y2="'+H+'" stroke="var(--border)" stroke-width="1" opacity="0.45"/>';
+      marks += '<line x1="'+xd.toFixed(1)+'" y1="'+(H*0.45).toFixed(0)+'" x2="'+xd.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.30)" stroke-width="1" opacity="1"/>';
       if(days<=4.5 && every===1) labels.push({pct:xd/W*100, txt:"noon", minor:true});
     }
   }
   var lastNoon=m-43200000; // noon after the final midnight, if in range
   if(lastNoon>t0 && lastNoon<t1){
     var xl=X(lastNoon);
-    marks += '<line x1="'+xl.toFixed(1)+'" y1="'+(H*0.45).toFixed(0)+'" x2="'+xl.toFixed(1)+'" y2="'+H+'" stroke="var(--border)" stroke-width="1" opacity="0.45"/>';
+    marks += '<line x1="'+xl.toFixed(1)+'" y1="'+(H*0.45).toFixed(0)+'" x2="'+xl.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.30)" stroke-width="1" opacity="1"/>';
     if(days<=4.5 && every===1) labels.push({pct:xl/W*100, txt:"noon", minor:true});
   }
   var nowT=Date.now();
@@ -696,20 +696,38 @@ function renderHero(){
   var fc2=forecastSeriesFor(pl);
   if(fc2 && fc2.arrival.length>=4){
     var exF=findTides(fc2.arrival).filter(function(e2){ return e2.t>Date.now(); });
-    var nxt=exF.length?exF[0]:null;
-    if(nxt){
+    // value NOW per the schedule, and the forecast's overall span
+    var _n=Date.now(), nowV=null, best=1e18;
+    fc2.arrival.forEach(function(p){ var d2=Math.abs(p.t-_n); if(d2<best){best=d2; nowV=p.v;} });
+    if(best > 90*60*1000) nowV=null; // series doesn't cover now; don't guess
+    var _vals=fc2.arrival.map(function(p){return p.v;});
+    var _span=(Math.max.apply(null,_vals)-Math.min.apply(null,_vals))||1;
+    // skip plateau tails: extrema whose value is basically where we already are
+    var idx=0, skipped=null;
+    while(nowV!=null && idx<exF.length && Math.abs(exF[idx].v-nowV) < 0.15*_span){ skipped=exF[idx]; idx++; }
+    var nxt=(idx<exF.length)?exF[idx]:(exF.length?exF[0]:null);
+    if(nxt && skipped && skipped.type!==nxt.type){
+      var toFt3=tideRating(pl), ft3=toFt3?toFt3(nxt.v):null;
+      var lvl3=(ft3!=null?'~+'+ft3.toFixed(1)+' ft':'~'+fmt(nxt.v)+' cfs');
+      turn=' <b style="color:var(--text)">Holding near the '+skipped.type+' until ~'+azTime(skipped.t)+'</b> \u2014 then '+(nxt.type==="low"?'dropping to ':'rising to ')+lvl3+' by '+azTime(nxt.t)+'.';
+    }
+    else if(nxt){
       var toFt2=tideRating(pl), ft2=toFt2?toFt2(nxt.v):null;
       var lvl2=(ft2!=null?'~+'+ft2.toFixed(1)+' ft':'~'+fmt(nxt.v)+' cfs');
       var hrs=(nxt.t-Date.now())/3600000;
       var when=hrs<1?'within the hour':(hrs<1.75?'in about an hour':'in ~'+Math.round(hrs)+' h');
+      var onT=nxt.t;
+      if(nowV!=null){ for(var oi=0; oi<fc2.arrival.length; oi++){ var op=fc2.arrival[oi]; if(op.t>_n && Math.abs(op.v-nowV)>0.15*_span){ onT=op.t; break; } } }
+      var hrsS=(onT-Date.now())/3600000;
+      var whenStart=hrsS<1?'within the hour':(hrsS<1.75?'in about an hour':'in ~'+Math.round(hrsS)+' h');
       if(nxt.type==="low"){
         turn=(tr==="falling")
           ? ' <b style="color:var(--text)">Expect the low '+when+'</b> \u2014 about '+lvl2+' around '+azTime(nxt.t)+', then a rebound.'
-          : ' <b style="color:var(--text)">Expect it to start dropping '+when+'</b> \u2014 down to '+lvl2+' by '+azTime(nxt.t)+'.';
+          : ' <b style="color:var(--text)">Expect it to start dropping '+whenStart+'</b> \u2014 down to '+lvl2+' by '+azTime(nxt.t)+'.';
       } else {
         turn=(tr==="rising")
           ? ' <b style="color:var(--text)">Expect it to crest '+when+'</b> \u2014 about '+lvl2+' around '+azTime(nxt.t)+', then ease back.'
-          : ' <b style="color:var(--text)">Expect it to start rising '+when+'</b> \u2014 up to '+lvl2+' by '+azTime(nxt.t)+'.';
+          : ' <b style="color:var(--text)">Expect it to start rising '+whenStart+'</b> \u2014 up to '+lvl2+' by '+azTime(nxt.t)+'.';
       }
     }
   }
