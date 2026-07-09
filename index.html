@@ -85,10 +85,14 @@
   .axis{position:relative; height:15px; margin-top:2px; font-size:11px; color:var(--muted); display:none}
   .axis span{position:absolute; top:0; white-space:nowrap}
   body.simple .adv-only{display:none}
-  #mode-btn{background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:5px 10px; font-size:12px; cursor:pointer}
-  #mode-btn:hover{color:var(--text)}
-  #tip-link{background:rgba(232,150,90,0.14); color:var(--house); border:1px solid var(--house); border-radius:8px; padding:5px 10px; font-size:12px; font-weight:600; text-decoration:none; white-space:nowrap}
-  #tip-link:hover{background:rgba(232,150,90,0.28)}
+  #tip-link,#mode-btn,#refresh{font-size:15px; padding:10px 18px; border-radius:12px; font-weight:700; cursor:pointer}
+  #tip-link{background:rgba(232,150,90,0.18); color:var(--house); border:1.5px solid var(--house); text-decoration:none; white-space:nowrap}
+  #tip-link:hover{background:rgba(232,150,90,0.34)}
+  #mode-btn{background:transparent; color:var(--water); border:1.5px solid var(--water)}
+  #mode-btn:hover{background:rgba(127,192,232,0.12)}
+  #refresh{background:var(--water); color:#08121e; border:1.5px solid var(--water)}
+  #refresh:hover{filter:brightness(1.12)}
+  #refresh:disabled{opacity:0.55; cursor:default}
   .skel-row{height:14px; margin:10px 0}
   @media (prefers-reduced-motion: no-preference){
     .spin{animation:spin .9s linear infinite}
@@ -132,7 +136,7 @@
     <div class="skel chart-skel" id="hg-skel"></div>
     <svg id="hg-chart" viewBox="0 0 900 120" preserveAspectRatio="none" style="display:none"></svg>
     <div class="axis" id="hg-axis"></div>
-    <p class="note" id="hg-note"></p>
+    <p class="note adv-only" id="hg-note"></p>
   </div>
 </section>
 
@@ -146,7 +150,7 @@
     <div class="skel chart-skel" id="fc-skel"></div>
     <svg id="fc-chart" viewBox="0 0 900 120" preserveAspectRatio="none" style="display:none"></svg>
     <div class="axis" id="fc-axis"></div>
-    <div class="links">
+    <div class="links adv-only">
       <a href="https://www.usbr.gov/lc/region/g4000/hourly/DavisParkerSchedules.pdf" target="_blank" rel="noopener">Parker Dam projected schedule (PDF) &#8599;</a>
       <a href="https://www.usbr.gov/lc/riverops.html" target="_blank" rel="noopener">Reclamation river operations &#8599;</a>
     </div>
@@ -173,9 +177,10 @@
 </section>
 
 <footer>
-  <span style="color:var(--water)">Build 2026-07-08t (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-08w (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
-  Live USGS gauge fetched directly; Reclamation reach sensors and the Headgate forecast are fetched through a public read-only proxy (gov servers don&rsquo;t send browser-permission headers). All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
+  Live USGS gauge fetched directly; Reclamation reach sensors and the Headgate forecast are fetched through a public read-only proxy (gov servers don&rsquo;t send browser-permission headers).</span><br>
+  All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
 </footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -183,9 +188,9 @@
 try { if (window["pdfjsLib"]) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; } catch(e){}
 
 // ---------- sources ----------
-var USGS_ID = "09429100", CANAL_ID = "09429000", WASTE_ID = "09428510";
+var USGS_ID = "09429100", CANAL_ID = "09429000", WASTE_ID = "09428510", CRIT_ID = "09428500";
 var WASTE_MILE = 158.8; // Poston Wasteway: CRIT return flow re-enters the river here
-var USGS_API = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=" + USGS_ID + "," + CANAL_ID + "," + WASTE_ID + "&parameterCd=00060,00065&period=P7D&siteStatus=all";
+var USGS_API = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=" + USGS_ID + "," + CANAL_ID + "," + WASTE_ID + "," + CRIT_ID + "&parameterCd=00060,00065&period=P7D&siteStatus=all";
 var BOR_JSON = "https://www.usbr.gov/lc/region/g4000/riverops/webreports/hourlyweb.json";
 var HG_PDF   = "https://www.usbr.gov/lc/region/g4000/hourly/HeadgateReport.pdf";
 var PROXIES = [
@@ -367,7 +372,10 @@ function trend(series){
   if(!series || series.length < 4) return "steady";
   var last = series[series.length-1], ref = series[0];
   for(var i=series.length-1;i>=0;i--){ if(last.t - series[i].t >= 3*3600*1000){ ref = series[i]; break; } }
-  var delta = last.v - ref.v, thresh = Math.max(50, last.v*0.02);
+  var vals=series.map(function(p){return p.v;});
+  var range=Math.max.apply(null,vals)-Math.min.apply(null,vals);
+  var delta = last.v - ref.v;
+  var thresh = (Math.abs(last.v) < 1000) ? Math.max(0.05, range*0.06) : Math.max(50, last.v*0.02);
   if(delta >  thresh) return "rising";
   if(delta < -thresh) return "falling";
   return "steady";
@@ -527,6 +535,18 @@ function rebuild(){
   var st=[];
   if(borData && borData.stations){ borData.stations.forEach(function(s){ st.push({ key:s.key, name:s.name, role:s.role, order:s.order, primary:!!s.primary, source:"USBR", link:null, flow:clean(s.flow||[]), stage:clean(s.stage||[]) }); }); }
   if(usgsData && usgsData[USGS_ID]){ st.push({ key:"belowpv", name:"Below Palo Verde Dam", role:"Live USGS \u00b7 below the diversion", order:3, primary:false, source:"USGS", link:"https://waterdata.usgs.gov/monitoring-location/USGS-"+USGS_ID+"/", flow:clean(usgsData[USGS_ID]["00060"]||[]), stage:clean(usgsData[USGS_ID]["00065"]||[]) }); }
+  // plumbing gauges: the water leaving and returning to the river
+  [ {id:CRIT_ID,  key:"critcanal", name:"CRIT Main Canal",   role:"Live USGS \u00b7 water OUT at Headgate",       order:1.7},
+    {id:WASTE_ID, key:"wasteway",  name:"Poston Wasteway",   role:"Live USGS \u00b7 water RETURNING to the river", order:2.5},
+    {id:CANAL_ID, key:"pvcanal",   name:"Palo Verde Canal",  role:"Live USGS \u00b7 water OUT at the diversion dam", order:4.5}
+  ].forEach(function(g){
+    if(usgsData && usgsData[g.id]){
+      var f=clean(usgsData[g.id]["00060"]||[]), gs=clean(usgsData[g.id]["00065"]||[]);
+      if(f.length || gs.length){
+        st.push({ key:g.key, name:g.name, role:g.role, order:g.order, primary:false, source:"USGS", link:"https://waterdata.usgs.gov/monitoring-location/USGS-"+g.id+"/", flow:f, stage:gs });
+      }
+    }
+  });
   st.sort(function(a,b){ return (a.order==null?9:a.order)-(b.order==null?9:b.order); });
   STATIONS=st;
   renderCards(); renderHero(); renderHeadgate(); renderReach(); renderTide();
@@ -639,7 +659,7 @@ function renderHero(){
   var readAge=Date.now()-c.t;
   elS.innerHTML='<span style="color:'+TCOLOR[tr]+'">'+TMARK[tr]+'</span> Water '+(readAge>90*60*1000?'has been ':'is ')+TWORD[tr]+(levelPhrase?' \u00b7 '+levelPhrase:'');
   var lag=lagMsFrom(ref.mile, pl);
-  var timing=(Math.abs(lag)>=3*60000) ? ' \u00b7 pulses arrive at '+pl.name+' '+lagLabel2(lag, ref.label) : ' \u00b7 from '+ref.label;
+  var timing='<span class="adv-only">'+((Math.abs(lag)>=3*60000) ? ' \u00b7 pulses arrive at '+esc(pl.name)+' '+lagLabel2(lag, ref.label) : ' \u00b7 from '+ref.label)+'</span>';
   var turn="";
   var fc2=forecastSeriesFor(pl);
   if(fc2 && fc2.arrival.length>=4){
@@ -690,7 +710,7 @@ function renderReach(){
     now.innerHTML='Now at '+esc(st.name)+' <b class="mono">'+fmt(c.v)+' cfs</b> \u00b7 '+azTime(c.t)+' MST';
     var r=areaChart(svg, st.flow, "var(--water)", false, "fc-axis", false);
     var d=Math.abs(ref.mile-pl.mile);
-    lead.innerHTML='The last 7 days at '+ref.label+(d>=0.5 ? ' \u2014 the closest live sensor to '+esc(pl.name)+' ('+d.toFixed(0)+' river mi away)' : ' \u2014 right at '+esc(pl.name))+'. Flow swings between <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b> and <b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs in a daily rhythm.';
+    lead.innerHTML='The last 7 days at '+ref.label+(d>=0.5 ? ' \u2014 the closest live sensor to '+esc(pl.name) : ' \u2014 right at '+esc(pl.name))+'.<span class="adv-only"> ('+(d>=0.5?d.toFixed(0)+' river mi away. ':'')+'Flow swings between <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b> and <b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs in a daily rhythm.)</span>';
   } else {
     svg.style.display="none"; now.innerHTML="";
     var fax=document.getElementById("fc-axis"); if(fax) fax.style.display="none";
@@ -768,7 +788,8 @@ function renderHeadgate(){
   var ftLo=toFt?toFt(r.min):null, ftHi=toFt?toFt(r.max):null;
   var milesUp=Math.round(Math.abs(fc.originMile-pl.mile));
   var whereBit=(fc.seg==="lake")?'released into the river just below the lake':(milesUp<1?'right here at the dam':milesUp+' river miles upstream');
-  lead.innerHTML='Reclamation&rsquo;s projected releases from '+fc.originName+' ('+whereBit+'), time-shifted to estimated arrival at <b style="color:var(--text)">'+esc(pl.name)+'</b> assuming a ~'+WAVE_MPH+' mph pulse. Dashed = schedule + travel estimate, not a reading. Range ahead: <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b>\u2013<b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs'+((ftLo!=null&&ftHi!=null)?' (about <b class="mono" style="color:var(--text)">+'+ftLo.toFixed(1)+'</b> to <b class="mono" style="color:var(--text)">+'+ftHi.toFixed(1)+' ft</b> above the weekly low)':'')+'.'+fc.srcNote;
+  lead.innerHTML='The dam\u2019s published release schedule, shifted to when that water reaches <b style="color:var(--text)">'+esc(pl.name)+'</b>. Dashed = forecast, not a reading.'+
+    '<span class="adv-only"> From '+fc.originName+' ('+whereBit+'), assuming a ~'+WAVE_MPH+' mph pulse. Range ahead: <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b>\u2013<b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs'+((ftLo!=null&&ftHi!=null)?' (about <b class="mono" style="color:var(--text)">+'+ftLo.toFixed(1)+'</b> to <b class="mono" style="color:var(--text)">+'+ftHi.toFixed(1)+' ft</b> above the weekly low)':'')+'.'+fc.srcNote+'</span>';
   noteEl.textContent=(fc.seg==="strip"||fc.seg==="lake") ? "" : ((hgData&&hgData.note)||"");
 }
 
@@ -832,7 +853,7 @@ function renderTide(){
     });
   }
   if(!rows.length){ body.innerHTML='<tr><td colspan="3" style="color:var(--muted)">Not enough variation to detect a clear tide right now.</td></tr>'; return; }
-  lead.textContent="At "+pl.name+" \u2014 recent rows from "+ref.label.replace(/^the /,"the ")+", "+(fromSchedule?"upcoming rows from the dam schedule":"upcoming rows projected from the recent rhythm")+(Math.abs(shift)>=3*60000?", times shifted "+lagLabel2(shift, ref.label):"")+". Heights are above this week\u2019s low. Times are Arizona (MST).";
+  lead.innerHTML="At "+esc(pl.name)+" \u2014 heights are above this week\u2019s low; "+(fromSchedule?"upcoming rows come straight from the dam schedule":"upcoming rows are projected from the recent rhythm")+".<span class=\"adv-only\"> Recent rows from "+ref.label+(Math.abs(shift)>=3*60000?", times shifted "+lagLabel2(shift, ref.label):"")+".</span> Times are Arizona (MST).";
   rows.sort(function(a,b){ return a.t-b.t; });
   body.innerHTML=rows.slice(0,9).map(function(r2){
     return '<tr class="'+(r2.tag?"expected":"")+'"><td>'+azTime(r2.t)+r2.tag+'</td>'+
