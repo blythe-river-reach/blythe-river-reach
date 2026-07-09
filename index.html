@@ -80,6 +80,7 @@
   select.place:hover{box-shadow:0 0 0 6px rgba(127,192,232,0.28)}
   .pick-label{font-size:17px; color:var(--text); font-weight:700; white-space:nowrap}
   .picker-wrap{display:inline-flex; align-items:center; gap:10px; flex-wrap:nowrap}
+  .agechip{color:var(--muted); font-size:0.92em}
   .chart-hold{position:relative}
   .ylab span{position:absolute; left:6px; font-size:11px; font-weight:600; color:rgba(190,210,230,0.85); background:rgba(10,18,28,0.6); padding:0 5px; border-radius:4px; pointer-events:none; line-height:1.5}
   .yl-top{top:2px} .yl-mid{top:50%; transform:translateY(-50%)} .yl-bot{bottom:2px}
@@ -196,7 +197,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09n (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09p (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -408,6 +409,17 @@ function spark(series){
   var W=280,H=38,pad=2, step=(W-2*pad)/(series.length-1), d="";
   series.forEach(function(p,i){ var x=pad+i*step, y=pad+(H-2*pad)*(1-(p.v-min)/span); d += (i?"L":"M")+x.toFixed(1)+" "+y.toFixed(1)+" "; });
   return '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none"><path d="'+d+'" fill="none" stroke="var(--water)" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+}
+function ageShort(t){
+  var m=Math.round((Date.now()-t)/60000);
+  if(m<1) return "";
+  return " ("+(m<60 ? m+"m" : (m/60).toFixed(1).replace(/\.0$/,"")+"h")+" ago)";
+}
+function ageNote(t){
+  var m=Math.round((Date.now()-t)/60000);
+  if(m<75) return "";
+  var a=(m<120 ? m+" min" : (m/60).toFixed(1).replace(/\.0$/,"")+" h");
+  return ' <span class="agechip">('+a+' ago \u2014 '+(m>240 ? "Reclamation is running further behind than usual" : "normal publishing delay for Reclamation\u2019s feed")+')</span>';
 }
 function azClock(ms){ return new Date(ms).toLocaleTimeString([], {timeZone:"America/Phoenix", hour:"numeric", minute:"2-digit"}); }
 function azDay(ms){ return new Date(ms).toLocaleDateString([], {timeZone:"America/Phoenix", weekday:"short", month:"numeric", day:"numeric"}).replace(",", ""); }
@@ -624,7 +636,8 @@ function renderCards(){
     var f=cur(s.flow), g=cur(s.stage), tr=trend(s.flow.length?s.flow:s.stage);
     var vals=s.flow.map(function(p){return p.v;});
     var lo=vals.length?Math.min.apply(null,vals):null, hi=vals.length?Math.max.apply(null,vals):null;
-    var when=(s.flow.length||s.stage.length)?azTime((cur(s.flow)||cur(s.stage)).t):"no data";
+    var _cp=(s.flow.length||s.stage.length)?(cur(s.flow)||cur(s.stage)):null;
+    var when=_cp?azTime(_cp.t):"no data";
     var siteNo=s.link?(s.link.match(/USGS-(\d+)/)||[])[1]:null;
     var link=s.link?('<a class="site-link" href="'+s.link+'" target="_blank" rel="noopener">USGS '+(siteNo||"")+' \u2197</a>'):s.source;
     var lv=levelInfo(s.flow.length?s.flow:s.stage);
@@ -645,7 +658,7 @@ function renderCards(){
       levelHtml+
       spark(s.flow.length?s.flow:s.stage)+
       '<div class="meta">'+metaHtml+'</div>'+
-      '<div class="stamp">reading '+when+' MST \u00b7 '+link+(s.source==="USGS"?' \u00b7 fetched live by your browser':' \u00b7 via the data robot')+'</div></div>';
+      '<div class="stamp">reading '+when+' MST'+(_cp?ageShort(_cp.t):'')+' \u00b7 '+link+(s.source==="USGS"?' \u00b7 fetched live by your browser':' \u00b7 via the data robot')+'</div></div>';
   }).join("");
 }
 function buildRating(key){
@@ -684,7 +697,7 @@ function renderHero(){
   renderStrip(pl);
   if(!ref || !ref.st){ elS.textContent="No reading"; elSub.textContent="No sensor is reporting yet \u2014 try Refresh."; elC.innerHTML=""; return; }
   var p=ref.st, series=p.flow.length?p.flow:p.stage, tr=trend(series), c=cur(series), f=cur(p.flow);
-  var detail=(f?'<span class="mono">'+fmt(f.v)+' cfs</span>':'')+' \u00b7 as of '+azTime(c.t)+' MST';
+  var detail=(f?'<span class="mono">'+fmt(f.v)+' cfs</span>':'')+' \u00b7 as of '+azTime(c.t)+' MST'+ageNote(c.t);
   if(seg==="lake"){
     if(havasuData && havasuData.length){
       var last=havasuData[havasuData.length-1], eN=last.v;
