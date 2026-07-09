@@ -173,7 +173,7 @@
 </section>
 
 <footer>
-  <span style="color:var(--water)">Build 2026-07-08s (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span style="color:var(--water)">Build 2026-07-08t (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   Live USGS gauge fetched directly; Reclamation reach sensors and the Headgate forecast are fetched through a public read-only proxy (gov servers don&rsquo;t send browser-permission headers). All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
 </footer>
@@ -183,8 +183,9 @@
 try { if (window["pdfjsLib"]) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; } catch(e){}
 
 // ---------- sources ----------
-var USGS_ID = "09429100", CANAL_ID = "09429000";
-var USGS_API = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=" + USGS_ID + "," + CANAL_ID + "&parameterCd=00060,00065&period=P7D&siteStatus=all";
+var USGS_ID = "09429100", CANAL_ID = "09429000", WASTE_ID = "09428510";
+var WASTE_MILE = 158.8; // Poston Wasteway: CRIT return flow re-enters the river here
+var USGS_API = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=" + USGS_ID + "," + CANAL_ID + "," + WASTE_ID + "&parameterCd=00060,00065&period=P7D&siteStatus=all";
 var BOR_JSON = "https://www.usbr.gov/lc/region/g4000/riverops/webreports/hourlyweb.json";
 var HG_PDF   = "https://www.usbr.gov/lc/region/g4000/hourly/HeadgateReport.pdf";
 var PROXIES = [
@@ -279,6 +280,13 @@ function lagLabel2(ms, label){
   return "~" + Math.abs(m) + " min " + (m>0 ? "after" : "before") + " " + label;
 }
 function avg24(series){ if(!series || !series.length) return null; var cut=Date.now()-24*3600*1000, s=0, n=0; series.forEach(function(pt){ if(pt.t>=cut){ s+=pt.v; n++; } }); return n ? s/n : null; }
+function returnEst(){
+  if(usgsData && usgsData[WASTE_ID] && usgsData[WASTE_ID]["00060"] && usgsData[WASTE_ID]["00060"].length){
+    var r=avg24(clean(usgsData[WASTE_ID]["00060"]));
+    if(r!=null && r>0) return Math.round(r);
+  }
+  return null;
+}
 function divEst(){
   if(usgsData && usgsData[CANAL_ID] && usgsData[CANAL_ID]["00060"] && usgsData[CANAL_ID]["00060"].length){
     var c=avg24(clean(usgsData[CANAL_ID]["00060"]));
@@ -704,15 +712,22 @@ function forecastSeriesFor(pl){
   } else {
     if(!hg) return null;
     d=clean(hg.downstream);
+    if(pl.mile < WASTE_MILE){
+      var ret=returnEst();
+      if(ret){
+        d=d.map(function(p){ return {t:p.t, v:p.v+ret}; });
+        srcNote+=" Plus the Poston Wasteway return (~"+fmt(ret)+" cfs \u00b7 USGS) that re-enters the river above Lost Lake.";
+      }
+    }
     if(seg==="below"){
       var dv=divEst();
       if(dv && dv.cfs>0){
         var clamped=0;
         d=d.map(function(p){ if(p.v-dv.cfs<0) clamped++; return {t:p.t, v:Math.max(0, p.v-dv.cfs)}; });
-        srcNote=dv.measured ? " Minus the measured Palo Verde Canal diversion (~"+fmt(dv.cfs)+" cfs \u00b7 USGS canal gauge)." : " Minus roughly what Palo Verde is diverting lately (~"+fmt(dv.cfs)+" cfs, estimated from the sensors).";
+        srcNote+=dv.measured ? " Minus the measured Palo Verde Canal diversion (~"+fmt(dv.cfs)+" cfs \u00b7 USGS canal gauge)." : " Minus roughly what Palo Verde is diverting lately (~"+fmt(dv.cfs)+" cfs, estimated from the sensors).";
         if(clamped>0) srcNote += " During the deepest lows this simple subtraction bottoms out near zero \u2014 the real channel keeps some water (drains return flow), so treat those hours as \u201cvery low,\u201d not dry.";
       }
-      else { srcNote=" Levels here run lower than shown \u2014 Palo Verde diverts water above this point."; }
+      else { srcNote+=" Levels here run lower than shown \u2014 Palo Verde diverts water above this point."; }
     }
   }
   if(!d || !d.length) return null;
