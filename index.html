@@ -177,7 +177,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-08w (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-08x (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   Live USGS gauge fetched directly; Reclamation reach sensors and the Headgate forecast are fetched through a public read-only proxy (gov servers don&rsquo;t send browser-permission headers).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -684,11 +684,13 @@ function renderHero(){
   if(abl!=null){ elSub.innerHTML='The water is about <b style="color:var(--text)" class="mono">+'+abl.toFixed(1)+' ft</b> above this week\u2019s low'+(sw!=null?' (it rises and falls ~'+sw.toFixed(1)+' ft over the week)':'')+' \u2014 '+detail+timing+'.'+turn; }
   else { elSub.innerHTML='Closest live source reads '+detail+timing+'.'+turn; }
   var parker=STATIONS.find(function(s){ return s.key==="parker" && s.flow.length; });
+  var curMph=Math.max(0.5, Math.min(8, WAVE_MPH*0.6));
+  var curLine='River current: roughly <b style="color:var(--text)">~'+curMph.toFixed(1)+' mph</b> \u2014 about the speed a stick drifts by.<span class="adv-only"> (Estimated as ~60% of the measured pulse speed; actual current varies with depth and spot.)</span>';
   if(parker && ref.key!=="parker"){
     var lagH=(PARKER_MILE - pl.mile)/WAVE_MPH;
     var eta=lagH<1.5 ? "~"+Math.round(lagH*60)+" min" : "~"+Math.round(lagH)+" h";
-    elC.innerHTML='Upstream at Parker, release is <b>'+TWORD[trend(parker.flow)]+'</b> ('+fmt(cur(parker.flow).v)+' cfs) \u2014 that water reaches '+esc(pl.name)+' in '+eta+'.';
-  } else { elC.innerHTML=""; }
+    elC.innerHTML=curLine+'<br>Upstream at Parker, release is <b>'+TWORD[trend(parker.flow)]+'</b> ('+fmt(cur(parker.flow).v)+' cfs) \u2014 that water reaches '+esc(pl.name)+' in '+eta+'.';
+  } else { elC.innerHTML=curLine; }
 }
 function renderReach(){
   var lead=document.getElementById("fc-lead"), now=document.getElementById("fc-now"), svg=document.getElementById("fc-chart"), skel=document.getElementById("fc-skel"), title=document.getElementById("fc-title");
