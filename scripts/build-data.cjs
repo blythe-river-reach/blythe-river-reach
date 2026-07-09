@@ -217,19 +217,50 @@ function calibrate(stations) {
 // Fetch JSON with retries: Reclamation's generator sometimes serves a truncated
 // file mid-rewrite; a short wait and a second try usually gets a whole one.
 async function fetchJsonRetry(url, tries = 3) {
-  let lastErr;
-  for (let i = 0; i < tries; i++) {
+  let lastErr, lastText = null;
+  const diag = [];
+  // Escalating strategies: a CDN can hold a corrupted cached copy of ONE compression
+  // variant (same-byte truncation every time, while browsers on another variant see a
+  // healthy file). Attempt 2 asks for the uncompressed variant; attempt 3 changes the
+  // cache key entirely to force a fresh copy.
+  const attempts = [
+    { url: url, headers: { "User-Agent": "Mozilla/5.0 (compatible; blythe-river-bot)", "Accept": "application/json" } },
+    { url: url, headers: { "User-Agent": "Mozilla/5.0 (compatible; blythe-river-bot)", "Accept": "application/json", "Accept-Encoding": "identity" } },
+    { url: url + (url.includes("?") ? "&" : "?") + "v=" + Date.now(), headers: { "User-Agent": "Mozilla/5.0 (compatible; blythe-river-bot)", "Accept": "application/json", "Accept-Encoding": "identity" } },
+  ];
+  for (let i = 0; i < Math.max(tries, attempts.length); i++) {
+    const a = attempts[Math.min(i, attempts.length - 1)];
     try {
-      const r = await fetch(url, { headers: { "User-Agent": "blythe-river-bot" } });
+      const r = await fetch(a.url, { headers: a.headers });
       if (!r.ok) throw new Error("HTTP " + r.status);
-      const text = await r.text();
-      return { ok: true, json: JSON.parse(text) };
+      lastText = await r.text();
+      diag.push("[try " + (i + 1) + " enc=" + (r.headers.get("content-encoding") || "none") + " len=" + lastText.length + "]");
+      return { ok: true, json: JSON.parse(lastText), salvaged: false, diag };
     } catch (e) {
       lastErr = e;
-      if (i < tries - 1) await new Promise((res) => setTimeout(res, 15000));
+      diag.push("[try " + (i + 1) + " " + String(e && e.message ? e.message : e).slice(0, 90) + "]");
+      if (i < Math.max(tries, attempts.length) - 1) await new Promise((res) => setTimeout(res, 12000));
     }
   }
+  lastErr.diag = diag;
+  // Last resort: Reclamation sometimes serves a file truncated mid-array.
+  // Cut back to the last complete station record and close the brackets.
+  if (lastText) {
+    const s = salvageJson(lastText);
+    if (s) return { ok: true, json: s, salvaged: true };
+  }
   throw lastErr;
+}
+
+function salvageJson(text) {
+  let t = text;
+  for (let k = 0; k < 8; k++) {
+    const i = t.lastIndexOf("}]}"); // end of a complete series object
+    if (i < 1000) return null;
+    try { return JSON.parse(t.slice(0, i + 3) + "]}"); }
+    catch (e) { t = t.slice(0, i); }
+  }
+  return null;
 }
 
 function loadPrevious() {
@@ -244,12 +275,13 @@ async function main() {
     const rr = await fetchJsonRetry(BOR);
     const feed = rr.json;
     out.stations = buildStations(feed);
+    if (rr.salvaged) out.errors.push("reach: upstream feed was truncated \u2014 salvaged " + out.stations.length + " station(s) from the readable part");
     if (!out.stations.length) out.errors.push("reach: feed loaded but no known sites matched");
     out.calibration = calibrate(out.stations);
     const hav = toPoints(findSeries(feed.Series || [], ["havasu"], "elevation"));
     out.havasu = hav.length ? { elev: hav } : null;
   } catch (e) {
-    out.errors.push("reach: " + (e && e.message ? e.message : e));
+    out.errors.push("reach: " + (e && e.message ? e.message : e) + (e && e.diag ? " " + e.diag.join(" ") : ""));
     if (prev && prev.stations && prev.stations.length) {
       out.stations = prev.stations;
       out.calibration = prev.calibration || null;
