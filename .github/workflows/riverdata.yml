@@ -2,7 +2,7 @@ name: Update river data
 
 on:
   schedule:
-    - cron: "8 * * * *"   # every hour at :08 (GitHub cron can drift a few minutes)
+    - cron: "13,33,53 * * * *"   
   workflow_dispatch: {}    # lets you run it manually from the Actions tab
   push:
     branches:
