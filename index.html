@@ -205,7 +205,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09s (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09t (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -680,7 +680,7 @@ function renderCal(){
     return '<tr><td>'+esc(nm)+'</td><td class="mono">'+s.miles.toFixed(1)+' mi</td><td class="mono">'+s.lagHours.toFixed(1)+' h</td><td class="mono"><b>'+s.mph.toFixed(1)+' mph</b></td><td>'+conf+' (r='+s.r.toFixed(2)+')</td></tr>';
   }).join("");
   tbl.innerHTML='<table class="tide"><thead><tr><th>Gauge pair</th><th>Distance</th><th>Measured lag</th><th>Speed</th><th>Match quality</th></tr></thead><tbody>'+rows+'</tbody></table>'
-    + '<p class="note">River-wide median: <b class="mono">'+((relayCal&&relayCal.waveMph)||WAVE_MPH)+' mph</b> \u2014 used for stretches no gauge pair covers. Ground truth check: places with their own gauge (McIntyre, Oxbow, Cibola) let you compare predicted arrivals against direct readings any day.</p>';
+    + '<p class="note">River-wide median: <b class="mono">'+((relayCal&&relayCal.waveMph)||WAVE_MPH)+' mph</b> \u2014 used for stretches no gauge pair covers. <b style="color:var(--text)">These are pulse speeds</b> \u2014 how fast a rise or fall travels downriver. The water itself drifts slower, about 60% of that (~<b class="mono">'+(((relayCal&&relayCal.waveMph)||WAVE_MPH)*0.6).toFixed(1)+' mph</b> right now \u2014 the \u201criver current\u201d up top): a wave outruns the water that carries it, the way ocean swell outruns the sea. Ground truth check: places with their own gauge (McIntyre, Oxbow, Cibola) let you compare predicted arrivals against direct readings any day.</p>';
 }
 function renderCards(){
   var _pl=currentPlace(), _ref=refFor(_pl);
