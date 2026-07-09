@@ -177,9 +177,9 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09b (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09c (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
-  Live USGS gauge fetched directly; Reclamation reach sensors and the Headgate forecast are fetched through a public read-only proxy (gov servers don&rsquo;t send browser-permission headers).</span><br>
+  How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
 </footer>
 
@@ -599,7 +599,7 @@ function renderCards(){
       levelHtml+
       spark(s.flow.length?s.flow:s.stage)+
       '<div class="meta">'+metaHtml+'</div>'+
-      '<div class="stamp">reading '+when+' MST \u00b7 '+link+'</div></div>';
+      '<div class="stamp">reading '+when+' MST \u00b7 '+link+(s.source==="USGS"?' \u00b7 fetched live by your browser':' \u00b7 via the data robot')+'</div></div>';
   }).join("");
 }
 function buildRating(key){
@@ -966,7 +966,7 @@ function loadAll(){
       var u=document.getElementById("updated");
       if(u && u.textContent.indexOf("gathered")<0){
         u.textContent += " \u00b7 data gathered "+(mm<60? mm+"m" : (mm/60).toFixed(1)+"h")+" ago"+((relayInfo.branch && relayInfo.branch!=="main") ? " ("+relayInfo.branch+")" : "");
-        u.title="Checked = when this page last pulled fresh data.\nData gathered = when the GitHub robot last collected Reclamation\u2019s feed (runs ~3x/hour).\nEach card\u2019s \u2018reading\u2019 time = the sensor\u2019s own newest measurement (Reclamation posts hourly, often 1\u20133 h behind).";
+        u.title="How the data flows:\n\u2022 Checked = when this page last pulled fresh data.\n\u2022 Data gathered = when the robot last ran. Reclamation\u2019s servers don\u2019t allow browser access, so a GitHub robot collects their 8 sensors, Lake Havasu, and both dam-schedule PDFs ~3x/hour and publishes them for this page.\n\u2022 The 4 USGS gauges are fetched live by your browser on every load.\n\u2022 Each card\u2019s \u2018reading\u2019 time = the sensor\u2019s own newest measurement (Reclamation posts hourly, often 1\u20133 h behind).";
       }
     }
   }
