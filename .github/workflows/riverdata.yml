@@ -1,8 +1,11 @@
+# RELEASE 2026-07-09a — Blythe River Reach
 name: Update river data
 
 on:
   schedule:
-    - cron: "13,33,53 * * * *"   
+    - cron: "13,33,53 * * * *"   # 3 chances/hour at odd minutes; GitHub's scheduler is
+                                 # best-effort and skips slots under load, so redundancy
+                                 # keeps the data fresh even when one trigger is dropped
   workflow_dispatch: {}    # lets you run it manually from the Actions tab
   push:
     branches:

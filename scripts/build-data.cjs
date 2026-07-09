@@ -1,3 +1,4 @@
+// RELEASE 2026-07-09a — Blythe River Reach data robot
 // Runs in GitHub Actions (Node 20). Fetches Reclamation's hourly reach feed and the
 // Headgate Rock Dam schedule PDF server-side (no CORS), parses both, and writes
 // data/riverdata.json for the dashboard to read. Exits 0 if at least one source worked.
