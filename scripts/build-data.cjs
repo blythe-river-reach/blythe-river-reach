@@ -214,13 +214,35 @@ function calibrate(stations) {
   return { waveMph, segments };
 }
 
+// Fetch JSON with retries: Reclamation's generator sometimes serves a truncated
+// file mid-rewrite; a short wait and a second try usually gets a whole one.
+async function fetchJsonRetry(url, tries = 3) {
+  let lastErr;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const r = await fetch(url, { headers: { "User-Agent": "blythe-river-bot" } });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const text = await r.text();
+      return { ok: true, json: JSON.parse(text) };
+    } catch (e) {
+      lastErr = e;
+      if (i < tries - 1) await new Promise((res) => setTimeout(res, 15000));
+    }
+  }
+  throw lastErr;
+}
+
+function loadPrevious() {
+  try { return JSON.parse(fs.readFileSync("data/riverdata.json", "utf8")); } catch (e) { return null; }
+}
+
 async function main() {
+  const prev = loadPrevious();
   const out = { generatedAt: new Date().toISOString(), stations: [], headgate: null, errors: [] };
 
   try {
-    const r = await fetch(BOR + "?t=" + Date.now(), { headers: { "User-Agent": "blythe-river-bot", "Cache-Control": "no-cache", "Pragma": "no-cache" } });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const feed = await r.json();
+    const rr = await fetchJsonRetry(BOR);
+    const feed = rr.json;
     out.stations = buildStations(feed);
     if (!out.stations.length) out.errors.push("reach: feed loaded but no known sites matched");
     out.calibration = calibrate(out.stations);
@@ -228,6 +250,12 @@ async function main() {
     out.havasu = hav.length ? { elev: hav } : null;
   } catch (e) {
     out.errors.push("reach: " + (e && e.message ? e.message : e));
+    if (prev && prev.stations && prev.stations.length) {
+      out.stations = prev.stations;
+      out.calibration = prev.calibration || null;
+      out.havasu = prev.havasu || null;
+      out.errors.push("reach: carried forward previous stations from " + prev.generatedAt);
+    }
   }
 
   try {
@@ -244,6 +272,7 @@ async function main() {
     }
   } catch (e) {
     out.errors.push("headgate: " + (e && e.message ? e.message : e));
+    if (prev && prev.headgate) { out.headgate = prev.headgate; out.errors.push("headgate: carried forward from " + prev.generatedAt); }
   }
 
   try {
@@ -256,6 +285,7 @@ async function main() {
     if (!pts.length) out.errors.push("davisparker: parsed 0 rows");
   } catch (e) {
     out.errors.push("davisparker: " + (e && e.message ? e.message : e));
+    if (prev && prev.parkerSchedule) { out.parkerSchedule = prev.parkerSchedule; out.errors.push("davisparker: carried forward from " + prev.generatedAt); }
   }
 
   fs.mkdirSync("data", { recursive: true });
