@@ -1,4 +1,4 @@
-// RELEASE 2026-07-10b — Is The River Up data robot (Davis Dam → Cibola)
+// RELEASE 2026-07-10d — Is The River Up data robot (Davis Dam → Cibola)
 // Runs in GitHub Actions (Node 20). Fetches Reclamation's hourly reach feed and the
 // Headgate Rock Dam schedule PDF server-side (no CORS), parses both, and writes
 // data/riverdata.json for the dashboard to read. Exits 0 if at least one source worked.

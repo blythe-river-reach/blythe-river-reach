@@ -145,15 +145,15 @@
 
 <section id="welcome" style="display:none">
   <div class="section-panel">
-    <h2>Where\u2019s your river? \U0001F30A</h2>
-    <p class="lead">Pick your stretch once \u2014 this site remembers, and next time opens right on your water. (You can switch anytime with the \U0001F4CD picker up top.)</p>
+    <h2>Where’s your river? 🌊</h2>
+    <p class="lead">Pick your stretch once — this site remembers, and next time opens right on your water. (You can switch anytime with the 📍 picker up top.)</p>
     <div class="range-picker" id="welcome-pick" style="flex-wrap:wrap; gap:10px">
-      <button data-place="laughlin" style="font-size:14px; padding:10px 16px">\U0001F3B0 Laughlin / Bullhead</button>
-      <button data-place="topock" style="font-size:14px; padding:10px 16px">\U0001F309 Needles / Topock</button>
-      <button data-place="lhc" style="font-size:14px; padding:10px 16px">\U0001F30A Lake Havasu</button>
-      <button data-place="roadrunner" style="font-size:14px; padding:10px 16px">\U0001F3D6 Parker Strip</button>
-      <button data-place="ahaquin" style="font-size:14px; padding:10px 16px">\U0001F69C Blythe area</button>
-      <button data-place="martinezlk" style="font-size:14px; padding:10px 16px">\U0001F3DC Cibola &amp; south</button>
+      <button data-place="laughlin" style="font-size:14px; padding:10px 16px">🎰 Laughlin / Bullhead</button>
+      <button data-place="topock" style="font-size:14px; padding:10px 16px">🌉 Needles / Topock</button>
+      <button data-place="lhc" style="font-size:14px; padding:10px 16px">🌊 Lake Havasu</button>
+      <button data-place="roadrunner" style="font-size:14px; padding:10px 16px">🏖 Parker Strip</button>
+      <button data-place="ahaquin" style="font-size:14px; padding:10px 16px">🚜 Blythe area</button>
+      <button data-place="martinezlk" style="font-size:14px; padding:10px 16px">🏜 Cibola &amp; south</button>
     </div>
   </div>
 </section>
@@ -220,7 +220,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10c (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10d (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -1225,7 +1225,7 @@ function loadAll(){
 }
 (function initPlaces(){
   var sel=document.getElementById("place-sel");
-  var groups=[{seg:"lake",label:"The lake"},{seg:"strip",label:"Parker Strip (full release)"},{seg:"mid",label:"Headgate \u2192 diversion dam"},{seg:"below",label:"Below the diversion dam"}];
+  var groups=[{seg:"upper",label:"Davis Dam \u2192 Topock (upper river)"},{seg:"lake",label:"Lake Havasu"},{seg:"strip",label:"Parker Strip (full release)"},{seg:"mid",label:"Headgate \u2192 diversion dam"},{seg:"below",label:"Below the diversion dam"}];
   sel.innerHTML=groups.map(function(g){
     var opts=PLACES.filter(function(p){ return segFor(p)===g.seg; }).map(function(p){
       return '<option value="'+p.key+'">'+p.name+(p.est?" (est.)":"")+'</option>';
