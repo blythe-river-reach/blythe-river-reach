@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e1726'/%3E%3Ccircle cx='45' cy='19' r='8' fill='%23e8a15c'/%3E%3Cpath d='M6 38c6-9 14-9 20 0s14 9 20 0 9-7 12-5' stroke='%236fb7e0' stroke-width='5.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M6 51c6-9 14-9 20 0s14 9 20 0 9-7 12-5' stroke='%233f7ba6' stroke-width='5.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
 <meta name="description" content="Live Colorado River water levels, daily highs &amp; lows, and multi-day forecasts for every landmark from Lake Havasu to Walter's Camp — Parker Dam, the Parker Strip, Lost Lake, Water Wheel, Blythe, and beyond.">
-<meta property="og:title" content="Blythe River Reach — live river levels &amp; forecast">
+<meta property="og:title" content="Is The River Up? — live Colorado River levels &amp; forecast">
 <meta property="og:description" content="Is the river up or down at your spot? Live sensors, tide tables, and the dam schedule, shifted to your stretch of the Colorado.">
 <meta property="og:type" content="website">
-<title>Blythe River Reach — live levels</title>
+<title>Is The River Up? — Colorado River levels, Lake Havasu to Walter’s Camp</title>
 <style>
   :root{
     --bg:#0d1521; --panel:#14202f; --panel2:#1b2c3f; --border:#263b53;
@@ -80,6 +80,9 @@
   select.place:hover{box-shadow:0 0 0 6px rgba(127,192,232,0.28)}
   .pick-label{font-size:17px; color:var(--text); font-weight:700; white-space:nowrap}
   .picker-wrap{display:inline-flex; align-items:center; gap:10px; flex-wrap:nowrap}
+  .chart-hold{position:relative}
+  .ylab span{position:absolute; left:6px; font-size:11px; font-weight:600; color:rgba(190,210,230,0.85); background:rgba(10,18,28,0.6); padding:0 5px; border-radius:4px; pointer-events:none; line-height:1.5}
+  .yl-top{top:2px} .yl-mid{top:50%; transform:translateY(-50%)} .yl-bot{bottom:2px}
   .range-picker{display:flex; gap:6px; margin:8px 0 2px}
   .range-picker button{font-size:12px; padding:4px 12px; border-radius:999px; background:transparent; color:var(--muted); border:1px solid var(--border); cursor:pointer}
   .range-picker button.on{color:var(--water); border-color:var(--water); background:rgba(127,192,232,0.10); font-weight:700}
@@ -120,8 +123,8 @@
 <body>
 
 <header>
-  <h1>Blythe River Reach</h1>
-  <span class="coords">Parker Dam &rarr; Blythe</span>
+  <h1>Is The River Up?</h1>
+  <span class="coords">Lake Havasu &rarr; Walter&rsquo;s Camp</span>
   <span class="picker-wrap"><label class="pick-label" for="place-sel">📍 Your spot:</label><select id="place-sel" class="place"></select></span>
   <span class="updated"><span id="load-spin" class="spin" style="display:none"></span><span id="updated">Loading&hellip;</span><a href="https://ko-fi.com/blytheriverreach" target="_blank" rel="noopener" id="tip-link" title="This site is free — tips cover the domain and upkeep. Opens the Ko-fi tip jar in a new tab.">🛟 Tip jar</a><button id="mode-btn">Advanced</button><button id="refresh">Refresh</button></span>
 </header>
@@ -193,7 +196,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09k (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09m (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -441,7 +444,21 @@ function areaChart(svg, series, color, dashed, axisId, showNow){
     marks += '<line x1="'+xn.toFixed(1)+'" y1="0" x2="'+xn.toFixed(1)+'" y2="'+H+'" stroke="var(--water)" stroke-width="2" opacity="0.95"/>';
     labels.push({pct:xn/W*100, txt:"now \u00b7 "+azClock(nowT), now:true});
   }
+  marks += '<line x1="0" y1="'+(H/2).toFixed(0)+'" x2="'+W+'" y2="'+(H/2).toFixed(0)+'" stroke="rgba(150,185,215,0.16)" stroke-width="1"/>';
   svg.innerHTML = marks + '<path d="'+area+'" fill="'+color+'" opacity="0.11"/><path d="'+line+'" fill="none" stroke="'+color+'" stroke-width="1.5"'+(dashed?' stroke-dasharray="5 4"':'')+'/>';
+  try{
+    var host=svg.parentNode;
+    if(host && document.createElement){
+      var hold=svg._hold;
+      if(!hold){
+        hold=document.createElement("div"); hold.className="chart-hold";
+        host.insertBefore(hold, svg); hold.appendChild(svg); svg._hold=hold;
+        var yl=document.createElement("div"); yl.className="ylab"; hold.appendChild(yl); svg._ylab=yl;
+      }
+      var fmtY=function(v){ return (Math.abs(max)<1000) ? v.toFixed(1) : (Math.abs(v)>=9500 ? Math.round(v/1000)+"k" : (v/1000).toFixed(1)+"k"); };
+      svg._ylab.innerHTML='<span class="yl-top">'+fmtY(max)+'</span><span class="yl-mid">'+fmtY((max+min)/2)+'</span><span class="yl-bot">'+fmtY(min)+'</span>';
+    }
+  }catch(e){}
   svg.style.display="block";
   var ax = axisId ? document.getElementById(axisId) : null;
   if(ax){
@@ -756,15 +773,20 @@ function renderReach(){
   }
   var st=(ref && ref.st && ref.st.flow.length) ? ref.st : null;
   if(skel) skel.style.display = (st || borTried) ? "none" : "block";
-  if(title) title.textContent = "Recent \u2014 " + (st ? st.name + " sensor" : "nearest sensor");
+  if(title){
+    var _lagT=(st && ref) ? lagMsFrom(ref.mile, pl) : 0;
+    title.textContent = "Recent \u2014 " + (st ? (Math.abs(_lagT)>=3*60000 ? "near "+pl.name : st.name+" sensor") : "nearest sensor");
+  }
   syncRangeButtons();
   var rp=document.getElementById("range-pick"); if(rp) rp.style.display = st ? "flex" : "none";
   if(st){
     var c=cur(st.flow);
-    now.innerHTML='Now at '+esc(st.name)+' <b class="mono">'+fmt(c.v)+' cfs</b> \u00b7 '+azTime(c.t)+' MST';
-    var r=areaChart(svg, rangeCut(st.flow), "var(--water)", false, "fc-axis", false);
+    var lagR=lagMsFrom(ref.mile, pl), shiftedR=(Math.abs(lagR)>=3*60000);
+    now.innerHTML='Latest at '+esc(st.name)+' <b class="mono">'+fmt(c.v)+' cfs</b> \u00b7 '+azTime(c.t)+(shiftedR ? ' \u00b7 '+(lagR>0?'reaches ':'passed ')+esc(pl.name)+' ~'+azTime(c.t+lagR) : ' MST');
+    var seriesR=shiftedR ? st.flow.map(function(p){ return {t:p.t+lagR, v:p.v}; }) : st.flow;
+    var r=areaChart(svg, rangeCut(seriesR), "var(--water)", false, "fc-axis", true);
     var d=Math.abs(ref.mile-pl.mile);
-    lead.innerHTML='The last '+rangeLabel()+' at '+ref.label+(d>=0.5 ? ' \u2014 the closest live sensor to '+esc(pl.name) : ' \u2014 right at '+esc(pl.name))+'.<span class="adv-only"> ('+(d>=0.5?d.toFixed(0)+' river mi away. ':'')+'Flow swings between <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b> and <b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs in a daily rhythm.)</span>';
+    lead.innerHTML='The last '+rangeLabel()+' near '+esc(pl.name)+', from '+ref.label+(shiftedR ? ' \u2014 clock reads arrival at '+esc(pl.name) : '')+(d>=0.5 ? ' \u2014 the closest live sensor to '+esc(pl.name) : ' \u2014 right at '+esc(pl.name))+'.<span class="adv-only"> ('+(d>=0.5?d.toFixed(0)+' river mi away. ':'')+'Flow swings between <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b> and <b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs in a daily rhythm.)</span>';
   } else {
     svg.style.display="none"; now.innerHTML="";
     var fax=document.getElementById("fc-axis"); if(fax) fax.style.display="none";
@@ -907,7 +929,7 @@ function renderTide(){
     });
   }
   if(!rows.length){ body.innerHTML='<tr><td colspan="3" style="color:var(--muted)">Not enough variation to detect a clear tide right now.</td></tr>'; return; }
-  lead.innerHTML="At "+esc(pl.name)+" \u2014 heights are above this week\u2019s low; "+(fromSchedule?"upcoming rows come straight from the dam schedule":"upcoming rows are projected from the recent rhythm")+".<span class=\"adv-only\"> Recent rows from "+ref.label+(Math.abs(shift)>=3*60000?", times shifted "+lagLabel2(shift, ref.label):"")+".</span> Times are Arizona (MST).";
+  lead.innerHTML=(segFor(pl)==="strip") ? ("At "+esc(pl.name)+" \u2014 levels shown as flow (cfs): the Strip rides the Lake Moovalya pool, which holds a near-steady height while release pulses pass through \u2014 no public height gauge up here. Times are Arizona (MST).") : ("At "+esc(pl.name)+" \u2014 heights are above this week\u2019s low; "+(fromSchedule?"upcoming rows come straight from the dam schedule":"upcoming rows are projected from the recent rhythm")+".<span class=\"adv-only\"> Recent rows from "+ref.label+(Math.abs(shift)>=3*60000?", times shifted "+lagLabel2(shift, ref.label):"")+".</span> Times are Arizona (MST).");
   rows.sort(function(a,b){ return a.t-b.t; });
   body.innerHTML=rows.slice(0,9).map(function(r2){
     return '<tr class="'+(r2.tag?"expected":"")+'"><td>'+azTime(r2.t)+r2.tag+'</td>'+
