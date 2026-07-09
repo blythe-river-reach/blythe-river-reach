@@ -143,6 +143,14 @@
 
 <div class="grid adv-only" id="grid"><div class="card skel skel-card"></div><div class="card skel skel-card"></div><div class="card skel skel-card"></div></div>
 
+<section class="adv-only">
+  <div class="section-panel">
+    <h2>Pulse-speed calibration — how good is the timing?</h2>
+    <p class="lead" id="cal-lead">Waiting for calibration data…</p>
+    <div id="cal-table"></div>
+  </div>
+</section>
+
 <section>
   <div class="section-panel" style="border-left:3px solid var(--house)">
     <div class="fc-head">
@@ -197,7 +205,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09r (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09s (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -299,7 +307,7 @@ function refFor(p){
     var d=Math.abs(sm.mile-p.mile);
     var pt=cur(st.flow.length?st.flow:st.stage);
     var ageMin=pt ? Math.max(0,(Date.now()-pt.t)/60000) : 9999;
-    var lagMin=(sm.mile - p.mile)/WAVE_MPH*60; // + if upstream of the place
+    var lagMin=(sm.mile>=p.mile?1:-1)*stretchHours(sm.mile, p.mile)*60; // + if upstream of the place
     var effStale=Math.max(0, ageMin - Math.max(0,lagMin) + Math.max(0,-lagMin));
     var score=effStale + d*DIST_MIN_PER_MILE;
     if(d<=2.5) score=-1e9 + d; // a sensor essentially AT the place always wins
@@ -308,7 +316,22 @@ function refFor(p){
   if(!best){ var g=getPrimary(); if(g){ var smx=sensorInfo(g.key); best={st:g, mile:(smx?smx.mile:p.mile), label:(smx?smx.label:g.name), key:g.key, d:0}; } }
   return best;
 }
-function lagMsFrom(refMile, p){ return (refMile - p.mile) / WAVE_MPH * 3600 * 1000; }
+// Travel time between two river miles using each stretch's OWN measured speed
+// (from the robot's gauge-pair cross-correlation); the global median covers gaps.
+function stretchHours(mA, mB){
+  var lo=Math.min(mA,mB), hi=Math.max(mA,mB), rem=hi-lo, hrs=0;
+  var segs=(relayCal && relayCal.segments) || [];
+  for(var i=0;i<segs.length;i++){
+    var s=segs[i], a=sensorInfo(s.from), b=sensorInfo(s.to);
+    if(!a || !b || !(s.mph>=1 && s.mph<=12)) continue;
+    var sl=Math.min(a.mile,b.mile), sh=Math.max(a.mile,b.mile);
+    var ol=Math.max(lo,sl), oh=Math.min(hi,sh);
+    if(oh>ol){ hrs += (oh-ol)/s.mph; rem -= (oh-ol); }
+  }
+  hrs += Math.max(0,rem)/WAVE_MPH;
+  return hrs;
+}
+function lagMsFrom(refMile, p){ return (refMile>=p.mile?1:-1) * stretchHours(refMile, p.mile) * 3600 * 1000; }
 function lagLabel2(ms, label){
   var m = Math.round(ms/60000);
   if(Math.abs(m) < 3) return "right at "+label;
@@ -619,7 +642,7 @@ function rebuild(){
   st.forEach(function(s){ if(RIVER_ORDER[s.key]!=null) s.order=RIVER_ORDER[s.key]; });
   st.sort(function(a,b){ return (a.order==null?99:a.order)-(b.order==null?99:b.order); });
   STATIONS=st;
-  renderCards(); renderHero(); renderHeadgate(); renderReach(); renderTide();
+  renderCards(); renderHero(); renderHeadgate(); renderReach(); renderTide(); renderCal();
   (function staleCheck(){
     var newest=0;
     STATIONS.forEach(function(s){ if(s.source!=="USGS"){ var c=cur(s.flow); if(c && c.t>newest) newest=c.t; } });
@@ -634,6 +657,30 @@ function getPrimary(){
   return STATIONS.find(function(s){ return s.primary && s.flow.length; })
       || STATIONS.find(function(s){ return s.key==="belowpv" && (s.flow.length||s.stage.length); })
       || STATIONS.find(function(s){ return s.flow.length||s.stage.length; }) || null;
+}
+function renderCal(){
+  var lead=document.getElementById("cal-lead"), tbl=document.getElementById("cal-table");
+  if(!lead || !tbl) return;
+  var segs=(relayCal && relayCal.segments) || [];
+  if(!segs.length){ lead.textContent="No calibration yet \u2014 the robot measures pulse speed by cross-correlating neighboring gauges; using the ~"+WAVE_MPH+" mph default meanwhile."; tbl.innerHTML=""; return; }
+  var mphs=segs.map(function(s){return s.mph;}).filter(function(v){return v>=1&&v<=12;});
+  var spread=(Math.max.apply(null,mphs)/Math.min.apply(null,mphs));
+  var pl=currentPlace(), ref=refFor(pl), applied="";
+  if(ref && Math.abs(ref.mile-pl.mile)>=0.5){
+    var hrs=stretchHours(ref.mile, pl.mile), mi=Math.abs(ref.mile-pl.mile);
+    applied=' For <b style="color:var(--text)">'+esc(pl.name)+'</b>: '+mi.toFixed(1)+' mi from '+ref.label+' at the local measured speed \u2192 <b style="color:var(--text)" class="mono">~'+Math.round(hrs*60)+' min</b> of travel.';
+  }
+  lead.innerHTML='Each row is an independent measurement: the robot slides one gauge\u2019s week of readings against its neighbor\u2019s until the wiggles line up \u2014 that offset over that distance is the pulse speed. Agreement between rows = confidence.'
+    + (spread>1.7 ? ' <b style="color:var(--house)">Heads up: the stretches disagree today (\u00d7'+spread.toFixed(1)+' between fastest and slowest) \u2014 treat arrival times as rough.</b>' : ' The stretches currently agree well, so the timings are trustworthy.')
+    + applied;
+  var rows=segs.map(function(s){
+    var a=sensorInfo(s.from), b=sensorInfo(s.to);
+    var nm=(a?a.label.replace(/^the /,""):s.from)+" \u2192 "+(b?b.label.replace(/^the /,""):s.to);
+    var conf=s.r>=0.85?"strong":(s.r>=0.7?"good":"weak");
+    return '<tr><td>'+esc(nm)+'</td><td class="mono">'+s.miles.toFixed(1)+' mi</td><td class="mono">'+s.lagHours.toFixed(1)+' h</td><td class="mono"><b>'+s.mph.toFixed(1)+' mph</b></td><td>'+conf+' (r='+s.r.toFixed(2)+')</td></tr>';
+  }).join("");
+  tbl.innerHTML='<table class="tide"><thead><tr><th>Gauge pair</th><th>Distance</th><th>Measured lag</th><th>Speed</th><th>Match quality</th></tr></thead><tbody>'+rows+'</tbody></table>'
+    + '<p class="note">River-wide median: <b class="mono">'+((relayCal&&relayCal.waveMph)||WAVE_MPH)+' mph</b> \u2014 used for stretches no gauge pair covers. Ground truth check: places with their own gauge (McIntyre, Oxbow, Cibola) let you compare predicted arrivals against direct readings any day.</p>';
 }
 function renderCards(){
   var _pl=currentPlace(), _ref=refFor(_pl);
@@ -1031,7 +1078,7 @@ function loadHeadgate(){
     .catch(function(e){ hgErr=(e&&e.message?e.message:String(e)); hgData=null; hgTried=true; });
 }
 // GitHub relay: hourly data the Action committed, served with CORS from raw.githubusercontent
-var relayInfo=null, loadingNow=false, psData=null, havasuData=null;
+var relayInfo=null, loadingNow=false, psData=null, havasuData=null, relayCal=null;
 function setLoading(on){
   loadingNow=on;
   var s=document.getElementById("load-spin"); if(s) s.style.display=on?"inline-block":"none";
@@ -1079,6 +1126,7 @@ function loadAll(){
   var pR=loadRelay().then(function(j){
     if(j){
       relayInfo={t:new Date(j.generatedAt).getTime(), branch:j._branch};
+      if(j.calibration) relayCal=j.calibration;
       if(j.calibration && j.calibration.waveMph>=1 && j.calibration.waveMph<=12){
         WAVE_MPH=j.calibration.waveMph;
         var cn=document.getElementById("cal-note");
