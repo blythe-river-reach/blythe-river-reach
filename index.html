@@ -81,6 +81,7 @@
   .pick-label{font-size:17px; color:var(--text); font-weight:700; white-space:nowrap}
   .picker-wrap{display:inline-flex; align-items:center; gap:10px; flex-wrap:nowrap}
   .agechip{color:var(--muted); font-size:0.92em}
+  body.nochoice section:not(#welcome), body.nochoice .grid, body.nochoice .hero, body.nochoice .strip{display:none !important}
   .chart-hold{position:relative}
   .ylab span{position:absolute; left:6px; font-size:11px; font-weight:600; color:rgba(190,210,230,0.85); background:rgba(10,18,28,0.6); padding:0 5px; border-radius:4px; pointer-events:none; line-height:1.5}
   .yl-top{top:2px} .yl-mid{top:50%; transform:translateY(-50%)} .yl-bot{bottom:2px}
@@ -194,7 +195,7 @@
     <svg id="fc-chart" viewBox="0 0 900 120" preserveAspectRatio="none" style="display:none"></svg>
     <div class="axis" id="fc-axis"></div>
     <div class="links adv-only">
-      <a href="https://www.usbr.gov/lc/region/g4000/hourly/DavisParkerSchedules.pdf" target="_blank" rel="noopener">Parker Dam projected schedule (PDF) &#8599;</a>
+      <a href="https://www.usbr.gov/lc/region/g4000/hourly/DavisParkerSchedules.pdf" target="_blank" rel="noopener" id="sched-link">Parker Dam projected schedule (PDF) &#8599;</a>
       <a href="https://www.usbr.gov/lc/riverops.html" target="_blank" rel="noopener">Reclamation river operations &#8599;</a>
     </div>
   </div>
@@ -220,7 +221,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10d (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10e (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -546,9 +547,10 @@ function areaChart(svg, series, color, dashed, axisId, showNow){
   svg.style.display="block";
   var ax = axisId ? document.getElementById(axisId) : null;
   if(ax){
+    ax.style.height = labels.some(function(L){return L.now;}) ? "36px" : "19px";
     ax.innerHTML = labels.map(function(L){
       var tr = L.pct<4 ? "translateX(0)" : (L.pct>96 ? "translateX(-100%)" : "translateX(-50%)");
-      return '<span style="left:'+L.pct.toFixed(2)+'%; transform:'+tr+';'+(L.now?' color:var(--water); font-weight:700;':'')+(L.minor?' font-size:10.5px; opacity:0.65; font-weight:400;':'')+'">'+L.txt+'</span>';
+      return '<span style="left:'+L.pct.toFixed(2)+'%; transform:'+tr+';'+(L.now?' color:var(--water); font-weight:700; top:16px;':'')+(L.minor?' font-size:10.5px; opacity:0.65; font-weight:400;':'')+'">'+L.txt+'</span>';
     }).join("");
     ax.style.display = labels.length ? "block" : "none";
   }
@@ -670,6 +672,7 @@ var borData=null, borTried=false, borErr=null, usgsData=null, hgData=null, hgTri
 var STATIONS=[];
 
 function rebuild(){
+  document.body.className = document.body.className.replace(/ ?nochoice/,"") + (store.get(PLACE_KEY) ? "" : " nochoice");
   var st=[];
   if(borData && borData.stations){ borData.stations.forEach(function(s){ st.push({ key:s.key, name:s.name, role:s.role, order:s.order, primary:!!s.primary, source:"USBR", link:null, flow:clean(s.flow||[]), stage:clean(s.stage||[]) }); }); }
   if(usgsData && usgsData[DAVIS_USGS]){
@@ -694,6 +697,8 @@ function rebuild(){
   st.sort(function(a,b){ return (a.order==null?99:a.order)-(b.order==null?99:b.order); });
   STATIONS=st;
   renderCards(); renderHero(); renderHeadgate(); renderReach(); renderTide(); renderCal();
+  var _sl=document.getElementById("sched-link");
+  if(_sl) _sl.textContent=(segFor(currentPlace())==="upper" ? "Davis Dam" : "Parker Dam")+" projected schedule (PDF) \u2197";
   (function staleCheck(){
     var newest=0;
     STATIONS.forEach(function(s){ if(s.source!=="USGS"){ var c=cur(s.flow); if(c && c.t>newest) newest=c.t; } });
@@ -790,7 +795,7 @@ function renderStrip(pl){
     {n:"Davis Dam", m:276.0}, {n:"Laughlin", m:274.0}, {n:"Needles", m:246.2},
     {n:"Topock", m:233.9}, {n:"Lake Havasu", m:210.0}, {n:"Parker Dam", m:192.2},
     {n:"Headgate", m:177.7}, {n:"Water Wheel", m:152.0}, {n:"I-10", m:121.3},
-    {n:"Cibola", m:87.3}, {n:"Martinez Lake", m:55.0}
+    {n:"Walter\u2019s Camp", m:88.3}, {n:"Martinez Lake", m:55.0}
   ];
   var merged=false;
   anchors.forEach(function(a){ if(Math.abs(a.m-pl.mile)<0.6){ a.you=true; a.n=pl.name; merged=true; } });
@@ -1232,7 +1237,10 @@ function loadAll(){
     }).join("");
     return opts ? '<optgroup label="'+g.label+'">'+opts+'</optgroup>' : "";
   }).join("");
-  sel.value=currentPlace().key;
+  if(!store.get(PLACE_KEY)){
+    sel.innerHTML='<option value="" disabled selected>\u2014 pick a spot \u2014</option>'+sel.innerHTML;
+    sel.value="";
+  } else { sel.value=currentPlace().key; }
   sel.addEventListener("change", function(){ store.set(PLACE_KEY, sel.value); rebuild(); });
 })();
 var RANGE_KEY="blythe_range_v1";

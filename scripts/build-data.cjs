@@ -1,4 +1,4 @@
-// RELEASE 2026-07-10d — Is The River Up data robot (Davis Dam → Cibola)
+// RELEASE 2026-07-10e — Is The River Up data robot (Davis Dam → Cibola)
 // Runs in GitHub Actions (Node 20). Fetches Reclamation's hourly reach feed and the
 // Headgate Rock Dam schedule PDF server-side (no CORS), parses both, and writes
 // data/riverdata.json for the dashboard to read. Exits 0 if at least one source worked.
@@ -209,6 +209,7 @@ function xcorrPair(aPts, bPts, miles) {
 function calibrate(stations) {
   const by = {}; for (const s of stations) by[s.key] = s;
   const PAIRS = [
+    ["davis", "bigbend", 10.1], ["bigbend", "interstate", 21.7],
     ["belowdavis", "bigbend", 9.5], ["bigbend", "boyscout", 11.2],
     ["boyscout", "interstate", 10.5], ["interstate", "topockg", 10.55],
     ["parkergage", "waterwheel", 23.3], ["waterwheel", "i10", 30.7],
@@ -291,6 +292,8 @@ async function main() {
     out.stations = buildStations(feed);
     if (rr.salvaged) out.errors.push("reach: upstream feed was truncated \u2014 salvaged " + out.stations.length + " station(s) from the readable part");
     if (!out.stations.length) out.errors.push("reach: feed loaded but no known sites matched");
+    const missed = REACH.filter((d) => !out.stations.find((x) => x.key === d.key)).map((d) => d.key);
+    if (missed.length) out.errors.push("reach: no series matched for: " + missed.join(", "));
     out.calibration = calibrate(out.stations);
     const hav = toPoints(findSeries(feed.Series || [], ["havasu"], "elevation"));
     out.havasu = hav.length ? { elev: hav } : null;
