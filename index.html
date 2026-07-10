@@ -160,7 +160,7 @@
 
 <section id="welcome" style="display:none">
   <div class="section-panel">
-    <h2>Where’s your river? 🌊</h2>
+    <h2>Where’s your river spot? 🌊</h2>
     <p class="lead">Pick your stretch once — this site remembers, and next time opens right on your water. (You can switch anytime with the 📍 picker up top.)</p>
     <div class="range-picker" id="welcome-pick" style="flex-wrap:wrap; gap:10px">
       <button data-place="laughlin" style="font-size:14px; padding:10px 16px">🎰 Laughlin / Bullhead</button>
@@ -235,7 +235,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10k (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10m (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -688,6 +688,8 @@ var STATIONS=[];
 
 function rebuild(){
   document.body.className = document.body.className.replace(/ ?nochoice/,"") + (store.get(PLACE_KEY) ? "" : " nochoice");
+  var _wel=document.getElementById("welcome");
+  if(_wel) _wel.style.display = store.get(PLACE_KEY) ? "none" : "block";
   var st=[];
   if(borData && borData.stations){ borData.stations.forEach(function(s){ st.push({ key:s.key, name:s.name, role:s.role, order:s.order, primary:!!s.primary, source:"USBR", link:null, flow:clean(s.flow||[]), stage:clean(s.stage||[]) }); }); }
   if(usgsData && usgsData[DAVIS_USGS]){
