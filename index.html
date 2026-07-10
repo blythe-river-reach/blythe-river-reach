@@ -235,7 +235,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10j (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10k (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -510,7 +510,8 @@ function ageNote(t){
 }
 function azClock(ms){ return new Date(ms).toLocaleTimeString([], {timeZone:"America/Phoenix", hour:"numeric", minute:"2-digit"}); }
 function azDay(ms){ return new Date(ms).toLocaleDateString([], {timeZone:"America/Phoenix", weekday:"short", month:"numeric", day:"numeric"}).replace(",", ""); }
-function areaChart(svg, series, color, dashed, axisId, showNow){
+function areaChart(svg, series, color, dashed, axisId, showNow, hideFutureLabels){
+  var _nowRef=Date.now();
   var W=900,H=120,pad=6, vals=series.map(function(p){return p.v;}), min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), span=(max-min)||1, step=(W-2*pad)/(series.length-1), line="", area="";
   series.forEach(function(p,i){ var x=pad+i*step, y=pad+(H-2*pad)*(1-(p.v-min)/span); line+=(i?"L":"M")+x.toFixed(1)+" "+y.toFixed(1)+" "; area+=(i?"L":"M")+x.toFixed(1)+" "+y.toFixed(1)+" "; });
   area += "L"+(pad+(series.length-1)*step).toFixed(1)+" "+(H-pad)+" L"+pad+" "+(H-pad)+" Z";
@@ -523,19 +524,19 @@ function areaChart(svg, series, color, dashed, axisId, showNow){
   for(; m<=t1; m+=86400000, k++){
     var x=X(m);
     marks += '<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.55)" stroke-width="1.5" opacity="1"/>';
-    if(k%every===0) labels.push({pct:x/W*100, txt:azDay(m)});
+    if(k%every===0 && !(hideFutureLabels && m>_nowRef)) labels.push({pct:x/W*100, txt:azDay(m)});
     var noon=m-43200000; // the noon before this midnight
     if(noon>t0 && noon<t1){
       var xd=X(noon);
       marks += '<line x1="'+xd.toFixed(1)+'" y1="'+(H*0.45).toFixed(0)+'" x2="'+xd.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.30)" stroke-width="1" opacity="1"/>';
-      if(days<=4.5 && every===1) labels.push({pct:xd/W*100, txt:"noon", minor:true});
+      if(days<=4.5 && every===1 && !(hideFutureLabels && noon>_nowRef)) labels.push({pct:xd/W*100, txt:"noon", minor:true});
     }
   }
   var lastNoon=m-43200000; // noon after the final midnight, if in range
   if(lastNoon>t0 && lastNoon<t1){
     var xl=X(lastNoon);
     marks += '<line x1="'+xl.toFixed(1)+'" y1="'+(H*0.45).toFixed(0)+'" x2="'+xl.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.30)" stroke-width="1" opacity="1"/>';
-    if(days<=4.5 && every===1) labels.push({pct:xl/W*100, txt:"noon", minor:true});
+    if(days<=4.5 && every===1 && !(hideFutureLabels && lastNoon>_nowRef)) labels.push({pct:xl/W*100, txt:"noon", minor:true});
   }
   var nowT=Date.now();
   if(showNow && nowT>t0 && nowT<t1){
@@ -948,7 +949,7 @@ function renderReach(){
     if(title) title.textContent="Recent \u2014 Lake Havasu elevation";
     var lc=havasuData[havasuData.length-1];
     now.innerHTML='Lake now <b class="mono">'+lc.v.toFixed(2)+' ft</b> \u00b7 '+azTime(lc.t)+' MST';
-    var lr=areaChart(svg, rangeCut(havasuData), "var(--water)", false, "fc-axis", false);
+    var lr=areaChart(svg, rangeCut(havasuData), "var(--water)", false, "fc-axis", true, true);
     lead.innerHTML='The lake\u2019s elevation over the last '+rangeLabel()+' \u2014 it ranged just <b class="mono" style="color:var(--text)">'+lr.min.toFixed(2)+'</b>\u2013<b class="mono" style="color:var(--text)">'+lr.max.toFixed(2)+' ft</b> while the river below swings several feet a day.';
     return;
   }
@@ -965,7 +966,7 @@ function renderReach(){
     var lagR=lagMsFrom(ref.mile, pl), shiftedR=(Math.abs(lagR)>=3*60000);
     now.innerHTML='Latest at '+esc(st.name)+' <b class="mono">'+fmt(c.v)+' cfs</b> \u00b7 '+azTime(c.t)+(shiftedR ? ' \u00b7 '+(lagR>0?'reaches ':'passed ')+esc(pl.name)+' ~'+azTime(c.t+lagR) : ' MST');
     var seriesR=shiftedR ? st.flow.map(function(p){ return {t:p.t+lagR, v:p.v}; }) : st.flow;
-    var r=areaChart(svg, rangeCut(seriesR), "var(--water)", false, "fc-axis", true);
+    var r=areaChart(svg, rangeCut(seriesR), "var(--water)", false, "fc-axis", true, true);
     var d=Math.abs(ref.mile-pl.mile);
     lead.innerHTML='The last '+rangeLabel()+' near '+esc(pl.name)+', from '+ref.label+(shiftedR ? ' \u2014 clock reads arrival at '+esc(pl.name)+(lagR>0 ? '; the stretch past \u201cnow\u201d is water already released upstream, on its way here' : '') : '')+(d>=0.5 ? ' \u2014 the closest live sensor to '+esc(pl.name) : ' \u2014 right at '+esc(pl.name))+'.<span class="adv-only"> ('+(d>=0.5?d.toFixed(0)+' river mi away. ':'')+'Flow swings between <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b> and <b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs in a daily rhythm.)</span>';
   } else {
