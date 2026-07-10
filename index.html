@@ -47,6 +47,7 @@
   .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px}
   .card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px}
   .card.primary{border-color:var(--house)}
+  body.day .card.primary{background:#fbeadb; border-width:2px}
   .card .role{font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); display:flex; justify-content:space-between; gap:8px}
   .card.primary .role{color:var(--house)}
   .card .src{color:var(--muted); font-weight:400; letter-spacing:0; text-transform:none}
@@ -81,9 +82,13 @@
   .pill{display:inline-block; padding:1px 9px; border-radius:20px; font-size:12px; font-weight:500}
   .pill.high{background:#12313a; color:#7fe3d6}
   .pill.low{background:#2a2114; color:#f2c98a}
+  body.day .pill.high{background:#d3ece4; color:#085c3b}
+  body.day .pill.low{background:#f3e4cd; color:#7a4a00}
   .expected{color:var(--muted); font-style:italic}
   .note{color:var(--muted); font-size:12px; margin-top:10px}
   .banner{background:#2a1f14; border:1px solid #6b4a1e; color:#f0c98a; border-radius:10px; padding:12px 16px; font-size:13px; margin-bottom:18px; display:none}
+  body.day .banner{background:#fdf3dd; border-color:#c9a25a; color:#6b4a00}
+  body.day .fire{background:#ddf2ee; border-color:#5aa89c; color:#0b5c50}
   .fire{background:#12313a; border:1px solid #2f6b63; color:#9fe7db; border-radius:10px; padding:12px 16px; font-size:14px; margin-top:12px; display:none}
   select.place{background:var(--panel2); color:var(--text); border:2px solid var(--water); border-radius:14px; padding:12px 18px; font-size:18px; font-weight:700; cursor:pointer; box-shadow:0 0 0 4px rgba(127,192,232,0.14); max-width:min(62vw,360px)}
   select.place:hover{box-shadow:0 0 0 6px rgba(127,192,232,0.28)}
@@ -230,7 +235,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10h (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10j (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -1278,7 +1283,7 @@ var MODE_KEY="blythe_mode_v1";
 (function initMode(){
   var btn=document.getElementById("mode-btn");
   function apply(m){
-    document.body.className = (m==="advanced") ? "" : "simple";
+    document.body.className = document.body.className.replace(/ ?simple/,"") + ((m==="advanced") ? "" : " simple");
     btn.textContent = (m==="advanced") ? "Simple view" : "Advanced";
   }
   var mode=store.get(MODE_KEY)||"simple";
