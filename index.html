@@ -221,7 +221,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10e (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10f (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -1294,6 +1294,17 @@ var manualRefresh=false;
 document.getElementById("refresh").addEventListener("click", function(){ manualRefresh=true; loadAll(); });
 loadAll();
 setInterval(loadAll, 15*60*1000);
+
+// Cloudflare Web Analytics (privacy-first, cookie-free). Injected only on the
+// real domain so dev-branch and test visits never pollute the numbers.
+(function(){
+  if(!/(^|\.)istheriverup\.com$/.test(location.hostname)) return;
+  var s=document.createElement("script");
+  s.type="module";
+  s.src="https://static.cloudflareinsights.com/beacon.min.js";
+  s.setAttribute("data-cf-beacon", '{"token": "3fa0ff4c71b34ffb8b64243da155705c"}');
+  document.head.appendChild(s);
+})();
 </script>
 </body>
 </html>
