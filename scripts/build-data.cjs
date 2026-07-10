@@ -1,4 +1,4 @@
-// RELEASE 2026-07-09a — Blythe River Reach data robot
+// RELEASE 2026-07-10e — Is The River Up data robot (Davis Dam → Cibola)
 // Runs in GitHub Actions (Node 20). Fetches Reclamation's hourly reach feed and the
 // Headgate Rock Dam schedule PDF server-side (no CORS), parses both, and writes
 // data/riverdata.json for the dashboard to read. Exits 0 if at least one source worked.
@@ -39,14 +39,22 @@ function toPoints(s) {
 
 // Must match the station shape the page expects
 const REACH = [
+  { key: "davis",        name: "Davis Dam release", role: "Release upstream \u00b7 top of the map", order: -10, names: ["mohave"], releaseType: "release" },
+  { key: "belowdavis",   name: "Below Davis Dam", role: "Reclamation sensor \u00b7 Laughlin reach", order: -8, names: ["below davis"] },
+  { key: "bigbend",      name: "Big Bend", role: "Reclamation sensor \u00b7 below Laughlin", order: -7, names: ["big bend"] },
+  { key: "boyscout",     name: "Boy Scout Camp", role: "Reclamation sensor \u00b7 Mohave Valley", order: -6, names: ["boy scout"] },
+  { key: "interstate",   name: "Interstate Bridge (Needles)", role: "Reclamation sensor \u00b7 at Needles", order: -5, names: ["interstate"] },
+  { key: "topockg",      name: "Topock Bridge", role: "Reclamation sensor \u00b7 head of Havasu", order: -4, names: ["topock"] },
   { key: "parker",       name: "Parker Dam release", role: "Release upstream \u00b7 early warning", order: 0, names: ["havasu"], releaseType: "release" },
   { key: "parkergage",   name: "Parker gage", role: "Below Headgate \u00b7 upper reach", order: 1, names: ["parker gage", "parker  gage"] },
   { key: "waterwheel",   name: "Water Wheel", role: "Reclamation sensor \u00b7 mid reach", order: 2, primary: true, names: ["water wheel"] },
-  { key: "i10",          name: "Blythe (I-10 bridge)", role: "Reclamation sensor \u00b7 at Blythe", order: 3, names: ["i-10", "i 10", "interstate", "i10"] },
+  { key: "i10",          name: "Blythe (I-10 bridge)", role: "Reclamation sensor \u00b7 at Blythe", order: 3, names: ["i-10", "i 10", "i10"] },
   { key: "mcintyrepark", name: "McIntyre Park", role: "Reclamation sensor \u00b7 south of Blythe", order: 5, names: ["mcintyre"] },
   { key: "taylor",       name: "Taylor Ferry", role: "Reclamation sensor \u00b7 below Blythe", order: 6, names: ["taylor"] },
   { key: "oxbow",        name: "Oxbow Bridge", role: "Reclamation sensor \u00b7 Cibola reach", order: 7, names: ["oxbow"] },
   { key: "cibola",       name: "Cibola gage", role: "Reclamation sensor \u00b7 Cibola reach", order: 8, names: ["cibola"] },
+  { key: "picacho",      name: "Picacho Park", role: "Reclamation sensor \u00b7 Picacho reach", order: 12, names: ["picacho"] },
+  { key: "martinez",     name: "Martinez Lake", role: "Reclamation sensor \u00b7 above Imperial Dam", order: 13, names: ["martinez"] },
 ];
 
 function buildStations(json) {
@@ -157,20 +165,22 @@ function parseDavisParker(text) {
     if (r[2].toLowerCase() === "pm") hr += 12;
     if (hr === 0) { if (curr && curr.length) tables.push(curr); curr = []; }
     if (!curr) curr = [];
-    curr.push({ hr, parker: +r[7].replace(/,/g, "") });
+    curr.push({ hr, parker: +r[7].replace(/,/g, ""), davis: +r[5].replace(/,/g, "") });
   }
   if (curr && curr.length) tables.push(curr);
   const pm2 = text.match(/Date of Publication:\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/i);
-  const points = [];
+  const pk = [], dv = [];
   for (let i = 0; i < tables.length; i++) {
     const d = (dates.length === tables.length) ? dates[i] : (pm2 ? { mo: +pm2[1], d: +pm2[2] + i, y: +pm2[3] } : null);
     if (!d) continue;
     const t0 = Date.UTC(d.y, d.mo - 1, d.d, 0, 0, 0) + 7 * 3600 * 1000;
-    for (const row of tables[i]) points.push({ t: t0 + row.hr * 3600 * 1000, v: row.parker });
+    for (const row of tables[i]) {
+      pk.push({ t: t0 + row.hr * 3600 * 1000, v: row.parker });
+      dv.push({ t: t0 + row.hr * 3600 * 1000, v: row.davis });
+    }
   }
-  const seen = {};
-  for (const p of points) seen[p.t] = p.v;
-  return Object.keys(seen).map((t) => ({ t: +t, v: seen[t] })).sort((a, b) => a.t - b.t);
+  const uniq = (arr) => { const s = {}; for (const p of arr) s[p.t] = p.v; return Object.keys(s).map((t) => ({ t: +t, v: s[t] })).sort((a, b) => a.t - b.t); };
+  return { parker: uniq(pk), davis: uniq(dv) };
 }
 
 // Measure how fast pulses actually travel by cross-correlating adjacent sensors.
@@ -199,8 +209,12 @@ function xcorrPair(aPts, bPts, miles) {
 function calibrate(stations) {
   const by = {}; for (const s of stations) by[s.key] = s;
   const PAIRS = [
+    ["davis", "bigbend", 10.1], ["bigbend", "interstate", 21.7],
+    ["belowdavis", "bigbend", 9.5], ["bigbend", "boyscout", 11.2],
+    ["boyscout", "interstate", 10.5], ["interstate", "topockg", 10.55],
     ["parkergage", "waterwheel", 23.3], ["waterwheel", "i10", 30.7],
-    ["i10", "taylor", 14.7], ["taylor", "cibola", 19.3]
+    ["i10", "taylor", 14.7], ["taylor", "cibola", 19.3],
+    ["cibola", "picacho", 25.3], ["picacho", "martinez", 7.0]
   ];
   const segments = [];
   for (const [a, b, mi] of PAIRS) {
@@ -278,6 +292,8 @@ async function main() {
     out.stations = buildStations(feed);
     if (rr.salvaged) out.errors.push("reach: upstream feed was truncated \u2014 salvaged " + out.stations.length + " station(s) from the readable part");
     if (!out.stations.length) out.errors.push("reach: feed loaded but no known sites matched");
+    const missed = REACH.filter((d) => !out.stations.find((x) => x.key === d.key)).map((d) => d.key);
+    if (missed.length) out.errors.push("reach: no series matched for: " + missed.join(", "));
     out.calibration = calibrate(out.stations);
     const hav = toPoints(findSeries(feed.Series || [], ["havasu"], "elevation"));
     out.havasu = hav.length ? { elev: hav } : null;
@@ -313,12 +329,13 @@ async function main() {
     const r = await fetch(DP, { headers: { "User-Agent": "blythe-river-bot" } });
     if (!r.ok) throw new Error("HTTP " + r.status);
     const buf = Buffer.from(await r.arrayBuffer());
-    const pts = parseDavisParker((await pdf(buf, { pagerender: renderPage })).text);
-    out.parkerSchedule = pts.length ? { points: pts } : null;
-    if (!pts.length) out.errors.push("davisparker: parsed 0 rows");
+    const sch = parseDavisParker((await pdf(buf, { pagerender: renderPage })).text);
+    out.parkerSchedule = sch.parker.length ? { points: sch.parker } : null;
+    out.davisSchedule = sch.davis.length ? { points: sch.davis } : null;
+    if (!sch.parker.length) out.errors.push("davisparker: parsed 0 rows");
   } catch (e) {
     out.errors.push("davisparker: " + (e && e.message ? e.message : e));
-    if (prev && prev.parkerSchedule) { out.parkerSchedule = prev.parkerSchedule; out.errors.push("davisparker: carried forward from " + prev.generatedAt); }
+    if (prev && prev.parkerSchedule) { out.parkerSchedule = prev.parkerSchedule; out.davisSchedule = prev.davisSchedule || null; out.errors.push("davisparker: carried forward from " + prev.generatedAt); }
   }
 
   fs.mkdirSync("data", { recursive: true });

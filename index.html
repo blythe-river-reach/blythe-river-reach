@@ -81,6 +81,7 @@
   .pick-label{font-size:17px; color:var(--text); font-weight:700; white-space:nowrap}
   .picker-wrap{display:inline-flex; align-items:center; gap:10px; flex-wrap:nowrap}
   .agechip{color:var(--muted); font-size:0.92em}
+  body.nochoice section:not(#welcome), body.nochoice .grid, body.nochoice .hero, body.nochoice .strip{display:none !important}
   .chart-hold{position:relative}
   .ylab span{position:absolute; left:6px; font-size:11px; font-weight:600; color:rgba(190,210,230,0.85); background:rgba(10,18,28,0.6); padding:0 5px; border-radius:4px; pointer-events:none; line-height:1.5}
   .yl-top{top:2px} .yl-mid{top:50%; transform:translateY(-50%)} .yl-bot{bottom:2px}
@@ -135,13 +136,36 @@
 <div class="banner" id="banner"></div>
 
 <div class="hero">
-  <div class="eyebrow" id="hero-eyebrow">Near Aha Quin right now</div>
+  <div class="eyebrow" id="hero-eyebrow">Pick your spot to begin</div>
   <div class="status" id="hero-status">&mdash;</div>
   <div class="sub" id="hero-sub">Reading the closest sensor&hellip;</div>
   <div class="coming" id="hero-coming"></div>
 </div>
 
 <div class="grid adv-only" id="grid"><div class="card skel skel-card"></div><div class="card skel skel-card"></div><div class="card skel skel-card"></div></div>
+
+<section id="welcome" style="display:none">
+  <div class="section-panel">
+    <h2>Where’s your river? 🌊</h2>
+    <p class="lead">Pick your stretch once — this site remembers, and next time opens right on your water. (You can switch anytime with the 📍 picker up top.)</p>
+    <div class="range-picker" id="welcome-pick" style="flex-wrap:wrap; gap:10px">
+      <button data-place="laughlin" style="font-size:14px; padding:10px 16px">🎰 Laughlin / Bullhead</button>
+      <button data-place="topock" style="font-size:14px; padding:10px 16px">🌉 Needles / Topock</button>
+      <button data-place="lhc" style="font-size:14px; padding:10px 16px">🌊 Lake Havasu</button>
+      <button data-place="roadrunner" style="font-size:14px; padding:10px 16px">🏖 Parker Strip</button>
+      <button data-place="ahaquin" style="font-size:14px; padding:10px 16px">🚜 Blythe area</button>
+      <button data-place="martinezlk" style="font-size:14px; padding:10px 16px">🏜 Cibola &amp; south</button>
+    </div>
+  </div>
+</section>
+
+<section class="adv-only">
+  <div class="section-panel">
+    <h2>Pulse-speed calibration — how good is the timing?</h2>
+    <p class="lead" id="cal-lead">Waiting for calibration data…</p>
+    <div id="cal-table"></div>
+  </div>
+</section>
 
 <section>
   <div class="section-panel" style="border-left:3px solid var(--house)">
@@ -171,7 +195,7 @@
     <svg id="fc-chart" viewBox="0 0 900 120" preserveAspectRatio="none" style="display:none"></svg>
     <div class="axis" id="fc-axis"></div>
     <div class="links adv-only">
-      <a href="https://www.usbr.gov/lc/region/g4000/hourly/DavisParkerSchedules.pdf" target="_blank" rel="noopener">Parker Dam projected schedule (PDF) &#8599;</a>
+      <a href="https://www.usbr.gov/lc/region/g4000/hourly/DavisParkerSchedules.pdf" target="_blank" rel="noopener" id="sched-link">Parker Dam projected schedule (PDF) &#8599;</a>
       <a href="https://www.usbr.gov/lc/riverops.html" target="_blank" rel="noopener">Reclamation river operations &#8599;</a>
     </div>
   </div>
@@ -197,7 +221,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-09r (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10e (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -208,9 +232,9 @@
 try { if (window["pdfjsLib"]) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; } catch(e){}
 
 // ---------- sources ----------
-var USGS_ID = "09429100", CANAL_ID = "09429000", WASTE_ID = "09428510", CRIT_ID = "09428500";
+var USGS_ID = "09429100", CANAL_ID = "09429000", WASTE_ID = "09428510", CRIT_ID = "09428500", DAVIS_USGS = "09423000";
 var WASTE_MILE = 158.8; // Poston Wasteway: CRIT return flow re-enters the river here
-var USGS_API = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=" + USGS_ID + "," + CANAL_ID + "," + WASTE_ID + "," + CRIT_ID + "&parameterCd=00060,00065&period=P7D&siteStatus=all";
+var USGS_API = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=" + USGS_ID + "," + CANAL_ID + "," + WASTE_ID + "," + CRIT_ID + "," + DAVIS_USGS + "&parameterCd=00060,00065&period=P7D&siteStatus=all";
 var BOR_JSON = "https://www.usbr.gov/lc/region/g4000/riverops/webreports/hourlyweb.json";
 var HG_PDF   = "https://www.usbr.gov/lc/region/g4000/hourly/HeadgateReport.pdf";
 var PROXIES = [
@@ -222,6 +246,7 @@ var PROXIES = [
 // ============ EDIT ME ============
 // GitHub data relay: your repo, so the page reads hourly data the bot fetched server-side.
 var GH_REPO = "blythe-river-reach/blythe-river-reach";
+var DAVIS_MILE = 276.0, UPPER_MIN = 222.8; // Davis Dam; Topock Gorge stays riverine down past The Sandbar
 var GH_BRANCH = "main";
 // Netlify branch deploys are served from "branch--sitename.netlify.app" \u2014 detect it
 // so the dev site previews the dev robot\u2019s data (falling back to main automatically).
@@ -235,6 +260,13 @@ var WAVE_MPH = 4;
 // Documented Reclamation river miles (from the official river mile index, Aug 2001).
 var PARKER_MILE = 192.2, HEADGATE_MILE = 177.7, PVDAM_MILE = 133.8;
 var SENSORS = [
+  {key:"davis",        mile:276.0, label:"the Davis Dam release"},
+  {key:"belowdavisusgs", mile:275.3, label:"the USGS gauge below Davis Dam"},
+  {key:"belowdavis",   mile:275.4, label:"the Below Davis Dam sensor"},
+  {key:"bigbend",      mile:265.9, label:"the Big Bend sensor"},
+  {key:"boyscout",     mile:254.7, label:"the Boy Scout Camp sensor"},
+  {key:"interstate",   mile:244.2, label:"the Interstate Bridge sensor at Needles"},
+  {key:"topockg",      mile:233.65, label:"the Topock bridge sensor"},
   {key:"parker",       mile:192.2, label:"the Parker release"},
   {key:"parkergage",   mile:175.3, label:"the Parker gage (below Headgate)"},
   {key:"waterwheel",   mile:152.0, label:"the Water Wheel sensor"},
@@ -243,13 +275,26 @@ var SENSORS = [
   {key:"mcintyrepark", mile:113.75, label:"the McIntyre Park sensor"},
   {key:"taylor",       mile:106.6, label:"the Taylor Ferry sensor"},
   {key:"oxbow",        mile:93.6,  label:"the Oxbow Bridge sensor"},
-  {key:"cibola",       mile:87.3,  label:"the Cibola gage"}
+  {key:"cibola",       mile:87.3,  label:"the Cibola gage"},
+  {key:"picacho",      mile:62.0,  label:"the Picacho Park sensor"},
+  {key:"martinez",     mile:55.0,  label:"the Martinez Lake sensor"}
 ];
 // Places, upstream to downstream. mile = Reclamation river mile — documented in
 // the official river-mile index or computed from your GPS pins projected between
 // documented anchors (1 mile \u2248 15 min of pulse travel at 4 mph).
 var PLACES = [
-  {key:"havasu",      name:"Lake Havasu",              mile:193.5, seg:"lake"},
+  {key:"davisdam",    name:"Davis Dam",                mile:276.0},
+  {key:"laughlin",    name:"Laughlin",                 mile:274.0},
+  {key:"bigbendsra",  name:"Big Bend",                 mile:265.9},
+  {key:"sbullhead",   name:"South Bullhead City",      mile:264.8},
+  {key:"avi",         name:"Avi Resort & Casino",      mile:259.8},
+  {key:"needles",     name:"Needles",                  mile:246.9},
+  {key:"moabi",       name:"Park Moabi / Pirate Cove", mile:235.5},
+  {key:"topock",      name:"Topock",                   mile:233.9},
+  {key:"sandbar",     name:"The Sandbar",              mile:223.5},
+  {key:"havasulanding", name:"Havasu Landing",         mile:214.0, seg:"lake"},
+  {key:"lhc",         name:"Lake Havasu City",         mile:209.5, seg:"lake"},
+  {key:"havasu",      name:"Lake Havasu \u2014 south basin", mile:193.5, seg:"lake"},
   {key:"parkerdam",   name:"Parker Dam",               mile:192.2},
   {key:"riverlodge",  name:"River Lodge Resort",       mile:189.1},
   {key:"roadrunner",  name:"Roadrunner",               mile:185.1},
@@ -272,7 +317,9 @@ var PLACES = [
   {key:"mcintyre",    name:"McIntyre",                 mile:113.8},
   {key:"riverroad",   name:"River Road Bridge",        mile:104.1},
   {key:"hartmine",    name:"Hart Mine Road Bridge",    mile:93.6},
-  {key:"walters",     name:"Walter's Camp",            mile:88.3}
+  {key:"walters",     name:"Walter's Camp",            mile:88.3},
+  {key:"picachosra",  name:"Picacho State Rec Area",   mile:62.0},
+  {key:"martinezlk",  name:"Martinez Lake / Fisher's Landing", mile:55.0}
 ];
 var PLACE_KEY = "blythe_place_v1";
 // =================================
@@ -282,9 +329,9 @@ function fetchT(u, ms){
   var to = setTimeout(function(){ c.abort(); }, ms || 12000);
   return fetch(u, {signal: c.signal}).then(function(r){ clearTimeout(to); return r; }, function(e){ clearTimeout(to); throw e; });
 }
-function currentPlace(){ var k = store.get(PLACE_KEY) || "ahaquin"; for(var i=0;i<PLACES.length;i++){ if(PLACES[i].key===k) return PLACES[i]; } for(var j=0;j<PLACES.length;j++){ if(PLACES[j].key==="ahaquin") return PLACES[j]; } return PLACES[0]; }
-function segFor(p){ if(p.seg) return p.seg; if(p.mile>HEADGATE_MILE) return "strip"; if(p.mile>=PVDAM_MILE) return "mid"; return "below"; }
-var SEG_REFS = { lake:["parker"], strip:["parker"], mid:["parkergage","waterwheel"], below:["i10","belowpv","mcintyrepark","taylor","oxbow","cibola"] };
+function currentPlace(){ var k = store.get(PLACE_KEY) || "lhc"; for(var i=0;i<PLACES.length;i++){ if(PLACES[i].key===k) return PLACES[i]; } for(var j=0;j<PLACES.length;j++){ if(PLACES[j].key==="lhc") return PLACES[j]; } return PLACES[0]; }
+function segFor(p){ if(p.seg) return p.seg; if(p.mile>UPPER_MIN) return "upper"; if(p.mile>HEADGATE_MILE) return "strip"; if(p.mile>=PVDAM_MILE) return "mid"; return "below"; }
+var SEG_REFS = { upper:["davis","belowdavisusgs","belowdavis","bigbend","boyscout","interstate","topockg"], lake:["parker"], strip:["parker"], mid:["parkergage","waterwheel"], below:["i10","belowpv","mcintyrepark","taylor","oxbow","cibola","picacho","martinez"] };
 function sensorInfo(key){ for(var i=0;i<SENSORS.length;i++){ if(SENSORS[i].key===key) return SENSORS[i]; } return null; }
 function refFor(p){
   // Score = how stale each sensor's information is ONCE SHIFTED to this place,
@@ -299,16 +346,32 @@ function refFor(p){
     var d=Math.abs(sm.mile-p.mile);
     var pt=cur(st.flow.length?st.flow:st.stage);
     var ageMin=pt ? Math.max(0,(Date.now()-pt.t)/60000) : 9999;
-    var lagMin=(sm.mile - p.mile)/WAVE_MPH*60; // + if upstream of the place
+    var lagMin=(sm.mile>=p.mile?1:-1)*stretchHours(sm.mile, p.mile)*60; // + if upstream of the place
     var effStale=Math.max(0, ageMin - Math.max(0,lagMin) + Math.max(0,-lagMin));
     var score=effStale + d*DIST_MIN_PER_MILE;
+    if(sm.mile < p.mile - 2.5) score += 1e6; // HARD RULE: downstream refs only as a last resort \u2014 they describe this spot's past
     if(d<=2.5) score=-1e9 + d; // a sensor essentially AT the place always wins
     if(!best || score<best.score) best={st:st, mile:sm.mile, label:sm.label, key:sm.key, d:d, score:score};
   }
   if(!best){ var g=getPrimary(); if(g){ var smx=sensorInfo(g.key); best={st:g, mile:(smx?smx.mile:p.mile), label:(smx?smx.label:g.name), key:g.key, d:0}; } }
   return best;
 }
-function lagMsFrom(refMile, p){ return (refMile - p.mile) / WAVE_MPH * 3600 * 1000; }
+// Travel time between two river miles using each stretch's OWN measured speed
+// (from the robot's gauge-pair cross-correlation); the global median covers gaps.
+function stretchHours(mA, mB){
+  var lo=Math.min(mA,mB), hi=Math.max(mA,mB), rem=hi-lo, hrs=0;
+  var segs=(relayCal && relayCal.segments) || [];
+  for(var i=0;i<segs.length;i++){
+    var s=segs[i], a=sensorInfo(s.from), b=sensorInfo(s.to);
+    if(!a || !b || !(s.mph>=1 && s.mph<=12)) continue;
+    var sl=Math.min(a.mile,b.mile), sh=Math.max(a.mile,b.mile);
+    var ol=Math.max(lo,sl), oh=Math.min(hi,sh);
+    if(oh>ol){ hrs += (oh-ol)/s.mph; rem -= (oh-ol); }
+  }
+  hrs += Math.max(0,rem)/WAVE_MPH;
+  return hrs;
+}
+function lagMsFrom(refMile, p){ return (refMile>=p.mile?1:-1) * stretchHours(refMile, p.mile) * 3600 * 1000; }
 function lagLabel2(ms, label){
   var m = Math.round(ms/60000);
   if(Math.abs(m) < 3) return "right at "+label;
@@ -484,9 +547,10 @@ function areaChart(svg, series, color, dashed, axisId, showNow){
   svg.style.display="block";
   var ax = axisId ? document.getElementById(axisId) : null;
   if(ax){
+    ax.style.height = labels.some(function(L){return L.now;}) ? "36px" : "19px";
     ax.innerHTML = labels.map(function(L){
       var tr = L.pct<4 ? "translateX(0)" : (L.pct>96 ? "translateX(-100%)" : "translateX(-50%)");
-      return '<span style="left:'+L.pct.toFixed(2)+'%; transform:'+tr+';'+(L.now?' color:var(--water); font-weight:700;':'')+(L.minor?' font-size:10.5px; opacity:0.65; font-weight:400;':'')+'">'+L.txt+'</span>';
+      return '<span style="left:'+L.pct.toFixed(2)+'%; transform:'+tr+';'+(L.now?' color:var(--water); font-weight:700; top:16px;':'')+(L.minor?' font-size:10.5px; opacity:0.65; font-weight:400;':'')+'">'+L.txt+'</span>';
     }).join("");
     ax.style.display = labels.length ? "block" : "none";
   }
@@ -518,14 +582,22 @@ function toPoints(s){
     .sort(function(a,b){ return a.t-b.t; });
 }
 var REACH = [
+  { key:"davis",        name:"Davis Dam release", role:"Release upstream \u00b7 top of the map", order:-10, names:["mohave"], releaseType:"release" },
+  { key:"belowdavis",   name:"Below Davis Dam", role:"Reclamation sensor \u00b7 Laughlin reach", order:-8, names:["below davis"] },
+  { key:"bigbend",      name:"Big Bend", role:"Reclamation sensor \u00b7 below Laughlin", order:-7, names:["big bend"] },
+  { key:"boyscout",     name:"Boy Scout Camp", role:"Reclamation sensor \u00b7 Mohave Valley", order:-6, names:["boy scout"] },
+  { key:"interstate",   name:"Interstate Bridge (Needles)", role:"Reclamation sensor \u00b7 at Needles", order:-5, names:["interstate"] },
+  { key:"topockg",      name:"Topock Bridge", role:"Reclamation sensor \u00b7 head of Havasu", order:-4, names:["topock"] },
   { key:"parker",       name:"Parker Dam release", role:"Release upstream \u00b7 early warning", order:0, names:["havasu"], releaseType:"release" },
   { key:"parkergage",   name:"Parker gage",   role:"Below Headgate \u00b7 upper reach", order:1, names:["parker gage"] },
   { key:"waterwheel",   name:"Water Wheel",   role:"Reclamation sensor \u00b7 mid reach", order:2, primary:true, names:["water wheel"] },
-  { key:"i10",          name:"Blythe (I-10 bridge)", role:"Reclamation sensor \u00b7 at Blythe", order:3, names:["i-10","i 10","interstate","i10"] },
+  { key:"i10",          name:"Blythe (I-10 bridge)", role:"Reclamation sensor \u00b7 at Blythe", order:3, names:["i-10","i 10","i10"] },
   { key:"mcintyrepark", name:"McIntyre Park", role:"Reclamation sensor \u00b7 south of Blythe", order:5, names:["mcintyre"] },
   { key:"taylor",       name:"Taylor Ferry",  role:"Reclamation sensor \u00b7 below Blythe", order:6, names:["taylor"] },
   { key:"oxbow",        name:"Oxbow Bridge",  role:"Reclamation sensor \u00b7 Cibola reach", order:7, names:["oxbow"] },
-  { key:"cibola",       name:"Cibola gage",   role:"Reclamation sensor \u00b7 Cibola reach", order:8, names:["cibola"] }
+  { key:"cibola",       name:"Cibola gage",   role:"Reclamation sensor \u00b7 Cibola reach", order:8, names:["cibola"] },
+  { key:"picacho",      name:"Picacho Park",  role:"Reclamation sensor \u00b7 Picacho reach", order:12, names:["picacho"] },
+  { key:"martinez",     name:"Martinez Lake", role:"Reclamation sensor \u00b7 above Imperial Dam", order:13, names:["martinez"] }
 ];
 function parseBor(json){
   var series = json.Series || [];
@@ -600,8 +672,13 @@ var borData=null, borTried=false, borErr=null, usgsData=null, hgData=null, hgTri
 var STATIONS=[];
 
 function rebuild(){
+  document.body.className = document.body.className.replace(/ ?nochoice/,"") + (store.get(PLACE_KEY) ? "" : " nochoice");
   var st=[];
   if(borData && borData.stations){ borData.stations.forEach(function(s){ st.push({ key:s.key, name:s.name, role:s.role, order:s.order, primary:!!s.primary, source:"USBR", link:null, flow:clean(s.flow||[]), stage:clean(s.stage||[]) }); }); }
+  if(usgsData && usgsData[DAVIS_USGS]){
+    var fD=clean(usgsData[DAVIS_USGS]["00060"]||[]), gD=clean(usgsData[DAVIS_USGS]["00065"]||[]);
+    if(fD.length||gD.length) st.push({ key:"belowdavisusgs", name:"Below Davis Dam (USGS)", role:"Live USGS \u00b7 15-min \u00b7 Laughlin reach", order:-9, primary:false, source:"USGS", link:"https://waterdata.usgs.gov/monitoring-location/USGS-"+DAVIS_USGS+"/", flow:fD, stage:gD });
+  }
   if(usgsData && usgsData[USGS_ID]){ st.push({ key:"belowpv", name:"Below Palo Verde Dam", role:"Live USGS \u00b7 below the diversion", order:3, primary:false, source:"USGS", link:"https://waterdata.usgs.gov/monitoring-location/USGS-"+USGS_ID+"/", flow:clean(usgsData[USGS_ID]["00060"]||[]), stage:clean(usgsData[USGS_ID]["00065"]||[]) }); }
   // plumbing gauges: the water leaving and returning to the river
   [ {id:CRIT_ID,  key:"critcanal", name:"CRIT Main Canal",   role:"Live USGS \u00b7 water OUT at Headgate",       order:1.7},
@@ -615,11 +692,13 @@ function rebuild(){
       }
     }
   });
-  var RIVER_ORDER={parker:0, critcanal:1, parkergage:2, wasteway:3, waterwheel:4, pvcanal:5, belowpv:6, i10:7, mcintyrepark:8, taylor:9, oxbow:10, cibola:11};
+  var RIVER_ORDER={davis:-10, belowdavisusgs:-9, belowdavis:-8, bigbend:-7, boyscout:-6, interstate:-5, topockg:-4, parker:0, critcanal:1, parkergage:2, wasteway:3, waterwheel:4, pvcanal:5, belowpv:6, i10:7, mcintyrepark:8, taylor:9, oxbow:10, cibola:11, picacho:12, martinez:13};
   st.forEach(function(s){ if(RIVER_ORDER[s.key]!=null) s.order=RIVER_ORDER[s.key]; });
   st.sort(function(a,b){ return (a.order==null?99:a.order)-(b.order==null?99:b.order); });
   STATIONS=st;
-  renderCards(); renderHero(); renderHeadgate(); renderReach(); renderTide();
+  renderCards(); renderHero(); renderHeadgate(); renderReach(); renderTide(); renderCal();
+  var _sl=document.getElementById("sched-link");
+  if(_sl) _sl.textContent=(segFor(currentPlace())==="upper" ? "Davis Dam" : "Parker Dam")+" projected schedule (PDF) \u2197";
   (function staleCheck(){
     var newest=0;
     STATIONS.forEach(function(s){ if(s.source!=="USGS"){ var c=cur(s.flow); if(c && c.t>newest) newest=c.t; } });
@@ -634,6 +713,30 @@ function getPrimary(){
   return STATIONS.find(function(s){ return s.primary && s.flow.length; })
       || STATIONS.find(function(s){ return s.key==="belowpv" && (s.flow.length||s.stage.length); })
       || STATIONS.find(function(s){ return s.flow.length||s.stage.length; }) || null;
+}
+function renderCal(){
+  var lead=document.getElementById("cal-lead"), tbl=document.getElementById("cal-table");
+  if(!lead || !tbl) return;
+  var segs=(relayCal && relayCal.segments) || [];
+  if(!segs.length){ lead.textContent="No calibration yet \u2014 the robot measures pulse speed by cross-correlating neighboring gauges; using the ~"+WAVE_MPH+" mph default meanwhile."; tbl.innerHTML=""; return; }
+  var mphs=segs.map(function(s){return s.mph;}).filter(function(v){return v>=1&&v<=12;});
+  var spread=(Math.max.apply(null,mphs)/Math.min.apply(null,mphs));
+  var pl=currentPlace(), ref=refFor(pl), applied="";
+  if(ref && Math.abs(ref.mile-pl.mile)>=0.5){
+    var hrs=stretchHours(ref.mile, pl.mile), mi=Math.abs(ref.mile-pl.mile);
+    applied=' For <b style="color:var(--text)">'+esc(pl.name)+'</b>: '+mi.toFixed(1)+' mi from '+ref.label+' at the local measured speed \u2192 <b style="color:var(--text)" class="mono">~'+Math.round(hrs*60)+' min</b> of travel.';
+  }
+  lead.innerHTML='Each row is an independent measurement: the robot slides one gauge\u2019s week of readings against its neighbor\u2019s until the wiggles line up \u2014 that offset over that distance is the pulse speed. Agreement between rows = confidence.'
+    + (spread>1.7 ? ' <b style="color:var(--house)">Heads up: the stretches disagree today (\u00d7'+spread.toFixed(1)+' between fastest and slowest) \u2014 treat arrival times as rough.</b>' : ' The stretches currently agree well, so the timings are trustworthy.')
+    + applied;
+  var rows=segs.map(function(s){
+    var a=sensorInfo(s.from), b=sensorInfo(s.to);
+    var nm=(a?a.label.replace(/^the /,""):s.from)+" \u2192 "+(b?b.label.replace(/^the /,""):s.to);
+    var conf=s.r>=0.85?"strong":(s.r>=0.7?"good":"weak");
+    return '<tr><td>'+esc(nm)+'</td><td class="mono">'+s.miles.toFixed(1)+' mi</td><td class="mono">'+s.lagHours.toFixed(1)+' h</td><td class="mono"><b>'+s.mph.toFixed(1)+' mph</b></td><td>'+conf+' (r='+s.r.toFixed(2)+')</td></tr>';
+  }).join("");
+  tbl.innerHTML='<table class="tide"><thead><tr><th>Gauge pair</th><th>Distance</th><th>Measured lag</th><th>Speed</th><th>Match quality</th></tr></thead><tbody>'+rows+'</tbody></table>'
+    + '<p class="note">River-wide median: <b class="mono">'+((relayCal&&relayCal.waveMph)||WAVE_MPH)+' mph</b> \u2014 used for stretches no gauge pair covers. <b style="color:var(--text)">These are pulse speeds</b> \u2014 how fast a rise or fall travels downriver. The water itself drifts slower, about 60% of that (~<b class="mono">'+(((relayCal&&relayCal.waveMph)||WAVE_MPH)*0.6).toFixed(1)+' mph</b> right now \u2014 the \u201criver current\u201d up top): a wave outruns the water that carries it, the way ocean swell outruns the sea. Ground truth check: places with their own gauge (McIntyre, Oxbow, Cibola) let you compare predicted arrivals against direct readings any day.</p>';
 }
 function renderCards(){
   var _pl=currentPlace(), _ref=refFor(_pl);
@@ -689,8 +792,10 @@ function buildRating(key){
 function renderStrip(pl){
   var el=document.getElementById("strip"); if(!el) return;
   var anchors=[
-    {n:"Parker Dam", m:192.2}, {n:"Headgate", m:177.7}, {n:"Water Wheel sensor", m:152.0},
-    {n:"diversion dam", m:133.8}, {n:"I-10", m:121.3}
+    {n:"Davis Dam", m:276.0}, {n:"Laughlin", m:274.0}, {n:"Needles", m:246.2},
+    {n:"Topock", m:233.9}, {n:"Lake Havasu", m:210.0}, {n:"Parker Dam", m:192.2},
+    {n:"Headgate", m:177.7}, {n:"Water Wheel", m:152.0}, {n:"I-10", m:121.3},
+    {n:"Walter\u2019s Camp", m:88.3}, {n:"Martinez Lake", m:55.0}
   ];
   var merged=false;
   anchors.forEach(function(a){ if(Math.abs(a.m-pl.mile)<0.6){ a.you=true; a.n=pl.name; merged=true; } });
@@ -813,10 +918,12 @@ function renderHero(){
   var parker=STATIONS.find(function(s){ return s.key==="parker" && s.flow.length; });
   var curMph=Math.max(0.5, Math.min(8, WAVE_MPH*0.6));
   var curLine='River current: roughly <b style="color:var(--text)">~'+curMph.toFixed(1)+' mph</b> \u2014 about the speed a stick drifts by.<span class="adv-only"> (Estimated as ~60% of the measured pulse speed; actual current varies with depth and spot.)</span>';
-  if(parker && ref.key!=="parker"){
-    var lagH=(PARKER_MILE - pl.mile)/WAVE_MPH;
+  var _aKey=(seg==="upper")?"davis":"parker", _aMile=(seg==="upper")?DAVIS_MILE:PARKER_MILE, _aName=(seg==="upper")?"Davis":"Parker";
+  var _anch=null; for(var _ai=0;_ai<STATIONS.length;_ai++){ if(STATIONS[_ai].key===_aKey && STATIONS[_ai].flow.length){ _anch=STATIONS[_ai]; break; } }
+  if(_anch && ref.key!==_aKey){
+    var lagH=stretchHours(_aMile, pl.mile);
     var eta=lagH<1.5 ? "~"+Math.round(lagH*60)+" min" : "~"+Math.round(lagH)+" h";
-    elC.innerHTML=curLine+'<br>Upstream at Parker, release is <b>'+TWORD[trend(parker.flow)]+'</b> ('+fmt(cur(parker.flow).v)+' cfs) \u2014 that water reaches '+esc(pl.name)+' in '+eta+'.';
+    elC.innerHTML=curLine+'<br>Upstream at '+_aName+', release is <b>'+TWORD[trend(_anch.flow)]+'</b> ('+fmt(cur(_anch.flow).v)+' cfs) \u2014 that water reaches '+esc(pl.name)+' in '+eta+'.';
   } else { elC.innerHTML=curLine; }
 }
 function renderReach(){
@@ -865,6 +972,10 @@ function forecastSeriesFor(pl){
     else if(hg && hg.parker && hg.parker.length){ d=clean(hg.parker); srcNote=" Full Parker release \u2014 this stretch is above the CRIT canal turnout."; }
     else if(hg && hg.critAvg!=null){ d=clean(hg.downstream).map(function(p){ return {t:p.t, v:p.v+hg.critAvg}; }); srcNote=" Approximated by adding the CRIT diversion (~"+fmt(hg.critAvg)+" cfs) back in."; }
     else if(hg){ d=clean(hg.downstream); srcNote=" Note: this stretch actually carries ~1,200 cfs more (it\u2019s above the CRIT turnout)."; }
+  } else if(seg==="upper"){
+    originMile=DAVIS_MILE; originName="Davis Dam";
+    if(dsData && dsData.length){ d=clean(dsData); srcNote=" Davis Dam\u2019s own published schedule \u2014 full release, straight from the source."; }
+    else return null;
   } else {
     if(!hg) return null;
     d=clean(hg.downstream);
@@ -892,7 +1003,7 @@ function forecastSeriesFor(pl){
 }
 function tideRating(pl){
   var seg=segFor(pl);
-  if(seg==="mid" || seg==="below"){
+  if(seg==="mid" || seg==="below" || seg==="upper"){
     var ref=refFor(pl);
     var r=ref ? buildRating(ref.key) : null;
     return r || (seg==="mid" ? buildRating("waterwheel") : null);
@@ -929,7 +1040,7 @@ function renderHeadgate(){
   var whereBit=(fc.seg==="lake")?'released into the river just below the lake':(milesUp<1?'right here at the dam':milesUp+' river miles upstream');
   lead.innerHTML='The dam\u2019s published release schedule, shifted to when that water reaches <b style="color:var(--text)">'+esc(pl.name)+'</b>. Dashed = forecast, not a reading.'+
     '<span class="adv-only"> From '+fc.originName+' ('+whereBit+'), assuming a ~'+WAVE_MPH+' mph pulse. Range ahead: <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b>\u2013<b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs'+((ftLo!=null&&ftHi!=null)?' (about <b class="mono" style="color:var(--text)">+'+ftLo.toFixed(1)+'</b> to <b class="mono" style="color:var(--text)">+'+ftHi.toFixed(1)+' ft</b> above the weekly low)':'')+'.'+fc.srcNote+'</span>';
-  noteEl.textContent=(fc.seg==="strip"||fc.seg==="lake") ? "" : ((hgData&&hgData.note)||"");
+  noteEl.textContent=(fc.seg==="strip"||fc.seg==="lake"||fc.seg==="upper") ? "" : ((hgData&&hgData.note)||"");
 }
 
 // ---------- tide ----------
@@ -1031,7 +1142,7 @@ function loadHeadgate(){
     .catch(function(e){ hgErr=(e&&e.message?e.message:String(e)); hgData=null; hgTried=true; });
 }
 // GitHub relay: hourly data the Action committed, served with CORS from raw.githubusercontent
-var relayInfo=null, loadingNow=false, psData=null, havasuData=null;
+var relayInfo=null, loadingNow=false, psData=null, dsData=null, havasuData=null, relayCal=null;
 function setLoading(on){
   loadingNow=on;
   var s=document.getElementById("load-spin"); if(s) s.style.display=on?"inline-block":"none";
@@ -1079,6 +1190,7 @@ function loadAll(){
   var pR=loadRelay().then(function(j){
     if(j){
       relayInfo={t:new Date(j.generatedAt).getTime(), branch:j._branch};
+      if(j.calibration) relayCal=j.calibration;
       if(j.calibration && j.calibration.waveMph>=1 && j.calibration.waveMph<=12){
         WAVE_MPH=j.calibration.waveMph;
         var cn=document.getElementById("cal-note");
@@ -1087,6 +1199,7 @@ function loadAll(){
       if(j.stations && j.stations.length){ borData={stations:j.stations}; borErr=null; borTried=true; }
       if(j.headgate && j.headgate.downstream && j.headgate.downstream.length){ hgData=j.headgate; hgErr=null; hgTried=true; }
       if(j.parkerSchedule && j.parkerSchedule.points && j.parkerSchedule.points.length){ psData=j.parkerSchedule.points; }
+      if(j.davisSchedule && j.davisSchedule.points && j.davisSchedule.points.length){ dsData=j.davisSchedule.points; }
       if(j.havasu && j.havasu.elev && j.havasu.elev.length){ havasuData=j.havasu.elev; }
     }
     rebuild(); // paint whatever we have right now
@@ -1117,14 +1230,17 @@ function loadAll(){
 }
 (function initPlaces(){
   var sel=document.getElementById("place-sel");
-  var groups=[{seg:"lake",label:"The lake"},{seg:"strip",label:"Parker Strip (full release)"},{seg:"mid",label:"Headgate \u2192 diversion dam"},{seg:"below",label:"Below the diversion dam"}];
+  var groups=[{seg:"upper",label:"Davis Dam \u2192 Topock (upper river)"},{seg:"lake",label:"Lake Havasu"},{seg:"strip",label:"Parker Strip (full release)"},{seg:"mid",label:"Headgate \u2192 diversion dam"},{seg:"below",label:"Below the diversion dam"}];
   sel.innerHTML=groups.map(function(g){
     var opts=PLACES.filter(function(p){ return segFor(p)===g.seg; }).map(function(p){
       return '<option value="'+p.key+'">'+p.name+(p.est?" (est.)":"")+'</option>';
     }).join("");
     return opts ? '<optgroup label="'+g.label+'">'+opts+'</optgroup>' : "";
   }).join("");
-  sel.value=currentPlace().key;
+  if(!store.get(PLACE_KEY)){
+    sel.innerHTML='<option value="" disabled selected>\u2014 pick a spot \u2014</option>'+sel.innerHTML;
+    sel.value="";
+  } else { sel.value=currentPlace().key; }
   sel.addEventListener("change", function(){ store.set(PLACE_KEY, sel.value); rebuild(); });
 })();
 var RANGE_KEY="blythe_range_v1";
@@ -1162,6 +1278,16 @@ var MODE_KEY="blythe_mode_v1";
     mode = (mode==="advanced") ? "simple" : "advanced";
     store.set(MODE_KEY, mode);
     apply(mode);
+  });
+})();
+(function initWelcome(){
+  var w=document.getElementById("welcome");
+  if(!w) return;
+  if(!store.get(PLACE_KEY)){ w.style.display="block"; }
+  var wp=document.getElementById("welcome-pick");
+  if(wp) wp.addEventListener("click", function(ev){
+    var k=ev.target && ev.target.getAttribute && ev.target.getAttribute("data-place");
+    if(k){ store.set(PLACE_KEY, k); w.style.display="none"; var ps=document.getElementById("place-sel"); if(ps) ps.value=k; rebuild(); }
   });
 })();
 var manualRefresh=false;
