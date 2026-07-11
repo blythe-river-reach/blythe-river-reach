@@ -6,10 +6,19 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e1726'/%3E%3Ccircle cx='45' cy='19' r='8' fill='%23e8a15c'/%3E%3Cpath d='M6 38c6-9 14-9 20 0s14 9 20 0 9-7 12-5' stroke='%236fb7e0' stroke-width='5.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M6 51c6-9 14-9 20 0s14 9 20 0 9-7 12-5' stroke='%233f7ba6' stroke-width='5.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="canonical" href="https://istheriverup.com/">
+<meta name="theme-color" content="#0d1521">
 <meta name="description" content="Live Colorado River water levels, daily highs &amp; lows, and multi-day forecasts for every landmark from Lake Havasu to Walter's Camp — Parker Dam, the Parker Strip, Lost Lake, Water Wheel, Blythe, and beyond.">
 <meta property="og:title" content="Is The River Up? — live Colorado River levels &amp; forecast">
 <meta property="og:description" content="Is the river up or down at your spot? Live sensors, tide tables, and the dam schedule, shifted to your stretch of the Colorado.">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://istheriverup.com/">
+<meta property="og:site_name" content="Is The River Up?">
+<meta property="og:image" content="https://istheriverup.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <title>Is The River Up? — Colorado River levels, Lake Havasu to Walter’s Camp</title>
 <style>
   :root{
@@ -21,8 +30,6 @@
     --bg:#eef2f6; --panel:#ffffff; --panel2:#e3eaf1; --border:#b7c5d3;
     --text:#0e1d2b; --muted:#43586c; --water:#075e8f;
     --rise:#0c7a4d; --fall:#a35a00; --steady:#43586c; --house:#b34700;
-  }
-  :root{
   }
   *{box-sizing:border-box}
   body{margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; line-height:1.5; padding:20px; max-width:1040px; margin:0 auto}
@@ -79,6 +86,10 @@
   table.tide th{text-align:left; color:var(--muted); font-weight:500; font-size:12px; padding:6px 8px; border-bottom:1px solid var(--border)}
   table.tide td{padding:8px; border-bottom:1px solid var(--border)}
   table.tide tr:last-child td{border-bottom:none}
+  table.tide tr.dayhead td{padding:12px 8px 4px; border-bottom:none; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em; font-weight:600}
+  table.tide tr.next td{background:rgba(53,184,214,0.08)}
+  table.tide tr.next td:first-child{border-left:3px solid var(--water)}
+  table.tide .count{color:var(--water); font-weight:600; margin-left:6px; font-style:normal}
   .pill{display:inline-block; padding:1px 9px; border-radius:20px; font-size:12px; font-weight:500}
   .pill.high{background:#12313a; color:#7fe3d6}
   .pill.low{background:#2a2114; color:#f2c98a}
@@ -95,9 +106,15 @@
   .pick-label{font-size:17px; color:var(--text); font-weight:700; white-space:nowrap}
   .picker-wrap{display:inline-flex; align-items:center; gap:10px; flex-wrap:nowrap}
   .agechip{color:var(--muted); font-size:0.92em}
+  .muted-sm{color:var(--muted); font-size:11px; font-weight:400}
   body.nochoice section:not(#welcome), body.nochoice .grid, body.nochoice .hero, body.nochoice .strip{display:none !important}
-  .chart-hold{position:relative}
+  .chart-hold{position:relative; touch-action:pan-y}
   .ylab span{position:absolute; left:6px; font-size:11px; font-weight:600; color:rgba(190,210,230,0.85); background:rgba(10,18,28,0.6); padding:0 5px; border-radius:4px; pointer-events:none; line-height:1.5}
+  body.day .ylab span{color:#2b4a63; background:rgba(255,255,255,0.78)}
+  .xh-line{position:absolute; top:0; bottom:0; width:1.5px; background:var(--text); opacity:0.5; pointer-events:none; display:none}
+  .xh-dot{position:absolute; width:9px; height:9px; border-radius:50%; background:var(--water); border:2px solid var(--bg); transform:translate(-50%,-50%); pointer-events:none; display:none}
+  .xh-chip{position:absolute; top:4px; background:rgba(10,18,28,0.88); color:#dce7f0; font-size:11.5px; font-weight:600; padding:2px 8px; border-radius:6px; pointer-events:none; white-space:nowrap; display:none}
+  body.day .xh-chip{background:rgba(255,255,255,0.94); color:#0e1d2b; border:1px solid var(--border)}
   .yl-top{top:2px} .yl-mid{top:50%; transform:translateY(-50%)} .yl-bot{bottom:2px}
   .range-picker{display:flex; gap:6px; margin:8px 0 2px}
   .range-picker button{font-size:12px; padding:4px 12px; border-radius:999px; background:transparent; color:var(--muted); border:1px solid var(--border); cursor:pointer}
@@ -118,7 +135,10 @@
   .axis{position:relative; height:19px; margin-top:3px; font-size:12.5px; font-weight:600; color:var(--text); opacity:0.8; display:none}
   .axis span{position:absolute; top:0; white-space:nowrap}
   body.simple .adv-only{display:none}
-  #tip-link,#mode-btn,#refresh{font-size:15px; padding:10px 18px; border-radius:12px; font-weight:700; cursor:pointer}
+  #tip-link,#mode-btn,#refresh,#share-btn{font-size:15px; padding:10px 18px; border-radius:12px; font-weight:700; cursor:pointer}
+  #share-btn{background:transparent; color:var(--water); border:1.5px solid var(--water); white-space:nowrap}
+  #share-btn:hover{background:rgba(127,192,232,0.12)}
+  body.nochoice #share-btn{display:none}
   #tip-link{background:rgba(232,150,90,0.18); color:var(--house); border:1.5px solid var(--house); text-decoration:none; white-space:nowrap}
   #tip-link:hover{background:rgba(232,150,90,0.34)}
   #mode-btn{background:transparent; color:var(--water); border:1.5px solid var(--water)}
@@ -142,7 +162,7 @@
   <h1>Is The River Up?</h1>
   <span class="coords">Lake Havasu &rarr; Walter&rsquo;s Camp</span>
   <span class="picker-wrap"><label class="pick-label" for="place-sel">📍 Your spot:</label><select id="place-sel" class="place"></select></span>
-  <span class="updated"><span id="load-spin" class="spin" style="display:none"></span><span id="updated">Loading&hellip;</span><a href="https://ko-fi.com/IsTheRiverUp" target="_blank" rel="noopener" id="tip-link" title="This site is free — tips cover the domain and upkeep. Opens the Ko-fi tip jar in a new tab.">🛟 Tip jar</a><button id="theme-btn" title="Bright-sun day mode / night mode. Auto-picks by time of day until you choose.">☀️ Day</button><button id="mode-btn">Advanced</button><button id="refresh">Refresh</button></span>
+  <span class="updated"><span id="load-spin" class="spin" style="display:none"></span><span id="updated">Loading&hellip;</span><a href="https://ko-fi.com/IsTheRiverUp" target="_blank" rel="noopener" id="tip-link" title="This site is free — tips cover the domain and upkeep. Opens the Ko-fi tip jar in a new tab.">🛟 Tip jar</a><button id="share-btn" title="Share a link that opens right on this spot — or copy it to the clipboard.">📤 Share</button><button id="theme-btn" title="Bright-sun day mode / night mode. Auto-picks by time of day until you choose.">☀️ Day</button><button id="mode-btn">Advanced</button><button id="refresh">Refresh</button></span>
 </header>
 
 <div class="strip" id="strip"></div>
@@ -219,7 +239,7 @@
   <div class="section-panel">
     <h2>Tide table &mdash; daily highs &amp; lows</h2>
     <p class="lead" id="tide-lead">When the pulse peaks and bottoms out at your reach. Times are Arizona (MST).</p>
-    <table class="tide"><thead><tr><th>When (MST)</th><th></th><th>Level</th></tr></thead>
+    <table class="tide"><thead><tr><th>When (MST)</th><th></th><th id="tide-lvl-th">Above weekly low</th></tr></thead>
       <tbody id="tide-body"><tr><td colspan="3" style="color:var(--muted)">Loading&hellip;</td></tr></tbody>
     </table>
   </div>
@@ -235,15 +255,31 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10q (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10u</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
 </footer>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
-try { if (window["pdfjsLib"]) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; } catch(e){}
+// pdf.js (~350 KB) is only needed on the rare fallback path where the browser
+// parses Reclamation's PDF itself (relay down). Load it on demand, once.
+var _pdfJsP=null;
+function loadPdfJs(){
+  if(window["pdfjsLib"]) return Promise.resolve();
+  if(_pdfJsP) return _pdfJsP;
+  _pdfJsP=new Promise(function(resolve, reject){
+    var s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    s.onload=function(){
+      try{ pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }catch(e){}
+      resolve();
+    };
+    s.onerror=function(){ _pdfJsP=null; reject(new Error("PDF library did not load")); };
+    document.head.appendChild(s);
+  });
+  return _pdfJsP;
+}
 
 // ---------- sources ----------
 var USGS_ID = "09429100", CANAL_ID = "09429000", WASTE_ID = "09428510", CRIT_ID = "09428500", DAVIS_USGS = "09423000";
@@ -267,6 +303,7 @@ var GH_BRANCH = "main";
 try{
   var _bm=(window.location && location.hostname || "").match(/^([a-z0-9-]+)--/);
   if(_bm && _bm[1]) GH_BRANCH=_bm[1];
+  else if(/^dev\./.test(location.hostname)) GH_BRANCH="dev"; // dev.istheriverup.com serves the dev branch
 }catch(e){}
 // How fast a release pulse travels downstream. Calibrate: watch one high pass a sensor,
 // note when it reaches your dock, adjust until the times match.
@@ -546,6 +583,7 @@ function areaChart(svg, series, color, dashed, axisId, showNow, hideFutureLabels
   }
   marks += '<line x1="0" y1="'+(H/2).toFixed(0)+'" x2="'+W+'" y2="'+(H/2).toFixed(0)+'" stroke="rgba(150,185,215,0.16)" stroke-width="1"/>';
   svg.innerHTML = marks + '<path d="'+area+'" fill="'+color+'" opacity="0.11"/><path d="'+line+'" fill="none" stroke="'+color+'" stroke-width="1.5"'+(dashed?' stroke-dasharray="5 4"':'')+'/>';
+  svg._series=series; svg._t0=t0; svg._t1=t1; svg._min=min; svg._max=max;
   try{
     var host=svg.parentNode;
     if(host && document.createElement){
@@ -554,6 +592,7 @@ function areaChart(svg, series, color, dashed, axisId, showNow, hideFutureLabels
         hold=document.createElement("div"); hold.className="chart-hold";
         host.insertBefore(hold, svg); hold.appendChild(svg); svg._hold=hold;
         var yl=document.createElement("div"); yl.className="ylab"; hold.appendChild(yl); svg._ylab=yl;
+        initCrosshair(hold, svg);
       }
       var fmtY=function(v){ return (Math.abs(max)<1000) ? v.toFixed(1) : (Math.abs(v)>=9500 ? Math.round(v/1000)+"k" : (v/1000).toFixed(1)+"k"); };
       svg._ylab.innerHTML='<span class="yl-top">'+fmtY(max)+'</span><span class="yl-mid">'+fmtY((max+min)/2)+'</span><span class="yl-bot">'+fmtY(min)+'</span>';
@@ -570,6 +609,41 @@ function areaChart(svg, series, color, dashed, axisId, showNow, hideFutureLabels
     ax.style.display = labels.length ? "block" : "none";
   }
   return {min:min, max:max};
+}
+// Finger/mouse readout: drag across a chart to read the exact time and value.
+function initCrosshair(hold, svg){
+  var line=document.createElement("div"); line.className="xh-line";
+  var dot=document.createElement("div"); dot.className="xh-dot";
+  var chip=document.createElement("div"); chip.className="xh-chip";
+  hold.appendChild(line); hold.appendChild(dot); hold.appendChild(chip);
+  function hide(){ line.style.display=dot.style.display=chip.style.display="none"; }
+  function show(ev){
+    var s=svg._series;
+    if(!s || s.length<2 || svg.style.display==="none"){ hide(); return; }
+    var rect=svg.getBoundingClientRect();
+    if(!rect.width){ hide(); return; }
+    var W=900,H=120,pad=6, t0=svg._t0, t1=svg._t1, T=(t1-t0)||1;
+    var min=svg._min, max=svg._max, span=(max-min)||1;
+    var frac=(ev.clientX-rect.left)/rect.width;
+    var t=t0 + Math.max(0,Math.min(1,(frac*W-pad)/(W-2*pad)))*T;
+    var best=s[0], bd=Math.abs(s[0].t-t);
+    for(var i=1;i<s.length;i++){ var d=Math.abs(s[i].t-t); if(d<bd){ bd=d; best=s[i]; } }
+    var xp=rect.width*(pad+(best.t-t0)/T*(W-2*pad))/W;
+    var yp=rect.height*(pad+(H-2*pad)*(1-(best.v-min)/span))/H;
+    var val=(Math.abs(max)<1000) ? best.v.toFixed(2)+" ft" : fmt(best.v)+" cfs";
+    var tag=(best.t>Date.now()+60000) ? " · expected" : "";
+    chip.textContent=azClock(best.t)+" "+azDay(best.t)+" · "+val+tag;
+    line.style.left=xp.toFixed(1)+"px";
+    dot.style.left=xp.toFixed(1)+"px"; dot.style.top=yp.toFixed(1)+"px";
+    var pct=xp/rect.width*100;
+    chip.style.left=xp.toFixed(1)+"px";
+    chip.style.transform = pct<10 ? "translateX(0)" : (pct>90 ? "translateX(-100%)" : "translateX(-50%)");
+    line.style.display=dot.style.display=chip.style.display="block";
+  }
+  hold.addEventListener("pointermove", show);
+  hold.addEventListener("pointerdown", show);
+  hold.addEventListener("pointerleave", hide);
+  hold.addEventListener("pointercancel", hide);
 }
 
 // ---------- Reclamation reach parsing (was the serverless function) ----------
@@ -624,7 +698,7 @@ function parseBor(json){
     else { flow = toPoints(findSeries(series, def.names, "flow")); stage = toPoints(findSeries(series, def.names, "gage height")); }
     if(flow.length || stage.length){ stations.push({ key:def.key, name:def.name, role:def.role, order:def.order, primary:!!def.primary, source:"USBR", flow:flow, stage:stage }); }
   });
-  return { stations: stations };
+  return { stations: stations, havasu: hav };
 }
 
 // ---------- Headgate PDF parsing (client-side via pdf.js) ----------
@@ -924,7 +998,23 @@ function renderHero(){
       if(nowV!=null){ for(var oi=0; oi<fc2.arrival.length; oi++){ var op=fc2.arrival[oi]; if(op.t>_n && Math.abs(op.v-nowV)>0.15*_span){ onT=op.t; break; } } }
       var hrsS=(onT-Date.now())/3600000;
       var whenStart=hrsS<1?'within the hour':(hrsS<1.75?'in about an hour':'in ~'+Math.round(hrsS)+' h');
-      if(_measFlat && _measCut && onT < _measCut-45*60000 && _measCut-Date.now() > 45*60000){
+      // Sanity guard: a scheduled "low" that sits ABOVE the water's current level
+      // (or a "high" below it) reads as nonsense \u2014 say what it really means.
+      var mism=null;
+      if(ft2!=null && abl!=null){
+        if(nxt.type==="low" && ft2>abl+0.5) mism="low-above";
+        else if(nxt.type==="high" && ft2<abl-0.5) mism="high-below";
+      } else if(f && nowV!=null){
+        if(nxt.type==="low" && nxt.v>f.v+0.15*_span) mism="low-above";
+        else if(nxt.type==="high" && nxt.v<f.v-0.15*_span) mism="high-below";
+      }
+      if(mism==="low-above"){
+        turn=' <b style="color:var(--text)">Right now looks like the bottom</b> \u2014 the schedule doesn\u2019t call for water this low again soon: even its next dip ('+lvl2+' around '+azTime(nxt.t)+') sits above where the water is now.';
+      }
+      else if(mism==="high-below"){
+        turn=' <b style="color:var(--text)">Right now looks like the top</b> \u2014 the schedule stays below this level: even its next crest ('+lvl2+' around '+azTime(nxt.t)+') sits under where the water is now.';
+      }
+      else if(_measFlat && _measCut && onT < _measCut-45*60000 && _measCut-Date.now() > 45*60000){
         turn=' <b style="color:var(--text)">The schedule calls for '+(nxt.type==="high"?"a rise":"a drop")+'</b> \u2014 but the water already past '+ref.label+' holds near this level through ~'+azTime(_measCut)+', so expect it after that.';
       }
       else if(nxt.type==="low"){
@@ -1023,8 +1113,54 @@ function forecastSeriesFor(pl){
     }
   }
   if(!d || !d.length) return null;
+  // Self-truing heights: the schedule predicts TIMING well, but by a distant
+  // reach both its absolute level (diversion estimates, drains, seepage) and
+  // its swing (an 80-mile run flattens the daily pulse) drift from what the
+  // local gauge actually reads. Match the forecast's typical level and swing
+  // width to the sensor's last daily cycle — never point-by-point, so a couple
+  // hours of travel-time error can't poison it.
+  var tru=scheduleTrue(d, pl);
+  if(tru){
+    d=d.map(function(p){ return {t:p.t, v:Math.max(0, tru.mMed+(p.v-tru.sMed)*tru.scale)}; });
+    var bits=[];
+    if(Math.abs(tru.sMed-tru.mMed)>=Math.max(120,0.04*tru.mMed)) bits.push('the raw schedule math has run ~'+fmt(Math.abs(tru.sMed-tru.mMed))+' cfs '+(tru.sMed>tru.mMed?'high':'low')+' vs its readings lately');
+    if(tru.scale<1) bits.push('the daily swing flattens ~'+Math.round((1-tru.scale)*100)+'% over the long run to here');
+    if(tru.scale>1) bits.push('the daily swing runs ~'+Math.round((tru.scale-1)*100)+'% bigger here');
+    srcNote+=' Heights auto-trued to '+tru.label+' ('+bits.join('; ')+').';
+  }
   var shift=(seg==="lake") ? 0 : lagMsFrom(originMile, pl);
   return { arrival:d.map(function(p){ return {t:p.t+shift, v:p.v}; }), srcNote:srcNote, originMile:originMile, originName:originName, seg:seg };
+}
+function scheduleTrue(d, pl){
+  var ref=refFor(pl);
+  if(!ref || !ref.st || !ref.st.flow || ref.st.flow.length<8) return null;
+  // The strip/lake/upper forecasts ARE the dam's own release schedule and their
+  // reference sensor IS that release — nothing to true, and "correcting" the
+  // plan to match yesterday's cycle would just distort it.
+  if(ref.key==="parker" || ref.key==="davis") return null;
+  function q(a,f){ var s=a.slice().sort(function(x,y){return x-y;}); return s[Math.max(0,Math.min(s.length-1,Math.floor(s.length*f)))]; }
+  var now=Date.now();
+  // The sensor's last full daily cycle — what the river is actually running.
+  var mv=ref.st.flow.filter(function(p){ return p.t>=now-26*3600*1000; }).map(function(p){ return p.v; });
+  if(mv.length<8) return null;
+  // Regime-change guard: if the schedule TRENDS to a new level across its days
+  // (not just the usual day-to-day wiggle), a static true-up would erase a real
+  // change — skip and let the schedule speak for itself.
+  var t0=d[0].t, blocks={};
+  d.forEach(function(p){ var b=Math.floor((p.t-t0)/86400000); (blocks[b]=blocks[b]||[]).push(p.v); });
+  var keys=Object.keys(blocks).map(Number).sort(function(a,b){return a-b;}), bmeds=[];
+  keys.forEach(function(k){ if(blocks[k].length>=12){ var bm=q(blocks[k],0.5); if(bm>0) bmeds.push(bm); } });
+  if(bmeds.length>=2){ var trd=bmeds[bmeds.length-1]/bmeds[0]; if(trd>1.3 || trd<0.77) return null; }
+  var sv=d.map(function(p){ return p.v; });
+  var sMed=q(sv,0.5), mMed=q(mv,0.5);
+  var sSpan=q(sv,0.85)-q(sv,0.15), mSpan=q(mv,0.85)-q(mv,0.15);
+  var scale=1;
+  if(sSpan>500 && mSpan>0){
+    scale=Math.max(0.25, Math.min(1.5, mSpan/sSpan));
+    if(scale>0.85 && scale<1.15) scale=1; // within noise — don't fiddle
+  }
+  if(scale===1 && Math.abs(sMed-mMed)<Math.max(120,0.04*mMed)) return null; // already true
+  return {sMed:sMed, mMed:mMed, scale:scale, label:ref.label};
 }
 function tideRating(pl){
   var seg=segFor(pl);
@@ -1090,9 +1226,21 @@ function medianPeriod(ex, type){
   gaps.sort(function(a,b){return a-b;});
   return gaps[Math.floor(gaps.length/2)];
 }
+function ftLbl(v){
+  return (v<0.05) ? '0.0 ft <span class="muted-sm">\u00b7 the weekly low</span>' : '+'+v.toFixed(1)+' ft';
+}
+function countdown(t){
+  var m=Math.round((t-Date.now())/60000);
+  if(m<1) return "about now";
+  if(m<60) return "in "+m+" min";
+  var h=Math.floor(m/60), r=m%60;
+  return "in "+h+" h"+(r?" "+r+" m":"");
+}
 function renderTide(){
   var body=document.getElementById("tide-body"), lead=document.getElementById("tide-lead");
   var pl=currentPlace(), seg=segFor(pl), ref=refFor(pl);
+  var lvlTh=document.getElementById("tide-lvl-th");
+  if(lvlTh) lvlTh.textContent = (seg==="strip") ? "Flow (cfs)" : "Above weekly low";
   if(seg==="lake"){
     lead.textContent="Lake Havasu is a reservoir \u2014 no daily tide up there. Pick a river spot to see highs and lows.";
     body.innerHTML='<tr><td colspan="3" style="color:var(--muted)">The river tide starts below Parker Dam.</td></tr>';
@@ -1107,7 +1255,7 @@ function renderTide(){
   // recent actual highs & lows, from the sensor, shifted to this place
   var ex=findTides(series);
   ex.filter(function(e2){ return e2.t>now-30*3600*1000 && e2.t<=now+3600*1000; }).slice(-3).forEach(function(e2){
-    rows.push({type:e2.type, t:e2.t+shift, lvl:(useStage ? '+'+(e2.v-wkLow).toFixed(1)+" ft" : fmt(e2.v)+" cfs"), tag:""});
+    rows.push({type:e2.type, t:e2.t+shift, lvl:(useStage ? ftLbl(e2.v-wkLow) : fmt(e2.v)+" cfs"), tag:""});
   });
   // upcoming highs & lows: straight from the dam schedule when we have it
   var fc=forecastSeriesFor(pl), fromSchedule=false;
@@ -1117,24 +1265,33 @@ function renderTide(){
       fromSchedule=true;
       fex.forEach(function(e2){
         var ft=toFt?toFt(e2.v):null;
-        rows.push({type:e2.type, t:e2.t, lvl:(ft!=null ? '+'+ft.toFixed(1)+" ft" : fmt(e2.v)+" cfs"), tag:" \u00b7 scheduled"});
+        rows.push({type:e2.type, t:e2.t, lvl:(ft!=null ? ftLbl(ft) : fmt(e2.v)+" cfs"), tag:" \u00b7 scheduled"});
       });
     }
   }
   if(!fromSchedule && ex.length>=2){
     ["high","low"].forEach(function(type){
       var per=medianPeriod(ex,type), last=ex.slice().reverse().find(function(e2){return e2.type===type;});
-      if(per && last){ var t=last.t; for(var k=0;k<3;k++){ t+=per; if(t>now) rows.push({type:type, t:t+shift, lvl:(useStage ? '+'+(last.v-wkLow).toFixed(1)+" ft" : fmt(last.v)+" cfs"), tag:" \u00b7 expected"}); } }
+      if(per && last){ var t=last.t; for(var k=0;k<3;k++){ t+=per; if(t>now) rows.push({type:type, t:t+shift, lvl:(useStage ? ftLbl(last.v-wkLow) : fmt(last.v)+" cfs"), tag:" \u00b7 expected"}); } }
     });
   }
   if(!rows.length){ body.innerHTML='<tr><td colspan="3" style="color:var(--muted)">Not enough variation to detect a clear tide right now.</td></tr>'; return; }
-  lead.innerHTML=(segFor(pl)==="strip") ? ("At "+esc(pl.name)+" \u2014 levels shown as flow (cfs): the Strip rides the Lake Moovalya pool, which holds a near-steady height while release pulses pass through \u2014 no public height gauge up here. Times are Arizona (MST).") : ("At "+esc(pl.name)+" \u2014 heights are above this week\u2019s low; "+(fromSchedule?"upcoming rows come straight from the dam schedule":"upcoming rows are projected from the recent rhythm")+".<span class=\"adv-only\"> Recent rows from "+ref.label+(Math.abs(shift)>=3*60000?", times shifted "+lagLabel2(shift, ref.label):"")+".</span> Times are Arizona (MST).");
+  lead.innerHTML=(segFor(pl)==="strip") ? ("At "+esc(pl.name)+" \u2014 levels shown as flow (cfs): the Strip rides the Lake Moovalya pool, which holds a near-steady height while release pulses pass through \u2014 no public height gauge up here. Times are Arizona (MST).") : ("At "+esc(pl.name)+" \u2014 heights are above this week\u2019s low \u2014 so \u201c0.0 ft\u201d means the week\u2019s lowest water, not a dry river; "+(fromSchedule?"upcoming rows come straight from the dam schedule":"upcoming rows are projected from the recent rhythm")+".<span class=\"adv-only\"> Recent rows from "+ref.label+(Math.abs(shift)>=3*60000?", times shifted "+lagLabel2(shift, ref.label):"")+".</span> Times are Arizona (MST).");
   rows.sort(function(a,b){ return a.t-b.t; });
-  body.innerHTML=rows.slice(0,9).map(function(r2){
-    return '<tr class="'+(r2.tag?"expected":"")+'"><td>'+azTime(r2.t)+r2.tag+'</td>'+
+  var list=rows.slice(0,9), now2=Date.now(), nextIdx=-1;
+  for(var ni=0;ni<list.length;ni++){ if(list[ni].t>now2){ nextIdx=ni; break; } }
+  var lastDay=null, todayD=azDay(now2), tomD=azDay(now2+86400000), html="";
+  list.forEach(function(r2, i){
+    var d2=azDay(r2.t);
+    if(d2!==lastDay){
+      lastDay=d2;
+      html+='<tr class="dayhead"><td colspan="3">'+(d2===todayD?"Today · ":(d2===tomD?"Tomorrow · ":""))+d2+'</td></tr>';
+    }
+    html+='<tr class="'+(r2.tag?"expected":"")+(i===nextIdx?" next":"")+'"><td>'+azClock(r2.t)+r2.tag+(i===nextIdx?' <b class="count">'+countdown(r2.t)+'</b>':'')+'</td>'+
       '<td><span class="pill '+r2.type+'">'+(r2.type==="high"?"High":"Low")+'</span></td>'+
       '<td class="mono">'+r2.lvl+'</td></tr>';
-  }).join("");
+  });
+  body.innerHTML=html;
 }
 
 
@@ -1163,7 +1320,7 @@ function loadBor(){
     .catch(function(e){ borErr=(e&&e.message?e.message:String(e)); borData=null; borTried=true; });
 }
 function loadHeadgate(){
-  return fetchPdf(HG_PDF).then(function(buf){ return pdfToLines(buf); }).then(function(lines){ hgData=parseHeadgate(lines); hgErr=null; hgTried=true; })
+  return Promise.all([loadPdfJs(), fetchPdf(HG_PDF)]).then(function(rs){ return pdfToLines(rs[1]); }).then(function(lines){ hgData=parseHeadgate(lines); hgErr=null; hgTried=true; })
     .catch(function(e){ hgErr=(e&&e.message?e.message:String(e)); hgData=null; hgTried=true; });
 }
 // GitHub relay: hourly data the Action committed, served with CORS from raw.githubusercontent
@@ -1235,6 +1392,7 @@ function loadAll(){
   });
   function done(){
     setLoading(false);
+    lastLoadT=Date.now();
     rebuild();
     if(relayInfo){
       var mm=Math.max(0, Math.round((Date.now()-relayInfo.t)/60000));
@@ -1266,7 +1424,7 @@ function loadAll(){
     sel.innerHTML='<option value="" disabled selected>\u2014 pick a spot \u2014</option>'+sel.innerHTML;
     sel.value="";
   } else { sel.value=currentPlace().key; }
-  sel.addEventListener("change", function(){ store.set(PLACE_KEY, sel.value); rebuild(); });
+  sel.addEventListener("change", function(){ store.set(PLACE_KEY, sel.value); pushSpot(sel.value); rebuild(); });
 })();
 var RANGE_KEY="blythe_range_v1";
 function rangeDays(){ var d=parseInt(store.get(RANGE_KEY)||"7",10); return [1,2,4,7].indexOf(d)>=0 ? d : 7; }
@@ -1305,6 +1463,31 @@ var MODE_KEY="blythe_mode_v1";
     apply(mode);
   });
 })();
+function spotFromUrl(){
+  try{
+    var m=location.search.match(/[?&]spot=([a-z0-9-]+)/i);
+    if(!m) return null;
+    var k=m[1].toLowerCase();
+    for(var i=0;i<PLACES.length;i++){ if(PLACES[i].key===k) return k; }
+    return null;
+  }catch(e){ return null; }
+}
+function pushSpot(k, replace){
+  try{
+    if(!window.history || !history.pushState) return;
+    var url=location.pathname+"?spot="+k+(location.hash||"");
+    (replace ? history.replaceState : history.pushState).call(history, {spot:k}, "", url);
+  }catch(e){}
+}
+(function initSpotUrl(){
+  var k=spotFromUrl();
+  if(k){ store.set(PLACE_KEY, k); var ps0=document.getElementById("place-sel"); if(ps0) ps0.value=k; }
+  else { var cur0=store.get(PLACE_KEY); if(cur0) pushSpot(cur0, true); } // entry pageview carries the spot
+  window.addEventListener("popstate", function(){
+    var k2=spotFromUrl();
+    if(k2){ store.set(PLACE_KEY, k2); var ps=document.getElementById("place-sel"); if(ps) ps.value=k2; rebuild(); }
+  });
+})();
 (function initWelcome(){
   var w=document.getElementById("welcome");
   if(!w) return;
@@ -1312,11 +1495,27 @@ var MODE_KEY="blythe_mode_v1";
   var wp=document.getElementById("welcome-pick");
   if(wp) wp.addEventListener("click", function(ev){
     var k=ev.target && ev.target.getAttribute && ev.target.getAttribute("data-place");
-    if(k){ store.set(PLACE_KEY, k); w.style.display="none"; var ps=document.getElementById("place-sel"); if(ps) ps.value=k; rebuild(); }
+    if(k){ store.set(PLACE_KEY, k); pushSpot(k); w.style.display="none"; var ps=document.getElementById("place-sel"); if(ps) ps.value=k; rebuild(); }
   });
 })();
 var manualRefresh=false;
 document.getElementById("refresh").addEventListener("click", function(){ manualRefresh=true; loadAll(); });
+(function initShare(){
+  var b=document.getElementById("share-btn");
+  if(!b) return;
+  b.addEventListener("click", function(){
+    var pl=currentPlace();
+    var url=location.origin+location.pathname+"?spot="+pl.key;
+    function copied(){ var old=b.textContent; b.textContent="Link copied ✓"; setTimeout(function(){ b.textContent=old; }, 1600); }
+    if(navigator.share){ navigator.share({title:"Is The River Up? — "+pl.name, url:url}).catch(function(){}); return; }
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(copied, function(){}); return; }
+    try{
+      var ta=document.createElement("textarea"); ta.value=url;
+      document.body.appendChild(ta); ta.select(); document.execCommand("copy");
+      document.body.removeChild(ta); copied();
+    }catch(e){}
+  });
+})();
 var THEME_KEY="blythe_theme_v1";
 function themeNow(){
   var t=store.get(THEME_KEY);
@@ -1342,15 +1541,26 @@ function applyTheme(){
 })();
 loadAll();
 setInterval(loadAll, 15*60*1000);
+setInterval(function(){ try{ renderTide(); }catch(e){} }, 60*1000); // keep the "next high/low" countdown ticking between refreshes
+// Phones suspend timers in background tabs — refresh on return if the data is stale.
+var lastLoadT=Date.now();
+document.addEventListener("visibilitychange", function(){
+  if(document.visibilityState==="visible" && Date.now()-lastLoadT > 5*60*1000) loadAll();
+});
 
 // Cloudflare Web Analytics (privacy-first, cookie-free). Injected only on the
 // real domain so dev-branch and test visits never pollute the numbers.
 (function(){
-  if(!/(^|\.)istheriverup\.com$/.test(location.hostname)) return;
+  var DEV_CF_TOKEN=""; // optional: paste a token from a second Cloudflare Web Analytics
+                       // property (hostname dev--blythe-river.netlify.app) to measure raw dev
+  var tok=null;
+  if(/(^|\.)istheriverup\.com$/.test(location.hostname)) tok="3fa0ff4c71b34ffb8b64243da155705c";
+  else if(location.hostname==="dev--blythe-river.netlify.app" && /^[a-f0-9]{32}$/.test(DEV_CF_TOKEN)) tok=DEV_CF_TOKEN;
+  if(!tok) return;
   var s=document.createElement("script");
   s.type="module";
   s.src="https://static.cloudflareinsights.com/beacon.min.js";
-  s.setAttribute("data-cf-beacon", '{"token": "3fa0ff4c71b34ffb8b64243da155705c"}');
+  s.setAttribute("data-cf-beacon", JSON.stringify({token:tok, spa:true}));
   document.head.appendChild(s);
 })();
 </script>
