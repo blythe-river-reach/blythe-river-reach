@@ -95,6 +95,7 @@
   .pick-label{font-size:17px; color:var(--text); font-weight:700; white-space:nowrap}
   .picker-wrap{display:inline-flex; align-items:center; gap:10px; flex-wrap:nowrap}
   .agechip{color:var(--muted); font-size:0.92em}
+  .muted-sm{color:var(--muted); font-size:11px; font-weight:400}
   body.nochoice section:not(#welcome), body.nochoice .grid, body.nochoice .hero, body.nochoice .strip{display:none !important}
   .chart-hold{position:relative}
   .ylab span{position:absolute; left:6px; font-size:11px; font-weight:600; color:rgba(190,210,230,0.85); background:rgba(10,18,28,0.6); padding:0 5px; border-radius:4px; pointer-events:none; line-height:1.5}
@@ -219,7 +220,7 @@
   <div class="section-panel">
     <h2>Tide table &mdash; daily highs &amp; lows</h2>
     <p class="lead" id="tide-lead">When the pulse peaks and bottoms out at your reach. Times are Arizona (MST).</p>
-    <table class="tide"><thead><tr><th>When (MST)</th><th></th><th>Level</th></tr></thead>
+    <table class="tide"><thead><tr><th>When (MST)</th><th></th><th>Above weekly low</th></tr></thead>
       <tbody id="tide-body"><tr><td colspan="3" style="color:var(--muted)">Loading&hellip;</td></tr></tbody>
     </table>
   </div>
@@ -235,7 +236,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10r (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10s (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -1091,6 +1092,9 @@ function medianPeriod(ex, type){
   gaps.sort(function(a,b){return a-b;});
   return gaps[Math.floor(gaps.length/2)];
 }
+function ftLbl(v){
+  return (v<0.05) ? '0.0 ft <span class="muted-sm">\u00b7 the weekly low</span>' : '+'+v.toFixed(1)+' ft';
+}
 function renderTide(){
   var body=document.getElementById("tide-body"), lead=document.getElementById("tide-lead");
   var pl=currentPlace(), seg=segFor(pl), ref=refFor(pl);
@@ -1108,7 +1112,7 @@ function renderTide(){
   // recent actual highs & lows, from the sensor, shifted to this place
   var ex=findTides(series);
   ex.filter(function(e2){ return e2.t>now-30*3600*1000 && e2.t<=now+3600*1000; }).slice(-3).forEach(function(e2){
-    rows.push({type:e2.type, t:e2.t+shift, lvl:(useStage ? '+'+(e2.v-wkLow).toFixed(1)+" ft" : fmt(e2.v)+" cfs"), tag:""});
+    rows.push({type:e2.type, t:e2.t+shift, lvl:(useStage ? ftLbl(e2.v-wkLow) : fmt(e2.v)+" cfs"), tag:""});
   });
   // upcoming highs & lows: straight from the dam schedule when we have it
   var fc=forecastSeriesFor(pl), fromSchedule=false;
@@ -1118,18 +1122,18 @@ function renderTide(){
       fromSchedule=true;
       fex.forEach(function(e2){
         var ft=toFt?toFt(e2.v):null;
-        rows.push({type:e2.type, t:e2.t, lvl:(ft!=null ? '+'+ft.toFixed(1)+" ft" : fmt(e2.v)+" cfs"), tag:" \u00b7 scheduled"});
+        rows.push({type:e2.type, t:e2.t, lvl:(ft!=null ? ftLbl(ft) : fmt(e2.v)+" cfs"), tag:" \u00b7 scheduled"});
       });
     }
   }
   if(!fromSchedule && ex.length>=2){
     ["high","low"].forEach(function(type){
       var per=medianPeriod(ex,type), last=ex.slice().reverse().find(function(e2){return e2.type===type;});
-      if(per && last){ var t=last.t; for(var k=0;k<3;k++){ t+=per; if(t>now) rows.push({type:type, t:t+shift, lvl:(useStage ? '+'+(last.v-wkLow).toFixed(1)+" ft" : fmt(last.v)+" cfs"), tag:" \u00b7 expected"}); } }
+      if(per && last){ var t=last.t; for(var k=0;k<3;k++){ t+=per; if(t>now) rows.push({type:type, t:t+shift, lvl:(useStage ? ftLbl(last.v-wkLow) : fmt(last.v)+" cfs"), tag:" \u00b7 expected"}); } }
     });
   }
   if(!rows.length){ body.innerHTML='<tr><td colspan="3" style="color:var(--muted)">Not enough variation to detect a clear tide right now.</td></tr>'; return; }
-  lead.innerHTML=(segFor(pl)==="strip") ? ("At "+esc(pl.name)+" \u2014 levels shown as flow (cfs): the Strip rides the Lake Moovalya pool, which holds a near-steady height while release pulses pass through \u2014 no public height gauge up here. Times are Arizona (MST).") : ("At "+esc(pl.name)+" \u2014 heights are above this week\u2019s low; "+(fromSchedule?"upcoming rows come straight from the dam schedule":"upcoming rows are projected from the recent rhythm")+".<span class=\"adv-only\"> Recent rows from "+ref.label+(Math.abs(shift)>=3*60000?", times shifted "+lagLabel2(shift, ref.label):"")+".</span> Times are Arizona (MST).");
+  lead.innerHTML=(segFor(pl)==="strip") ? ("At "+esc(pl.name)+" \u2014 levels shown as flow (cfs): the Strip rides the Lake Moovalya pool, which holds a near-steady height while release pulses pass through \u2014 no public height gauge up here. Times are Arizona (MST).") : ("At "+esc(pl.name)+" \u2014 heights are above this week\u2019s low \u2014 so \u201c0.0 ft\u201d means the week\u2019s lowest water, not a dry river; "+(fromSchedule?"upcoming rows come straight from the dam schedule":"upcoming rows are projected from the recent rhythm")+".<span class=\"adv-only\"> Recent rows from "+ref.label+(Math.abs(shift)>=3*60000?", times shifted "+lagLabel2(shift, ref.label):"")+".</span> Times are Arizona (MST).");
   rows.sort(function(a,b){ return a.t-b.t; });
   body.innerHTML=rows.slice(0,9).map(function(r2){
     return '<tr class="'+(r2.tag?"expected":"")+'"><td>'+azTime(r2.t)+r2.tag+'</td>'+
