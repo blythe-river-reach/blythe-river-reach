@@ -9,7 +9,7 @@
 <link rel="manifest" href="/site.webmanifest">
 <link rel="canonical" href="https://istheriverup.com/">
 <meta name="theme-color" content="#0d1521">
-<meta name="description" content="Live Colorado River water levels, daily highs &amp; lows, and multi-day forecasts for every landmark from Lake Havasu to Walter's Camp — Parker Dam, the Parker Strip, Lost Lake, Water Wheel, Blythe, and beyond.">
+<meta name="description" content="Live Colorado River water levels, daily highs &amp; lows, and multi-day forecasts for every landmark from Davis Dam to Martinez Lake — Laughlin, Lake Havasu, the Parker Strip, Lost Lake, Water Wheel, Blythe, and beyond.">
 <meta property="og:title" content="Is The River Up? — live Colorado River levels &amp; forecast">
 <meta property="og:description" content="Is the river up or down at your spot? Live sensors, tide tables, and the dam schedule, shifted to your stretch of the Colorado.">
 <meta property="og:type" content="website">
@@ -19,7 +19,7 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<title>Is The River Up? — Colorado River levels, Lake Havasu to Walter’s Camp</title>
+<title>Is The River Up? — Colorado River levels, Davis Dam to Martinez Lake</title>
 <style>
   :root{
     --bg:#0d1521; --panel:#14202f; --panel2:#1b2c3f; --border:#263b53;
@@ -119,9 +119,16 @@
   .range-picker{display:flex; gap:6px; margin:8px 0 2px}
   .range-picker button{font-size:12px; padding:4px 12px; border-radius:999px; background:transparent; color:var(--muted); border:1px solid var(--border); cursor:pointer}
   .range-picker button.on{color:var(--water); border-color:var(--water); background:rgba(127,192,232,0.10); font-weight:700}
+  @media (max-width:900px){
+    /* Stack order stays the same at every width: title → picker → buttons → status */
+    .updated{margin-left:0; width:100%; flex-wrap:wrap; justify-content:flex-start; row-gap:8px}
+    #updated{flex-basis:100%; order:9; font-size:12px}
+    #load-spin{order:9}
+  }
   @media (max-width:680px){
-    .picker-wrap{width:100%; order:5}
+    .picker-wrap{width:100%}
     .picker-wrap select.place{flex:1; max-width:none}
+    #tip-link,#mode-btn,#refresh,#share-btn,#theme-btn{font-size:13px; padding:8px 12px}
   }
   @media (prefers-reduced-motion: no-preference){
     select.place{animation:beckon 1.3s ease-in-out 3}
@@ -160,7 +167,7 @@
 
 <header>
   <h1>Is The River Up?</h1>
-  <span class="coords">Lake Havasu &rarr; Walter&rsquo;s Camp</span>
+  <span class="coords">Davis Dam &rarr; Martinez Lake</span>
   <span class="picker-wrap"><label class="pick-label" for="place-sel">📍 Your spot:</label><select id="place-sel" class="place"></select></span>
   <span class="updated"><span id="load-spin" class="spin" style="display:none"></span><span id="updated">Loading&hellip;</span><a href="https://ko-fi.com/IsTheRiverUp" target="_blank" rel="noopener" id="tip-link" title="This site is free — tips cover the domain and upkeep. Opens the Ko-fi tip jar in a new tab.">🛟 Tip jar</a><button id="share-btn" title="Share a link that opens right on this spot — or copy it to the clipboard.">📤 Share</button><button id="theme-btn" title="Bright-sun day mode / night mode. Auto-picks by time of day until you choose.">☀️ Day</button><button id="mode-btn">Advanced</button><button id="refresh">Refresh</button></span>
 </header>
@@ -255,7 +262,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10v</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-11a</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -1424,7 +1431,7 @@ function loadRelay(){
     }
     urls.push({u:"https://raw.githubusercontent.com/"+GH_REPO+"/main/data/riverdata.json?t="+Date.now(), b:"main"});
   }
-  urls.push({u:"data/riverdata.json?t="+Date.now(), b:null});
+  urls.push({u:"/data/riverdata.json?t="+Date.now(), b:null}); // absolute: relative would break under /s/<spot> paths
   var i=0;
   function next(){
     if(i>=urls.length) return Promise.resolve(null);
@@ -1548,8 +1555,10 @@ var MODE_KEY="blythe_mode_v1";
   });
 })();
 function spotFromUrl(){
+  // Accepts both the pretty path (/s/<key>, what we publish now — Cloudflare
+  // Web Analytics only sees paths) and the legacy ?spot=<key> query links.
   try{
-    var m=location.search.match(/[?&]spot=([a-z0-9-]+)/i);
+    var m=location.pathname.match(/^\/s\/([a-z0-9-]+)\/?$/i) || location.search.match(/[?&]spot=([a-z0-9-]+)/i);
     if(!m) return null;
     var k=m[1].toLowerCase();
     for(var i=0;i<PLACES.length;i++){ if(PLACES[i].key===k) return k; }
@@ -1559,13 +1568,13 @@ function spotFromUrl(){
 function pushSpot(k, replace){
   try{
     if(!window.history || !history.pushState) return;
-    var url=location.pathname+"?spot="+k+(location.hash||"");
+    var url="/s/"+k+(location.hash||"");
     (replace ? history.replaceState : history.pushState).call(history, {spot:k}, "", url);
   }catch(e){}
 }
 (function initSpotUrl(){
   var k=spotFromUrl();
-  if(k){ store.set(PLACE_KEY, k); var ps0=document.getElementById("place-sel"); if(ps0) ps0.value=k; }
+  if(k){ store.set(PLACE_KEY, k); var ps0=document.getElementById("place-sel"); if(ps0) ps0.value=k; pushSpot(k, true); } // canonicalize legacy ?spot= links to /s/<key>
   else { var cur0=store.get(PLACE_KEY); if(cur0) pushSpot(cur0, true); } // entry pageview carries the spot
   window.addEventListener("popstate", function(){
     var k2=spotFromUrl();
@@ -1589,7 +1598,7 @@ document.getElementById("refresh").addEventListener("click", function(){ manualR
   if(!b) return;
   b.addEventListener("click", function(){
     var pl=currentPlace();
-    var url=location.origin+location.pathname+"?spot="+pl.key;
+    var url=location.origin+"/s/"+pl.key;
     function copied(){ var old=b.textContent; b.textContent="Link copied ✓"; setTimeout(function(){ b.textContent=old; }, 1600); }
     if(navigator.share){ navigator.share({title:"Is The River Up? — "+pl.name, url:url}).catch(function(){}); return; }
     if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(copied, function(){}); return; }
