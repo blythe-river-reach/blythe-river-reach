@@ -262,7 +262,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-11c</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-11d</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -898,34 +898,43 @@ function buildRating(key){
     return null;
   };
 }
-// "Is today a big day?" — rank today's peak (measured so far, plus water
-// already en route today) against each prior day's peak at this spot. Says
-// something the daily tide can't: whether today's water is big or small.
+// "Is today's peak a big one?" — rank today's peak (measured so far, plus
+// water already en route today) against each prior day's peak at this spot.
+// Peaks arrive morning, midday, or night depending on travel time, so the
+// "do we know today's peak yet?" check learns this spot's usual peak hour.
 function dayRankPhrase(flowP, comp){
   if(!flowP || flowP.length<8) return "";
   var DAY=86400000, OFF=7*3600000, now=Date.now(); // MST midnights
   function dk(t){ return Math.floor((t-OFF)/DAY); }
   var todayK=dk(now), byDay={};
-  flowP.forEach(function(p){ var k=dk(p.t); (byDay[k]=byDay[k]||[]).push(p.v); });
-  var todayVals=(byDay[todayK]||[]).slice();
+  flowP.forEach(function(p){ var k=dk(p.t); (byDay[k]=byDay[k]||[]).push(p); });
+  var todayVals=(byDay[todayK]||[]).map(function(p){ return p.v; });
   var lastT=flowP[flowP.length-1].t;
   if(comp){
     comp.points.forEach(function(p){ if(p.t>now && dk(p.t)===todayK) todayVals.push(p.v); });
     if(comp.horizon>lastT) lastT=comp.horizon;
   }
-  var priorHighs=[];
-  for(var k in byDay){ if(+k!==todayK && byDay[k].length>=12) priorHighs.push(Math.max.apply(null,byDay[k])); }
+  var priorHighs=[], peakOffs=[];
+  for(var k in byDay){
+    if(+k===todayK || byDay[k].length<12) continue;
+    var best=byDay[k][0];
+    byDay[k].forEach(function(p){ if(p.v>best.v) best=p; });
+    priorHighs.push(best.v);
+    peakOffs.push((best.t-OFF)%DAY); // time-of-day the peak arrives at THIS spot
+  }
   if(priorHighs.length<3 || todayVals.length<4) return "";
   var todayHigh=Math.max.apply(null,todayVals);
   var below=0; priorHighs.forEach(function(v){ if(v<todayHigh) below++; });
   var n=priorHighs.length;
-  // claiming "smaller day" needs today's peak to be known — either already
-  // seen, or measured en route through the usual afternoon peak (~5 PM MST)
-  var knowsPeak = lastT >= todayK*DAY+OFF+17*3600000;
-  if(below===n) return "the week’s biggest water day";
-  if(below>=n*0.66) return "more water than most days this week";
-  if(below<=n*0.34) return knowsPeak ? "less water than most days this week" : "";
-  return "a typical water day";
+  // claiming a smaller peak needs today's peak to be known — either already
+  // seen, or measured en route past this spot's usual peak hour (+2 h margin)
+  peakOffs.sort(function(a,b){ return a-b; });
+  var usualPeak=peakOffs[Math.floor(peakOffs.length/2)];
+  var knowsPeak = lastT >= todayK*DAY+OFF+Math.min(DAY, usualPeak+2*3600000);
+  if(below===n) return "the week’s biggest water peak";
+  if(below>=n*0.66) return "a higher peak than most days this week";
+  if(below<=n*0.34) return knowsPeak ? "a lower peak than most days this week" : "";
+  return "a typical peak for this week";
 }
 function renderStrip(pl){
   var el=document.getElementById("strip"); if(!el) return;
