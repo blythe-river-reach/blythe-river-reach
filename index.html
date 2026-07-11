@@ -255,7 +255,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10t</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10u</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -998,7 +998,23 @@ function renderHero(){
       if(nowV!=null){ for(var oi=0; oi<fc2.arrival.length; oi++){ var op=fc2.arrival[oi]; if(op.t>_n && Math.abs(op.v-nowV)>0.15*_span){ onT=op.t; break; } } }
       var hrsS=(onT-Date.now())/3600000;
       var whenStart=hrsS<1?'within the hour':(hrsS<1.75?'in about an hour':'in ~'+Math.round(hrsS)+' h');
-      if(_measFlat && _measCut && onT < _measCut-45*60000 && _measCut-Date.now() > 45*60000){
+      // Sanity guard: a scheduled "low" that sits ABOVE the water's current level
+      // (or a "high" below it) reads as nonsense \u2014 say what it really means.
+      var mism=null;
+      if(ft2!=null && abl!=null){
+        if(nxt.type==="low" && ft2>abl+0.5) mism="low-above";
+        else if(nxt.type==="high" && ft2<abl-0.5) mism="high-below";
+      } else if(f && nowV!=null){
+        if(nxt.type==="low" && nxt.v>f.v+0.15*_span) mism="low-above";
+        else if(nxt.type==="high" && nxt.v<f.v-0.15*_span) mism="high-below";
+      }
+      if(mism==="low-above"){
+        turn=' <b style="color:var(--text)">Right now looks like the bottom</b> \u2014 the schedule doesn\u2019t call for water this low again soon: even its next dip ('+lvl2+' around '+azTime(nxt.t)+') sits above where the water is now.';
+      }
+      else if(mism==="high-below"){
+        turn=' <b style="color:var(--text)">Right now looks like the top</b> \u2014 the schedule stays below this level: even its next crest ('+lvl2+' around '+azTime(nxt.t)+') sits under where the water is now.';
+      }
+      else if(_measFlat && _measCut && onT < _measCut-45*60000 && _measCut-Date.now() > 45*60000){
         turn=' <b style="color:var(--text)">The schedule calls for '+(nxt.type==="high"?"a rise":"a drop")+'</b> \u2014 but the water already past '+ref.label+' holds near this level through ~'+azTime(_measCut)+', so expect it after that.';
       }
       else if(nxt.type==="low"){
@@ -1097,8 +1113,54 @@ function forecastSeriesFor(pl){
     }
   }
   if(!d || !d.length) return null;
+  // Self-truing heights: the schedule predicts TIMING well, but by a distant
+  // reach both its absolute level (diversion estimates, drains, seepage) and
+  // its swing (an 80-mile run flattens the daily pulse) drift from what the
+  // local gauge actually reads. Match the forecast's typical level and swing
+  // width to the sensor's last daily cycle — never point-by-point, so a couple
+  // hours of travel-time error can't poison it.
+  var tru=scheduleTrue(d, pl);
+  if(tru){
+    d=d.map(function(p){ return {t:p.t, v:Math.max(0, tru.mMed+(p.v-tru.sMed)*tru.scale)}; });
+    var bits=[];
+    if(Math.abs(tru.sMed-tru.mMed)>=Math.max(120,0.04*tru.mMed)) bits.push('the raw schedule math has run ~'+fmt(Math.abs(tru.sMed-tru.mMed))+' cfs '+(tru.sMed>tru.mMed?'high':'low')+' vs its readings lately');
+    if(tru.scale<1) bits.push('the daily swing flattens ~'+Math.round((1-tru.scale)*100)+'% over the long run to here');
+    if(tru.scale>1) bits.push('the daily swing runs ~'+Math.round((tru.scale-1)*100)+'% bigger here');
+    srcNote+=' Heights auto-trued to '+tru.label+' ('+bits.join('; ')+').';
+  }
   var shift=(seg==="lake") ? 0 : lagMsFrom(originMile, pl);
   return { arrival:d.map(function(p){ return {t:p.t+shift, v:p.v}; }), srcNote:srcNote, originMile:originMile, originName:originName, seg:seg };
+}
+function scheduleTrue(d, pl){
+  var ref=refFor(pl);
+  if(!ref || !ref.st || !ref.st.flow || ref.st.flow.length<8) return null;
+  // The strip/lake/upper forecasts ARE the dam's own release schedule and their
+  // reference sensor IS that release — nothing to true, and "correcting" the
+  // plan to match yesterday's cycle would just distort it.
+  if(ref.key==="parker" || ref.key==="davis") return null;
+  function q(a,f){ var s=a.slice().sort(function(x,y){return x-y;}); return s[Math.max(0,Math.min(s.length-1,Math.floor(s.length*f)))]; }
+  var now=Date.now();
+  // The sensor's last full daily cycle — what the river is actually running.
+  var mv=ref.st.flow.filter(function(p){ return p.t>=now-26*3600*1000; }).map(function(p){ return p.v; });
+  if(mv.length<8) return null;
+  // Regime-change guard: if the schedule TRENDS to a new level across its days
+  // (not just the usual day-to-day wiggle), a static true-up would erase a real
+  // change — skip and let the schedule speak for itself.
+  var t0=d[0].t, blocks={};
+  d.forEach(function(p){ var b=Math.floor((p.t-t0)/86400000); (blocks[b]=blocks[b]||[]).push(p.v); });
+  var keys=Object.keys(blocks).map(Number).sort(function(a,b){return a-b;}), bmeds=[];
+  keys.forEach(function(k){ if(blocks[k].length>=12){ var bm=q(blocks[k],0.5); if(bm>0) bmeds.push(bm); } });
+  if(bmeds.length>=2){ var trd=bmeds[bmeds.length-1]/bmeds[0]; if(trd>1.3 || trd<0.77) return null; }
+  var sv=d.map(function(p){ return p.v; });
+  var sMed=q(sv,0.5), mMed=q(mv,0.5);
+  var sSpan=q(sv,0.85)-q(sv,0.15), mSpan=q(mv,0.85)-q(mv,0.15);
+  var scale=1;
+  if(sSpan>500 && mSpan>0){
+    scale=Math.max(0.25, Math.min(1.5, mSpan/sSpan));
+    if(scale>0.85 && scale<1.15) scale=1; // within noise — don't fiddle
+  }
+  if(scale===1 && Math.abs(sMed-mMed)<Math.max(120,0.04*mMed)) return null; // already true
+  return {sMed:sMed, mMed:mMed, scale:scale, label:ref.label};
 }
 function tideRating(pl){
   var seg=segFor(pl);
