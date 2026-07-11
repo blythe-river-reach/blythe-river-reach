@@ -262,7 +262,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-11a</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-11e</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -898,6 +898,48 @@ function buildRating(key){
     return null;
   };
 }
+// "Is today's peak a big one?" — rank today's peak (measured so far, plus
+// water already en route today) against each prior day's peak at this spot.
+// Peaks arrive morning, midday, or night depending on travel time, so the
+// "do we know today's peak yet?" check learns this spot's usual peak hour.
+function dayRankPhrase(flowP, comp){
+  if(!flowP || flowP.length<8) return "";
+  var DAY=86400000, OFF=7*3600000, now=Date.now(); // MST midnights
+  function dk(t){ return Math.floor((t-OFF)/DAY); }
+  var todayK=dk(now), byDay={};
+  flowP.forEach(function(p){ var k=dk(p.t); (byDay[k]=byDay[k]||[]).push(p); });
+  var todayPts=(byDay[todayK]||[]).slice();
+  var lastT=flowP[flowP.length-1].t;
+  if(comp){
+    comp.points.forEach(function(p){ if(p.t>now && dk(p.t)===todayK) todayPts.push({t:p.t, v:p.v}); });
+    if(comp.horizon>lastT) lastT=comp.horizon;
+  }
+  var priorHighs=[], peakOffs=[];
+  for(var k in byDay){
+    if(+k===todayK || byDay[k].length<12) continue;
+    var best=byDay[k][0];
+    byDay[k].forEach(function(p){ if(p.v>best.v) best=p; });
+    priorHighs.push(best.v);
+    peakOffs.push((best.t-OFF)%DAY); // time-of-day the peak arrives at THIS spot
+  }
+  if(priorHighs.length<3 || todayPts.length<4) return "";
+  var todayBest=todayPts[0];
+  todayPts.forEach(function(p){ if(p.v>todayBest.v) todayBest=p; });
+  var todayHigh=todayBest.v;
+  var below=0; priorHighs.forEach(function(v){ if(v<todayHigh) below++; });
+  var n=priorHighs.length;
+  // claiming a smaller peak needs today's peak to be known — either already
+  // seen, or measured en route past this spot's usual peak hour (+2 h margin)
+  peakOffs.sort(function(a,b){ return a-b; });
+  var usualPeak=peakOffs[Math.floor(peakOffs.length/2)];
+  var knowsPeak = lastT >= todayK*DAY+OFF+Math.min(DAY, usualPeak+2*3600000);
+  // Tense matters: say whether today's peak is still coming, here, or behind us.
+  var phase = todayBest.t>now+45*60000 ? "ahead" : (todayBest.t<now-45*60000 ? "past" : "now");
+  if(below===n) return phase==="ahead" ? "the week’s biggest peak on the way" : (phase==="past" ? "coming off the week’s biggest peak" : "the week’s biggest water peak");
+  if(below>=n*0.66) return phase==="ahead" ? "a higher peak than most days on the way" : (phase==="past" ? "coming off a higher peak than most days" : "a higher peak than most days this week");
+  if(below<=n*0.34) return knowsPeak ? "a lower peak than most days this week" : "";
+  return "a typical peak for this week";
+}
 function renderStrip(pl){
   var el=document.getElementById("strip"); if(!el) return;
   var anchors=[
@@ -951,9 +993,11 @@ function renderHero(){
     elC.innerHTML="";
     return;
   }
-  var lv=levelInfo(series), levelPhrase=lv?LEVELWORD[lv.word]:"", abl=stageAboveLow(stageP), sw=stageSwing(stageP);
+  var abl=stageAboveLow(stageP), sw=stageSwing(stageP);
+  var _comp=measuredArrival(pl);
+  var levelPhrase=dayRankPhrase(flowP, _comp);
   var readAge=Date.now()-c.t;
-  elS.innerHTML='<span style="color:'+TCOLOR[tr]+'">'+TMARK[tr]+'</span> Water '+(readAge>90*60*1000?'has been ':'is ')+TWORD[tr]+(levelPhrase?' \u00b7 '+levelPhrase:'');
+  var _statusWord=TWORD[tr]; // may be overridden to "peaking"/"bottoming out" when the measured turn is arriving now
   var lag=lagMsFrom(ref.mile, pl);
   var timing='<span class="adv-only">'+((Math.abs(lag)>=3*60000) ? ' \u00b7 pulses arrive at '+esc(pl.name)+' '+lagLabel2(lag, ref.label) : ' \u00b7 from '+ref.label)+'</span>';
   var turn="", _measCut=null, _measFlat=false;
@@ -962,7 +1006,6 @@ function renderHero(){
   // is already in the river, en route. If the measured window contains the next
   // turn, report it from measurement (beats the schedule); otherwise fall
   // through to the schedule.
-  var _comp=measuredArrival(pl);
   if(_comp && flowP.length>=6){
     var _fut=_comp.points.filter(function(q){ return q.t>Date.now(); });
     if(_fut.length>=3){
@@ -976,22 +1019,51 @@ function renderHero(){
       _measFlat=(Math.max(_depUp,_depDn) < _thr*0.6);
       var _mt=null, _up=_depUp>=_depDn, _ts=null;
       if(Math.max(_depUp,_depDn)>=_thr){
-        for(var _k=0;_k<_fut.length;_k++){ var _dvv=_fut[_k].v-_cv; if((_up?_dvv:-_dvv)>=_thr*0.5){ _ts=_fut[_k]; break; } }
         if(_up){ for(var _j=0;_j<_fut.length;_j++){ if(_fut[_j].v>=_fmax-_thr*0.4){ _mt={type:"high", t:_fut[_j].t, v:_fmax, src:_fut[_j].src}; break; } } }
         else { for(var _i=0;_i<_fut.length;_i++){ if(_fut[_i].v<=_fmin+_thr*0.4){ _mt={type:"low", t:_fut[_i].t, v:_fmin, src:_fut[_i].src}; break; } } }
+        // The move STARTS at the peak (before a drop) or the trough (before a
+        // rise) \u2014 the last point still sitting at the pre-move extreme, NOT the
+        // moment some threshold is crossed mid-move (that reads hours late).
+        if(_mt){
+          var _pre=_fut.filter(function(q){ return q.t<=_mt.t; });
+          if(_pre.length){
+            var _pv=_pre.map(function(q){ return q.v; });
+            var _pext=_up ? Math.min.apply(null,_pv) : Math.max.apply(null,_pv);
+            for(var _p2=_pre.length-1;_p2>=0;_p2--){
+              if(_up ? (_pre[_p2].v<=_pext+_thr*0.25) : (_pre[_p2].v>=_pext-_thr*0.25)){ _ts=_pre[_p2]; break; }
+            }
+          }
+        }
       }
       if(_mt){
         var toFtM=tideRating(pl), ftM=toFtM?toFtM(_mt.v):null;
         var lvlM=(ftM!=null?'~+'+ftM.toFixed(1)+' ft':'~'+fmt(Math.round(_mt.v))+' cfs');
         var _srcL=_mt.src||ref.label;
+        var _lastF=_fut[_fut.length-1];
+        // still at the extreme when measurement runs out \u2192 the real turn may lie beyond
+        var _atEdge=_up ? (_lastF.v>=_fmax-_thr*0.3) : (_lastF.v<=_fmin+_thr*0.3);
+        var _tgt=(_atEdge ? (_up?'up through ':'down through ') : (_up?'rising to ':'dropping to '))+lvlM+' by '+azTime(_mt.t);
+        var _tail=' That water is already past '+_srcL+' \u2014 measured, on its way.';
         var hrsM=(_mt.t-Date.now())/3600000;
         var whenM=hrsM<1?'within the hour':(hrsM<1.75?'in about an hour':'in ~'+Math.round(hrsM)+' h');
-        if(_ts && _ts.t-Date.now()>45*60000 && _mt.t-_ts.t>75*60000){
+        if(_ts && _ts.t-Date.now()>45*60000){
           var hrsS=(_ts.t-Date.now())/3600000;
           var whenS=hrsS<1?'within the hour':(hrsS<1.75?'in about an hour':'in ~'+Math.round(hrsS)+' h');
-          turn=' <b style="color:var(--text)">Expect it to start '+(_up?'rising':'dropping')+' '+whenS+'</b> (~'+azClock(_ts.t)+') \u2014 '+(_up?'cresting':'bottoming out')+' near '+lvlM+' around '+azTime(_mt.t)+'. That water is already past '+(_ts.src||_srcL)+' \u2014 measured, on its way.';
-        } else {
-          turn=' <b style="color:var(--text)">Expect the '+_mt.type+' '+whenM+'</b> \u2014 about '+lvlM+' around '+azTime(_mt.t)+' (that water is already past '+_srcL+' \u2014 measured, on its way).';
+          turn=' <b style="color:var(--text)">Expect it to '+(_up?'bottom out':'peak')+' '+whenS+'</b> (~'+azClock(_ts.t)+') \u2014 then '+_tgt+'.'+_tail;
+        }
+        else if(!_up && tr!=="falling"){
+          turn=' <b style="color:var(--text)">Peaking about now</b> \u2014 then '+_tgt+'.'+_tail;
+          _statusWord="peaking";
+        }
+        else if(_up && tr!=="rising"){
+          turn=' <b style="color:var(--text)">Bottoming out about now</b> \u2014 then '+_tgt+'.'+_tail;
+          _statusWord="bottoming out";
+        }
+        else if(_atEdge){
+          turn=' <b style="color:var(--text)">Keeps '+(_up?'rising':'falling')+'</b> \u2014 '+(_up?'up':'down')+' through '+lvlM+' by '+azTime(_mt.t)+'.'+_tail;
+        }
+        else {
+          turn=' <b style="color:var(--text)">Expect the '+_mt.type+' '+whenM+'</b> \u2014 about '+lvlM+' around '+azTime(_mt.t)+'.'+_tail;
         }
       }
     }
@@ -1036,7 +1108,7 @@ function renderHero(){
         turn=' <b style="color:var(--text)">Right now looks like the bottom</b> \u2014 the schedule doesn\u2019t call for water this low again soon: even its next dip ('+lvl2+' around '+azTime(nxt.t)+') sits above where the water is now.';
       }
       else if(mism==="high-below"){
-        turn=' <b style="color:var(--text)">Right now looks like the top</b> \u2014 the schedule stays below this level: even its next crest ('+lvl2+' around '+azTime(nxt.t)+') sits under where the water is now.';
+        turn=' <b style="color:var(--text)">Right now looks like the top</b> \u2014 the schedule stays below this level: even its next peak ('+lvl2+' around '+azTime(nxt.t)+') sits under where the water is now.';
       }
       else if(_measFlat && _measCut && onT < _measCut-45*60000 && _measCut-Date.now() > 45*60000){
         turn=' <b style="color:var(--text)">The schedule calls for '+(nxt.type==="high"?"a rise":"a drop")+'</b> \u2014 but the water already past '+ref.label+' holds near this level through ~'+azTime(_measCut)+', so expect it after that.';
@@ -1047,11 +1119,12 @@ function renderHero(){
           : ' <b style="color:var(--text)">Expect it to start dropping '+whenStart+'</b> \u2014 down to '+lvl2+' by '+azTime(nxt.t)+'.';
       } else {
         turn=(tr==="rising")
-          ? ' <b style="color:var(--text)">Expect it to crest '+when+'</b> \u2014 about '+lvl2+' around '+azTime(nxt.t)+', then ease back.'
+          ? ' <b style="color:var(--text)">Expect it to peak '+when+'</b> \u2014 about '+lvl2+' around '+azTime(nxt.t)+', then ease back.'
           : ' <b style="color:var(--text)">Expect it to start rising '+whenStart+'</b> \u2014 up to '+lvl2+' by '+azTime(nxt.t)+'.';
       }
     }
   }
+  elS.innerHTML='<span style="color:'+TCOLOR[tr]+'">'+TMARK[tr]+'</span> Water '+(readAge>90*60*1000 && _statusWord===TWORD[tr]?'has been ':'is ')+_statusWord+(levelPhrase?' \u00b7 '+levelPhrase:'');
   if(abl!=null){ elSub.innerHTML='The water is about <b style="color:var(--text)" class="mono">+'+abl.toFixed(1)+' ft</b> above this week\u2019s low'+(sw!=null?' (it rises and falls ~'+sw.toFixed(1)+' ft over the week)':'')+' \u2014 '+detail+timing+'.'+turn; }
   else { elSub.innerHTML='Closest live source reads '+detail+timing+'.'+turn; }
   var parker=STATIONS.find(function(s){ return s.key==="parker" && s.flow.length; });
