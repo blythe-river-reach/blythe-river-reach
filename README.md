@@ -26,6 +26,11 @@ Some details the site handles that raw gauges don't:
 
 - **Same water, shifted clock.** Every place is mapped to a Reclamation river
   mile; pulse arrival times are shifted by distance and travel speed.
+- **The next day is measured, not guessed.** Water that already passed the
+  gauges upstream of your spot is en route — the site chains every in-zone
+  upstream gauge (each trued to its neighbor) into up to a day of forecast
+  that is measurement, marked "en route"; the dam schedule only takes over
+  beyond the last gauge's horizon, auto-trued to local readings.
 - **The travel speed measures itself.** The robot cross-correlates neighboring
   sensors each hour to compute how fast release pulses actually move, instead
   of guessing.

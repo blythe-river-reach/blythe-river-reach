@@ -255,7 +255,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10u</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10v</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -547,9 +547,11 @@ function ageNote(t){
 }
 function azClock(ms){ return new Date(ms).toLocaleTimeString([], {timeZone:"America/Phoenix", hour:"numeric", minute:"2-digit"}); }
 function azDay(ms){ return new Date(ms).toLocaleDateString([], {timeZone:"America/Phoenix", weekday:"short", month:"numeric", day:"numeric"}).replace(",", ""); }
-function areaChart(svg, series, color, dashed, axisId, showNow, hideFutureLabels){
+function areaChart(svg, series, color, dashed, axisId, showNow, hideFutureLabels, overlay){
   var _nowRef=Date.now();
-  var W=900,H=120,pad=6, vals=series.map(function(p){return p.v;}), min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), span=(max-min)||1, step=(W-2*pad)/(series.length-1), line="", area="";
+  var W=900,H=120,pad=6, vals=series.map(function(p){return p.v;});
+  if(overlay && overlay.length) vals=vals.concat(overlay.map(function(p){return p.v;}));
+  var min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), span=(max-min)||1, step=(W-2*pad)/(series.length-1), line="", area="";
   series.forEach(function(p,i){ var x=pad+i*step, y=pad+(H-2*pad)*(1-(p.v-min)/span); line+=(i?"L":"M")+x.toFixed(1)+" "+y.toFixed(1)+" "; area+=(i?"L":"M")+x.toFixed(1)+" "+y.toFixed(1)+" "; });
   area += "L"+(pad+(series.length-1)*step).toFixed(1)+" "+(H-pad)+" L"+pad+" "+(H-pad)+" Z";
   // day boundaries (MST midnights) + optional "now" marker
@@ -582,7 +584,16 @@ function areaChart(svg, series, color, dashed, axisId, showNow, hideFutureLabels
     labels.push({pct:xn/W*100, txt:"now \u00b7 "+azClock(nowT), now:true});
   }
   marks += '<line x1="0" y1="'+(H/2).toFixed(0)+'" x2="'+W+'" y2="'+(H/2).toFixed(0)+'" stroke="rgba(150,185,215,0.16)" stroke-width="1"/>';
-  svg.innerHTML = marks + '<path d="'+area+'" fill="'+color+'" opacity="0.11"/><path d="'+line+'" fill="none" stroke="'+color+'" stroke-width="1.5"'+(dashed?' stroke-dasharray="5 4"':'')+'/>';
+  var ovPath="";
+  if(overlay && overlay.length>1){
+    var od="";
+    overlay.forEach(function(p,i){
+      var x=pad+(p.t-t0)/T*(W-2*pad), y=pad+(H-2*pad)*(1-(p.v-min)/span);
+      od+=(i?"L":"M")+x.toFixed(1)+" "+y.toFixed(1)+" ";
+    });
+    ovPath='<path d="'+od+'" fill="none" stroke="var(--water)" stroke-width="2.2" stroke-linejoin="round"/>';
+  }
+  svg.innerHTML = marks + '<path d="'+area+'" fill="'+color+'" opacity="0.11"/><path d="'+line+'" fill="none" stroke="'+color+'" stroke-width="1.5"'+(dashed?' stroke-dasharray="5 4"':'')+'/>'+ovPath;
   svg._series=series; svg._t0=t0; svg._t1=t1; svg._min=min; svg._max=max;
   try{
     var host=svg.parentNode;
@@ -940,35 +951,41 @@ function renderHero(){
   var timing='<span class="adv-only">'+((Math.abs(lag)>=3*60000) ? ' \u00b7 pulses arrive at '+esc(pl.name)+' '+lagLabel2(lag, ref.label) : ' \u00b7 from '+ref.label)+'</span>';
   var turn="", _measCut=null, _measFlat=false;
   var fc2=forecastSeriesFor(pl);
-  // Upstream reference = measured future: water already past the gauge, en route
-  // here. If that measured tail itself contains the next turn, report it from
-  // measurement (beats the schedule); otherwise fall through to the schedule.
-  if(_lagP>3*60000 && p.flow.length>=8 && series && series.length){
-    var _shift=p.flow.map(function(q){ return {t:q.t+_lagP, v:q.v}; });
-    var _fut=_shift.filter(function(q){ return q.t>Date.now(); });
+  // Measured future first: chain the gauges upstream of this spot \u2014 that water
+  // is already in the river, en route. If the measured window contains the next
+  // turn, report it from measurement (beats the schedule); otherwise fall
+  // through to the schedule.
+  var _comp=measuredArrival(pl);
+  if(_comp && flowP.length>=6){
+    var _fut=_comp.points.filter(function(q){ return q.t>Date.now(); });
     if(_fut.length>=3){
-      var _cv=cur(series).v;
-      var _wk=series.map(function(q){return q.v;});
+      var _cv=cur(flowP).v;
+      var _wk=flowP.map(function(q){return q.v;});
       var _thr=0.15*((Math.max.apply(null,_wk)-Math.min.apply(null,_wk))||1);
       var _fv=_fut.map(function(q){return q.v;});
       var _fmin=Math.min.apply(null,_fv), _fmax=Math.max.apply(null,_fv);
-      _measCut=_fut[_fut.length-1].t;
+      _measCut=_comp.horizon;
       var _depUp=_fmax-_cv, _depDn=_cv-_fmin;
       _measFlat=(Math.max(_depUp,_depDn) < _thr*0.6);
-      var _mt=null;
+      var _mt=null, _up=_depUp>=_depDn, _ts=null;
       if(Math.max(_depUp,_depDn)>=_thr){
-        if(_depUp>=_depDn){
-          for(var _j=0;_j<_fut.length;_j++){ if(_fut[_j].v>=_fmax-_thr*0.4){ _mt={type:"high", t:_fut[_j].t, v:_fmax}; break; } }
-        } else {
-          for(var _i=0;_i<_fut.length;_i++){ if(_fut[_i].v<=_fmin+_thr*0.4){ _mt={type:"low", t:_fut[_i].t, v:_fmin}; break; } }
-        }
+        for(var _k=0;_k<_fut.length;_k++){ var _dvv=_fut[_k].v-_cv; if((_up?_dvv:-_dvv)>=_thr*0.5){ _ts=_fut[_k]; break; } }
+        if(_up){ for(var _j=0;_j<_fut.length;_j++){ if(_fut[_j].v>=_fmax-_thr*0.4){ _mt={type:"high", t:_fut[_j].t, v:_fmax, src:_fut[_j].src}; break; } } }
+        else { for(var _i=0;_i<_fut.length;_i++){ if(_fut[_i].v<=_fmin+_thr*0.4){ _mt={type:"low", t:_fut[_i].t, v:_fmin, src:_fut[_i].src}; break; } } }
       }
       if(_mt){
         var toFtM=tideRating(pl), ftM=toFtM?toFtM(_mt.v):null;
         var lvlM=(ftM!=null?'~+'+ftM.toFixed(1)+' ft':'~'+fmt(Math.round(_mt.v))+' cfs');
+        var _srcL=_mt.src||ref.label;
         var hrsM=(_mt.t-Date.now())/3600000;
         var whenM=hrsM<1?'within the hour':(hrsM<1.75?'in about an hour':'in ~'+Math.round(hrsM)+' h');
-        turn=' <b style="color:var(--text)">Expect the '+_mt.type+' '+whenM+'</b> \u2014 about '+lvlM+' around '+azTime(_mt.t)+' (that water is already past '+ref.label+', on its way).';
+        if(_ts && _ts.t-Date.now()>45*60000 && _mt.t-_ts.t>75*60000){
+          var hrsS=(_ts.t-Date.now())/3600000;
+          var whenS=hrsS<1?'within the hour':(hrsS<1.75?'in about an hour':'in ~'+Math.round(hrsS)+' h');
+          turn=' <b style="color:var(--text)">Expect it to start '+(_up?'rising':'dropping')+' '+whenS+'</b> (~'+azClock(_ts.t)+') \u2014 '+(_up?'cresting':'bottoming out')+' near '+lvlM+' around '+azTime(_mt.t)+'. That water is already past '+(_ts.src||_srcL)+' \u2014 measured, on its way.';
+        } else {
+          turn=' <b style="color:var(--text)">Expect the '+_mt.type+' '+whenM+'</b> \u2014 about '+lvlM+' around '+azTime(_mt.t)+' (that water is already past '+_srcL+' \u2014 measured, on its way).';
+        }
       }
     }
   }
@@ -1162,6 +1179,49 @@ function scheduleTrue(d, pl){
   if(scale===1 && Math.abs(sMed-mMed)<Math.max(120,0.04*mMed)) return null; // already true
   return {sMed:sMed, mMed:mMed, scale:scale, label:ref.label};
 }
+// Measured future: water that already passed the gauges upstream of this spot
+// is en route — no schedule needed. Chain every in-zone gauge above the place
+// (nearest first; each farther gauge's tail is trued to the nearest one's
+// level and swing over their overlap), shifted by the measured travel time.
+// The farther the chain reaches, the more hours of forecast are MEASUREMENT.
+function measuredArrival(pl){
+  var keys=SEG_REFS[segFor(pl)]||[], gs=[];
+  keys.forEach(function(k){
+    var sm=sensorInfo(k); if(!sm || sm.mile<pl.mile-0.5) return; // at-or-above only
+    var st=STATIONS.find(function(s){ return s.key===k && s.flow.length>=6; }); if(!st) return;
+    gs.push({mile:sm.mile, label:sm.label, flow:st.flow});
+  });
+  if(!gs.length) return null;
+  gs.sort(function(a,b){ return a.mile-b.mile; }); // nearest upstream first
+  function q(a,f){ var s=a.slice().sort(function(x,y){return x-y;}); return s[Math.max(0,Math.min(s.length-1,Math.floor(s.length*f)))]; }
+  var base=null, out=[], coverEnd=0, srcs=[];
+  gs.forEach(function(g){
+    var lag=stretchHours(g.mile, pl.mile)*3600000;
+    var pts=g.flow.map(function(p){ return {t:p.t+lag, v:p.v, src:g.label}; });
+    if(!base){ base=pts; out=pts.slice(); coverEnd=pts[pts.length-1].t; srcs.push(g.label); return; }
+    var tail=pts.filter(function(p){ return p.t>coverEnd+60000; });
+    if(!tail.length) return;
+    // true this gauge to the nearest gauge over their overlap at this spot's clock
+    var lo=Math.max(base[0].t, pts[0].t), hi=Math.min(base[base.length-1].t, pts[pts.length-1].t);
+    if(hi-lo>24*3600000){
+      var bv=base.filter(function(p){ return p.t>=lo&&p.t<=hi; }).map(function(p){ return p.v; });
+      var gv=pts.filter(function(p){ return p.t>=lo&&p.t<=hi; }).map(function(p){ return p.v; });
+      if(bv.length>=8 && gv.length>=8){
+        var bMed=q(bv,0.5), gMed=q(gv,0.5), bSp=q(bv,0.85)-q(bv,0.15), gSp=q(gv,0.85)-q(gv,0.15);
+        var sc=1;
+        if(gSp>300 && bSp>0){ sc=Math.max(0.25, Math.min(1.5, bSp/gSp)); if(sc>0.85&&sc<1.15) sc=1; }
+        if(sc!==1 || Math.abs(bMed-gMed)>=Math.max(120,0.04*bMed)){
+          tail=tail.map(function(p){ return {t:p.t, v:Math.max(0, bMed+(p.v-gMed)*sc), src:p.src}; });
+        }
+      }
+    }
+    out=out.concat(tail);
+    coverEnd=tail[tail.length-1].t;
+    srcs.push(g.label);
+  });
+  out.sort(function(a,b){ return a.t-b.t; });
+  return {points:out, horizon:coverEnd, srcs:srcs};
+}
 function tideRating(pl){
   var seg=segFor(pl);
   if(seg==="mid" || seg==="below" || seg==="upper"){
@@ -1185,13 +1245,22 @@ function renderHeadgate(){
     return;
   }
   var now=Date.now(), fut=fc.arrival.filter(function(p){ return p.t >= now - 2*3600*1000; }), series=fut.length>=4?fut:fc.arrival;
-  var r=areaChart(svg, series, "var(--house)", true, "hg-axis", true);
+  // Water already measured at upstream gauges, en route here — drawn solid on
+  // top of the dashed schedule so the two can be compared at a glance.
+  var comp=measuredArrival(pl), ovPts=null;
+  if(comp){
+    var _op=comp.points.filter(function(p2){ return p2.t>=now-3600000 && p2.t<=comp.horizon; });
+    if(_op.length>=3) ovPts=_op;
+  }
+  var r=areaChart(svg, series, "var(--house)", true, "hg-axis", true, false, ovPts);
+  var _blend=ovPts ? ovPts.concat(series.filter(function(p2){ return p2.t>comp.horizon; })) : series;
+  svg._series=_blend; // crosshair reads measured values inside the horizon, schedule beyond
   var toFt=tideRating(pl);
   function lvlTxt(v){
     var ft=toFt?toFt(v):null;
     return (ft!=null ? '~<b class="mono">+'+ft.toFixed(1)+' ft</b> ('+fmt(v)+' cfs)' : '~<b class="mono">'+fmt(v)+'</b> cfs');
   }
-  var ex=findTides(series).filter(function(e2){ return e2.t>now; });
+  var ex=findTides(_blend).filter(function(e2){ return e2.t>now; });
   var nh=ex.find(function(e2){return e2.type==="high";}), nl=ex.find(function(e2){return e2.type==="low";}), bits=[];
   if(nh) bits.push('next high '+lvlTxt(nh.v)+' around '+azTime(nh.t));
   if(nl) bits.push('next low '+lvlTxt(nl.v)+' around '+azTime(nl.t));
@@ -1199,7 +1268,8 @@ function renderHeadgate(){
   var ftLo=toFt?toFt(r.min):null, ftHi=toFt?toFt(r.max):null;
   var milesUp=Math.round(Math.abs(fc.originMile-pl.mile));
   var whereBit=(fc.seg==="lake")?'released into the river just below the lake':(milesUp<1?'right here at the dam':milesUp+' river miles upstream');
-  lead.innerHTML='The dam\u2019s published release schedule, shifted to when that water reaches <b style="color:var(--text)">'+esc(pl.name)+'</b>. Dashed = forecast, not a reading.'+
+  lead.innerHTML='The dam\u2019s published release schedule, shifted to when that water reaches <b style="color:var(--text)">'+esc(pl.name)+'</b>. '+
+    (ovPts ? '<b style="color:var(--text)">Solid = water already measured at the gauges upstream, en route here</b> (good through ~'+azClock(comp.horizon)+'); the dashed line beyond is the schedule.' : 'Dashed = forecast, not a reading.')+
     '<span class="adv-only"> From '+fc.originName+' ('+whereBit+'), assuming a ~'+WAVE_MPH+' mph pulse. Range ahead: <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b>\u2013<b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs'+((ftLo!=null&&ftHi!=null)?' (about <b class="mono" style="color:var(--text)">+'+ftLo.toFixed(1)+'</b> to <b class="mono" style="color:var(--text)">+'+ftHi.toFixed(1)+' ft</b> above the weekly low)':'')+'.'+fc.srcNote+'</span>';
   noteEl.textContent=(fc.seg==="strip"||fc.seg==="lake"||fc.seg==="upper") ? "" : ((hgData&&hgData.note)||"");
 }
@@ -1254,13 +1324,27 @@ function renderTide(){
   var now=Date.now(), rows=[];
   // recent actual highs & lows, from the sensor, shifted to this place
   var ex=findTides(series);
-  ex.filter(function(e2){ return e2.t>now-30*3600*1000 && e2.t<=now+3600*1000; }).slice(-3).forEach(function(e2){
+  ex.filter(function(e2){ return e2.t>now-30*3600*1000 && e2.t<=now; }).slice(-3).forEach(function(e2){
     rows.push({type:e2.type, t:e2.t+shift, lvl:(useStage ? ftLbl(e2.v-wkLow) : fmt(e2.v)+" cfs"), tag:""});
   });
-  // upcoming highs & lows: straight from the dam schedule when we have it
+  // next: water already measured at the gauges upstream, en route to this spot
+  var comp=measuredArrival(pl), horizon=0, enroute=[];
+  if(comp){
+    horizon=comp.horizon;
+    enroute=findTides(comp.points).filter(function(e2){ return e2.t>now && e2.t<=horizon; });
+    enroute.forEach(function(e2){
+      var ft=toFt?toFt(e2.v):null;
+      rows.push({type:e2.type, t:e2.t, lvl:(ft!=null ? ftLbl(ft) : fmt(e2.v)+" cfs"), tag:" \u00b7 en route"});
+    });
+  }
+  // beyond the measured horizon: the dam schedule
   var fc=forecastSeriesFor(pl), fromSchedule=false;
   if(fc && fc.arrival.length>=4){
-    var fex=findTides(fc.arrival).filter(function(e2){ return e2.t>now; }).slice(0,6);
+    var fex=findTides(fc.arrival).filter(function(e2){
+      if(e2.t<=Math.max(now, horizon)) return false;
+      for(var _q=0;_q<enroute.length;_q++){ if(enroute[_q].type===e2.type && Math.abs(enroute[_q].t-e2.t)<2.5*3600*1000) return false; }
+      return true;
+    }).slice(0,6);
     if(fex.length){
       fromSchedule=true;
       fex.forEach(function(e2){
@@ -1269,14 +1353,14 @@ function renderTide(){
       });
     }
   }
-  if(!fromSchedule && ex.length>=2){
+  if(!fromSchedule && !enroute.length && ex.length>=2){
     ["high","low"].forEach(function(type){
       var per=medianPeriod(ex,type), last=ex.slice().reverse().find(function(e2){return e2.type===type;});
       if(per && last){ var t=last.t; for(var k=0;k<3;k++){ t+=per; if(t>now) rows.push({type:type, t:t+shift, lvl:(useStage ? ftLbl(last.v-wkLow) : fmt(last.v)+" cfs"), tag:" \u00b7 expected"}); } }
     });
   }
   if(!rows.length){ body.innerHTML='<tr><td colspan="3" style="color:var(--muted)">Not enough variation to detect a clear tide right now.</td></tr>'; return; }
-  lead.innerHTML=(segFor(pl)==="strip") ? ("At "+esc(pl.name)+" \u2014 levels shown as flow (cfs): the Strip rides the Lake Moovalya pool, which holds a near-steady height while release pulses pass through \u2014 no public height gauge up here. Times are Arizona (MST).") : ("At "+esc(pl.name)+" \u2014 heights are above this week\u2019s low \u2014 so \u201c0.0 ft\u201d means the week\u2019s lowest water, not a dry river; "+(fromSchedule?"upcoming rows come straight from the dam schedule":"upcoming rows are projected from the recent rhythm")+".<span class=\"adv-only\"> Recent rows from "+ref.label+(Math.abs(shift)>=3*60000?", times shifted "+lagLabel2(shift, ref.label):"")+".</span> Times are Arizona (MST).");
+  lead.innerHTML=(segFor(pl)==="strip") ? ("At "+esc(pl.name)+" \u2014 levels shown as flow (cfs): the Strip rides the Lake Moovalya pool, which holds a near-steady height while release pulses pass through \u2014 no public height gauge up here. Times are Arizona (MST).") : ("At "+esc(pl.name)+" \u2014 heights are above this week\u2019s low \u2014 so \u201c0.0 ft\u201d means the week\u2019s lowest water, not a dry river; "+(enroute.length?"\u201cen route\u201d rows are already measured at the gauges upstream \u2014 that water is on its way"+(fromSchedule?"; \u201cscheduled\u201d rows come from the dam schedule":""):(fromSchedule?"upcoming rows come straight from the dam schedule":"upcoming rows are projected from the recent rhythm"))+".<span class=\"adv-only\"> Recent rows from "+ref.label+(Math.abs(shift)>=3*60000?", times shifted "+lagLabel2(shift, ref.label):"")+".</span> Times are Arizona (MST).");
   rows.sort(function(a,b){ return a.t-b.t; });
   var list=rows.slice(0,9), now2=Date.now(), nextIdx=-1;
   for(var ni=0;ni<list.length;ni++){ if(list[ni].t>now2){ nextIdx=ni; break; } }
