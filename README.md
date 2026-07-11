@@ -1,7 +1,7 @@
 # Blythe River Reach
 
 **Live water levels, daily highs & lows, and multi-day forecasts for the Colorado
-River from Lake Havasu down to Walter's Camp.**
+River from Davis Dam down to Martinez Lake.**
 
 The river between Parker Dam and Blythe rises and falls several feet every day —
 not from weather, but from dam operations and farm irrigation schedules. This
@@ -26,6 +26,11 @@ Some details the site handles that raw gauges don't:
 
 - **Same water, shifted clock.** Every place is mapped to a Reclamation river
   mile; pulse arrival times are shifted by distance and travel speed.
+- **The next day is measured, not guessed.** Water that already passed the
+  gauges upstream of your spot is en route — the site chains every in-zone
+  upstream gauge (each trued to its neighbor) into up to a day of forecast
+  that is measurement, marked "en route"; the dam schedule only takes over
+  beyond the last gauge's horizon, auto-trued to local readings.
 - **The travel speed measures itself.** The robot cross-correlates neighboring
   sensors each hour to compute how fast release pulses actually move, instead
   of guessing.
@@ -59,6 +64,11 @@ GitHub's public file server), set `GH_REPO` near the top of `index.html` to
 your own `owner/repo`, enable Actions and run "Update river data" once, and
 point any static host (e.g., Netlify) at the repo. The `dev` branch gets its
 own data file and preview so you can test changes before merging to `main`.
+
+Per-spot links use path-style URLs (`/s/waterwheel`) so they show up as
+distinct pages in Cloudflare Web Analytics (which ignores query strings); the
+included `netlify.toml` rewrite serves them. On a host without rewrites, the
+legacy `?spot=waterwheel` form still works everywhere.
 
 Everything tunable — places, river miles, travel speed default — is in a
 clearly marked config block at the top of `index.html`.

@@ -1,6 +1,14 @@
 [build]
   publish = "."
 
+# Pretty per-spot URLs (/s/<key>) all serve the one page. Cloudflare Web
+# Analytics groups by path (it drops query strings), so this is what makes
+# per-spot page views visible in the dashboard.
+[[redirects]]
+  from = "/s/*"
+  to = "/index.html"
+  status = 200
+
 [[headers]]
   for = "/index.html"
   [headers.values]
