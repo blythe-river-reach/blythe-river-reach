@@ -235,7 +235,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10m (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-10r (v2)</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -267,6 +267,7 @@ var GH_BRANCH = "main";
 try{
   var _bm=(window.location && location.hostname || "").match(/^([a-z0-9-]+)--/);
   if(_bm && _bm[1]) GH_BRANCH=_bm[1];
+  else if(/^dev\./.test(location.hostname)) GH_BRANCH="dev"; // dev.istheriverup.com serves the dev branch
 }catch(e){}
 // How fast a release pulse travels downstream. Calibrate: watch one high pass a sensor,
 // note when it reaches your dock, adjust until the times match.
@@ -323,7 +324,7 @@ var PLACES = [
   {key:"shaggy",      name:"Shaggy Tree",              mile:148.2},
   {key:"ahaquin",     name:"Aha Quin",                 mile:145.1},
   {key:"twin",        name:"Twin Palms",               mile:144.1},
-  {key:"rancho",      name:"Rancho Not So Grande",     mile:141.0},
+  {key:"rancho",      name:"Ranchos Not So Grande",     mile:141.0},
   {key:"villa",       name:"Villa Shores",             mile:138.2},
   {key:"pvdam",       name:"Palo Verde Diversion Dam", mile:133.8},
   {key:"hiddenbeach", name:"Hidden Beaches Resort",    mile:126.9},
@@ -601,12 +602,12 @@ var REACH = [
   { key:"belowdavis",   name:"Below Davis Dam", role:"Reclamation sensor \u00b7 Laughlin reach", order:-8, names:["below davis"] },
   { key:"bigbend",      name:"Big Bend", role:"Reclamation sensor \u00b7 below Laughlin", order:-7, names:["big bend"] },
   { key:"boyscout",     name:"Boy Scout Camp", role:"Reclamation sensor \u00b7 Mohave Valley", order:-6, names:["boy scout"] },
-  { key:"interstate",   name:"Interstate Bridge (Needles)", role:"Reclamation sensor \u00b7 at Needles", order:-5, names:["interstate"] },
+  { key:"interstate",   name:"Interstate Bridge (Needles)", role:"Reclamation sensor \u00b7 at Needles", order:-5, names:["interstate bridge"] },
   { key:"topockg",      name:"Topock Bridge", role:"Reclamation sensor \u00b7 head of Havasu", order:-4, names:["topock"] },
   { key:"parker",       name:"Parker Dam release", role:"Release upstream \u00b7 early warning", order:0, names:["havasu"], releaseType:"release" },
   { key:"parkergage",   name:"Parker gage",   role:"Below Headgate \u00b7 upper reach", order:1, names:["parker gage"] },
   { key:"waterwheel",   name:"Water Wheel",   role:"Reclamation sensor \u00b7 mid reach", order:2, primary:true, names:["water wheel"] },
-  { key:"i10",          name:"Blythe (I-10 bridge)", role:"Reclamation sensor \u00b7 at Blythe", order:3, names:["i-10","i 10","i10"] },
+  { key:"i10",          name:"Blythe (I-10 bridge)", role:"Reclamation sensor \u00b7 at Blythe", order:3, names:["interstate 10","interstate-10","i-10","i 10","i10"] },
   { key:"mcintyrepark", name:"McIntyre Park", role:"Reclamation sensor \u00b7 south of Blythe", order:5, names:["mcintyre"] },
   { key:"taylor",       name:"Taylor Ferry",  role:"Reclamation sensor \u00b7 below Blythe", order:6, names:["taylor"] },
   { key:"oxbow",        name:"Oxbow Bridge",  role:"Reclamation sensor \u00b7 Cibola reach", order:7, names:["oxbow"] },
@@ -864,7 +865,7 @@ function renderHero(){
   elS.innerHTML='<span style="color:'+TCOLOR[tr]+'">'+TMARK[tr]+'</span> Water '+(readAge>90*60*1000?'has been ':'is ')+TWORD[tr]+(levelPhrase?' \u00b7 '+levelPhrase:'');
   var lag=lagMsFrom(ref.mile, pl);
   var timing='<span class="adv-only">'+((Math.abs(lag)>=3*60000) ? ' \u00b7 pulses arrive at '+esc(pl.name)+' '+lagLabel2(lag, ref.label) : ' \u00b7 from '+ref.label)+'</span>';
-  var turn="";
+  var turn="", _measCut=null, _measFlat=false;
   var fc2=forecastSeriesFor(pl);
   // Upstream reference = measured future: water already past the gauge, en route
   // here. If that measured tail itself contains the next turn, report it from
@@ -878,11 +879,16 @@ function renderHero(){
       var _thr=0.15*((Math.max.apply(null,_wk)-Math.min.apply(null,_wk))||1);
       var _fv=_fut.map(function(q){return q.v;});
       var _fmin=Math.min.apply(null,_fv), _fmax=Math.max.apply(null,_fv);
+      _measCut=_fut[_fut.length-1].t;
+      var _depUp=_fmax-_cv, _depDn=_cv-_fmin;
+      _measFlat=(Math.max(_depUp,_depDn) < _thr*0.6);
       var _mt=null;
-      if(tr==="falling" && _fmin<=_cv-_thr){
-        for(var _i=0;_i<_fut.length;_i++){ if(_fut[_i].v<=_fmin+_thr*0.4){ _mt={type:"low", t:_fut[_i].t, v:_fmin}; break; } }
-      } else if(tr==="rising" && _fmax>=_cv+_thr){
-        for(var _j=0;_j<_fut.length;_j++){ if(_fut[_j].v>=_fmax-_thr*0.4){ _mt={type:"high", t:_fut[_j].t, v:_fmax}; break; } }
+      if(Math.max(_depUp,_depDn)>=_thr){
+        if(_depUp>=_depDn){
+          for(var _j=0;_j<_fut.length;_j++){ if(_fut[_j].v>=_fmax-_thr*0.4){ _mt={type:"high", t:_fut[_j].t, v:_fmax}; break; } }
+        } else {
+          for(var _i=0;_i<_fut.length;_i++){ if(_fut[_i].v<=_fmin+_thr*0.4){ _mt={type:"low", t:_fut[_i].t, v:_fmin}; break; } }
+        }
       }
       if(_mt){
         var toFtM=tideRating(pl), ftM=toFtM?toFtM(_mt.v):null;
@@ -919,7 +925,10 @@ function renderHero(){
       if(nowV!=null){ for(var oi=0; oi<fc2.arrival.length; oi++){ var op=fc2.arrival[oi]; if(op.t>_n && Math.abs(op.v-nowV)>0.15*_span){ onT=op.t; break; } } }
       var hrsS=(onT-Date.now())/3600000;
       var whenStart=hrsS<1?'within the hour':(hrsS<1.75?'in about an hour':'in ~'+Math.round(hrsS)+' h');
-      if(nxt.type==="low"){
+      if(_measFlat && _measCut && onT < _measCut-45*60000 && _measCut-Date.now() > 45*60000){
+        turn=' <b style="color:var(--text)">The schedule calls for '+(nxt.type==="high"?"a rise":"a drop")+'</b> \u2014 but the water already past '+ref.label+' holds near this level through ~'+azTime(_measCut)+', so expect it after that.';
+      }
+      else if(nxt.type==="low"){
         turn=(tr==="falling")
           ? ' <b style="color:var(--text)">Expect the low '+when+'</b> \u2014 about '+lvl2+' around '+azTime(nxt.t)+', then a rebound.'
           : ' <b style="color:var(--text)">Expect it to start dropping '+whenStart+'</b> \u2014 down to '+lvl2+' by '+azTime(nxt.t)+'.';
@@ -1258,7 +1267,7 @@ function loadAll(){
     sel.innerHTML='<option value="" disabled selected>\u2014 pick a spot \u2014</option>'+sel.innerHTML;
     sel.value="";
   } else { sel.value=currentPlace().key; }
-  sel.addEventListener("change", function(){ store.set(PLACE_KEY, sel.value); rebuild(); });
+  sel.addEventListener("change", function(){ store.set(PLACE_KEY, sel.value); pushSpot(sel.value); rebuild(); });
 })();
 var RANGE_KEY="blythe_range_v1";
 function rangeDays(){ var d=parseInt(store.get(RANGE_KEY)||"7",10); return [1,2,4,7].indexOf(d)>=0 ? d : 7; }
@@ -1297,6 +1306,31 @@ var MODE_KEY="blythe_mode_v1";
     apply(mode);
   });
 })();
+function spotFromUrl(){
+  try{
+    var m=location.search.match(/[?&]spot=([a-z0-9-]+)/i);
+    if(!m) return null;
+    var k=m[1].toLowerCase();
+    for(var i=0;i<PLACES.length;i++){ if(PLACES[i].key===k) return k; }
+    return null;
+  }catch(e){ return null; }
+}
+function pushSpot(k, replace){
+  try{
+    if(!window.history || !history.pushState) return;
+    var url=location.pathname+"?spot="+k+(location.hash||"");
+    (replace ? history.replaceState : history.pushState).call(history, {spot:k}, "", url);
+  }catch(e){}
+}
+(function initSpotUrl(){
+  var k=spotFromUrl();
+  if(k){ store.set(PLACE_KEY, k); }
+  else { var cur0=store.get(PLACE_KEY); if(cur0) pushSpot(cur0, true); } // entry pageview carries the spot
+  window.addEventListener("popstate", function(){
+    var k2=spotFromUrl();
+    if(k2){ store.set(PLACE_KEY, k2); var ps=document.getElementById("place-sel"); if(ps) ps.value=k2; rebuild(); }
+  });
+})();
 (function initWelcome(){
   var w=document.getElementById("welcome");
   if(!w) return;
@@ -1304,7 +1338,7 @@ var MODE_KEY="blythe_mode_v1";
   var wp=document.getElementById("welcome-pick");
   if(wp) wp.addEventListener("click", function(ev){
     var k=ev.target && ev.target.getAttribute && ev.target.getAttribute("data-place");
-    if(k){ store.set(PLACE_KEY, k); w.style.display="none"; var ps=document.getElementById("place-sel"); if(ps) ps.value=k; rebuild(); }
+    if(k){ store.set(PLACE_KEY, k); pushSpot(k); w.style.display="none"; var ps=document.getElementById("place-sel"); if(ps) ps.value=k; rebuild(); }
   });
 })();
 var manualRefresh=false;
@@ -1338,11 +1372,16 @@ setInterval(loadAll, 15*60*1000);
 // Cloudflare Web Analytics (privacy-first, cookie-free). Injected only on the
 // real domain so dev-branch and test visits never pollute the numbers.
 (function(){
-  if(!/(^|\.)istheriverup\.com$/.test(location.hostname)) return;
+  var DEV_CF_TOKEN=""; // optional: paste a token from a second Cloudflare Web Analytics
+                       // property (hostname dev--blythe-river.netlify.app) to measure raw dev
+  var tok=null;
+  if(/(^|\.)istheriverup\.com$/.test(location.hostname)) tok="3fa0ff4c71b34ffb8b64243da155705c";
+  else if(location.hostname==="dev--blythe-river.netlify.app" && /^[a-f0-9]{32}$/.test(DEV_CF_TOKEN)) tok=DEV_CF_TOKEN;
+  if(!tok) return;
   var s=document.createElement("script");
   s.type="module";
   s.src="https://static.cloudflareinsights.com/beacon.min.js";
-  s.setAttribute("data-cf-beacon", '{"token": "3fa0ff4c71b34ffb8b64243da155705c"}');
+  s.setAttribute("data-cf-beacon", JSON.stringify({token:tok, spa:true}));
   document.head.appendChild(s);
 })();
 </script>
