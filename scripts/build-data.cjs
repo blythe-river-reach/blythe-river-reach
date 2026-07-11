@@ -1,4 +1,4 @@
-// RELEASE 2026-07-10g — Is The River Up data robot (Davis Dam → Cibola)
+// RELEASE 2026-07-10p — Is The River Up data robot (Davis Dam → Cibola)
 // Runs in GitHub Actions (Node 20). Fetches Reclamation's hourly reach feed and the
 // Headgate Rock Dam schedule PDF server-side (no CORS), parses both, and writes
 // data/riverdata.json for the dashboard to read. Exits 0 if at least one source worked.
@@ -24,9 +24,10 @@ function mstEpoch(mn, day, year, hour) {
   if (mo == null) return null;
   return Date.UTC(year, mo, day, hour, 0, 0) + 7 * 3600 * 1000;
 }
-function findSeries(series, names, typePart) {
+function findSeries(series, names, typePart, claimed) {
   return series.find((s) => {
     const n = (s.SiteName || "").toLowerCase();
+    if (claimed && claimed.has(n)) return false;
     return names.some((x) => n.includes(x)) && (s.DataTypeName || "").toLowerCase().includes(typePart);
   });
 }
@@ -43,12 +44,12 @@ const REACH = [
   { key: "belowdavis",   name: "Below Davis Dam", role: "Reclamation sensor \u00b7 Laughlin reach", order: -8, names: ["below davis"] },
   { key: "bigbend",      name: "Big Bend", role: "Reclamation sensor \u00b7 below Laughlin", order: -7, names: ["big bend"] },
   { key: "boyscout",     name: "Boy Scout Camp", role: "Reclamation sensor \u00b7 Mohave Valley", order: -6, names: ["boy scout"] },
-  { key: "interstate",   name: "Interstate Bridge (Needles)", role: "Reclamation sensor \u00b7 at Needles", order: -5, names: ["interstate"] },
+  { key: "interstate",   name: "Interstate Bridge (Needles)", role: "Reclamation sensor \u00b7 at Needles", order: -5, names: ["interstate bridge"] },
   { key: "topockg",      name: "Topock Bridge", role: "Reclamation sensor \u00b7 head of Havasu", order: -4, names: ["topock"] },
   { key: "parker",       name: "Parker Dam release", role: "Release upstream \u00b7 early warning", order: 0, names: ["havasu"], releaseType: "release" },
   { key: "parkergage",   name: "Parker gage", role: "Below Headgate \u00b7 upper reach", order: 1, names: ["parker gage", "parker  gage"] },
   { key: "waterwheel",   name: "Water Wheel", role: "Reclamation sensor \u00b7 mid reach", order: 2, primary: true, names: ["water wheel"] },
-  { key: "i10",          name: "Blythe (I-10 bridge)", role: "Reclamation sensor \u00b7 at Blythe", order: 3, names: ["i-10", "i 10", "i10"] },
+  { key: "i10",          name: "Blythe (I-10 bridge)", role: "Reclamation sensor \u00b7 at Blythe", order: 3, names: ["interstate 10", "interstate-10", "i-10", "i 10", "i10"] },
   { key: "mcintyrepark", name: "McIntyre Park", role: "Reclamation sensor \u00b7 south of Blythe", order: 5, names: ["mcintyre"] },
   { key: "taylor",       name: "Taylor Ferry", role: "Reclamation sensor \u00b7 below Blythe", order: 6, names: ["taylor"] },
   { key: "oxbow",        name: "Oxbow Bridge", role: "Reclamation sensor \u00b7 Cibola reach", order: 7, names: ["oxbow"] },
@@ -60,18 +61,24 @@ const REACH = [
 function buildStations(json) {
   const series = json.Series || [];
   const stations = [];
+  const claimed = new Set(); const siteNames = {};
   for (const def of REACH) {
     let flow, stage = [];
     if (def.releaseType) {
-      flow = toPoints(findSeries(series, def.names, def.releaseType) || findSeries(series, def.names, "flow"));
+      const hitR = findSeries(series, def.names, def.releaseType, claimed) || findSeries(series, def.names, "flow", claimed);
+      if (hitR) { claimed.add((hitR.SiteName || "").toLowerCase()); siteNames[def.key] = hitR.SiteName; }
+      flow = toPoints(hitR);
     } else {
-      flow = toPoints(findSeries(series, def.names, "flow"));
+      const hitF = findSeries(series, def.names, "flow", claimed);
+      if (hitF) { claimed.add((hitF.SiteName || "").toLowerCase()); siteNames[def.key] = hitF.SiteName; }
+      flow = toPoints(hitF);
       stage = toPoints(findSeries(series, def.names, "gage height"));
     }
     if (flow.length || stage.length) {
       stations.push({ key: def.key, name: def.name, role: def.role, order: def.order, primary: !!def.primary, source: "USBR", flow, stage });
     }
   }
+  stations.siteNames = siteNames;
   return stations;
 }
 
@@ -290,6 +297,7 @@ async function main() {
     const rr = await fetchJsonRetry(BOR);
     const feed = rr.json;
     out.stations = buildStations(feed);
+    out.siteNames = out.stations.siteNames || null;
     if (rr.salvaged) out.errors.push("reach: upstream feed was truncated \u2014 salvaged " + out.stations.length + " station(s) from the readable part");
     if (!out.stations.length) out.errors.push("reach: feed loaded but no known sites matched");
     const missed = REACH.filter((d) => !out.stations.find((x) => x.key === d.key)).map((d) => d.key);
