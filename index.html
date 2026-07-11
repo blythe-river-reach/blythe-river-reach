@@ -262,7 +262,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-11d</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-11e</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -908,10 +908,10 @@ function dayRankPhrase(flowP, comp){
   function dk(t){ return Math.floor((t-OFF)/DAY); }
   var todayK=dk(now), byDay={};
   flowP.forEach(function(p){ var k=dk(p.t); (byDay[k]=byDay[k]||[]).push(p); });
-  var todayVals=(byDay[todayK]||[]).map(function(p){ return p.v; });
+  var todayPts=(byDay[todayK]||[]).slice();
   var lastT=flowP[flowP.length-1].t;
   if(comp){
-    comp.points.forEach(function(p){ if(p.t>now && dk(p.t)===todayK) todayVals.push(p.v); });
+    comp.points.forEach(function(p){ if(p.t>now && dk(p.t)===todayK) todayPts.push({t:p.t, v:p.v}); });
     if(comp.horizon>lastT) lastT=comp.horizon;
   }
   var priorHighs=[], peakOffs=[];
@@ -922,8 +922,10 @@ function dayRankPhrase(flowP, comp){
     priorHighs.push(best.v);
     peakOffs.push((best.t-OFF)%DAY); // time-of-day the peak arrives at THIS spot
   }
-  if(priorHighs.length<3 || todayVals.length<4) return "";
-  var todayHigh=Math.max.apply(null,todayVals);
+  if(priorHighs.length<3 || todayPts.length<4) return "";
+  var todayBest=todayPts[0];
+  todayPts.forEach(function(p){ if(p.v>todayBest.v) todayBest=p; });
+  var todayHigh=todayBest.v;
   var below=0; priorHighs.forEach(function(v){ if(v<todayHigh) below++; });
   var n=priorHighs.length;
   // claiming a smaller peak needs today's peak to be known — either already
@@ -931,8 +933,10 @@ function dayRankPhrase(flowP, comp){
   peakOffs.sort(function(a,b){ return a-b; });
   var usualPeak=peakOffs[Math.floor(peakOffs.length/2)];
   var knowsPeak = lastT >= todayK*DAY+OFF+Math.min(DAY, usualPeak+2*3600000);
-  if(below===n) return "the week’s biggest water peak";
-  if(below>=n*0.66) return "a higher peak than most days this week";
+  // Tense matters: say whether today's peak is still coming, here, or behind us.
+  var phase = todayBest.t>now+45*60000 ? "ahead" : (todayBest.t<now-45*60000 ? "past" : "now");
+  if(below===n) return phase==="ahead" ? "the week’s biggest peak on the way" : (phase==="past" ? "coming off the week’s biggest peak" : "the week’s biggest water peak");
+  if(below>=n*0.66) return phase==="ahead" ? "a higher peak than most days on the way" : (phase==="past" ? "coming off a higher peak than most days" : "a higher peak than most days this week");
   if(below<=n*0.34) return knowsPeak ? "a lower peak than most days this week" : "";
   return "a typical peak for this week";
 }
