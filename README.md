@@ -18,7 +18,10 @@ when that water actually reaches you.
 
 There is no server. A GitHub Actions robot in this repo runs about three times
 an hour: it fetches Reclamation's hourly sensor feed and the dam schedule PDFs,
-parses them, and commits a small `data/riverdata.json`. The static page (one HTML file, hosted on any
+parses them, and commits a small `data/riverdata.json`. When Reclamation's JSON
+export stalls (its generator freezes now and then while their HTML daily report
+keeps going), the robot parses the HTML report instead and merges in the newer
+hours — and stops doing so on its own once the JSON catches back up. The static page (one HTML file, hosted on any
 static host) reads that file straight from GitHub. That's the whole
 architecture — free to run, nothing to maintain, nothing to crash at 2 AM.
 
