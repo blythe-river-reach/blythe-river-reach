@@ -93,8 +93,12 @@
   .pill{display:inline-block; padding:1px 9px; border-radius:20px; font-size:12px; font-weight:500}
   .pill.high{background:#12313a; color:#7fe3d6}
   .pill.low{background:#2a2114; color:#f2c98a}
+  .pill.mid{background:var(--panel2); color:var(--muted)}
   body.day .pill.high{background:#d3ece4; color:#085c3b}
   body.day .pill.low{background:#f3e4cd; color:#7a4a00}
+  body.day .pill.mid{background:#e3eaf1; color:#43586c}
+  .hero .status{flex-wrap:wrap}
+  .hero .status .pill.lvl{font-size:13px; font-weight:700; letter-spacing:.04em; padding:3px 10px; white-space:nowrap}
   .expected{color:var(--muted); font-style:italic}
   .note{color:var(--muted); font-size:12px; margin-top:10px}
   .banner{background:#2a1f14; border:1px solid #6b4a1e; color:#f0c98a; border-radius:10px; padding:12px 16px; font-size:13px; margin-bottom:18px; display:none}
@@ -262,7 +266,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-11g</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-11h</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -912,6 +916,25 @@ function swingPos(flowP){
   var pct=(flowP[flowP.length-1].v-lo)/(hi-lo);
   return {pct:pct, word:(pct<0.3?"near the bottom of the swing":(pct>0.7?"near the top of the swing":"mid-swing"))};
 }
+// Words-only level badge: where the water sits vs THIS WEEK's range at the
+// spot. Prefers the physical stage (ft above weekly low / weekly swing);
+// falls back to flow percentile. Null when there's no meaningful range.
+function levelWord(abl, sw, flowP){
+  var pct=null;
+  if(abl!=null && sw!=null && sw>0.3) pct=abl/sw;
+  else if(flowP && flowP.length>=8){
+    var vals=flowP.map(function(p){ return p.v; });
+    var lo=Math.min.apply(null,vals), hi=Math.max.apply(null,vals);
+    if(hi>lo && hi-lo>=0.08*Math.abs(hi)) pct=(flowP[flowP.length-1].v-lo)/(hi-lo);
+  }
+  if(pct==null) return null;
+  pct=Math.max(0, Math.min(1, pct));
+  if(pct<0.15) return {label:"LOW", cls:"low"};
+  if(pct<0.38) return {label:"BELOW AVG", cls:"low"};
+  if(pct<0.62) return {label:"AVG", cls:"mid"};
+  if(pct<0.85) return {label:"ABOVE AVG", cls:"high"};
+  return {label:"HIGH", cls:"high"};
+}
 // "Is today's peak a big one?" — rank today's peak (measured so far, plus
 // water already en route today) against each prior day's peak at this spot.
 // Peaks arrive morning, midday, or night depending on travel time, so the
@@ -1171,7 +1194,9 @@ function renderHero(){
   if(!_head){
     _head={m:tr, t:'Water '+(readAge>90*60*1000?'has been ':'is ')+TWORD[tr]+((tr==="steady")?_pos:'')};
   }
-  elS.innerHTML='<span style="color:'+TCOLOR[_head.m]+'">'+TMARK[_head.m]+'</span> '+_head.t;
+  var _lw=levelWord(abl, sw, flowP);
+  elS.innerHTML='<span style="color:'+TCOLOR[_head.m]+'">'+TMARK[_head.m]+'</span> '+_head.t
+    +(_lw?' <span class="pill lvl '+_lw.cls+'" title="Current level vs this week’s range at this spot — low · below average · average · above average · high.">'+_lw.label+'</span>':'');
   var _lead=weekCtx?weekCtx+' ':'';
   if(abl!=null){ elSub.innerHTML=_lead+'The water is about <b style="color:var(--text)" class="mono">+'+abl.toFixed(1)+' ft</b> above this week\u2019s low'+(sw!=null?' (it rises and falls ~'+sw.toFixed(1)+' ft over the week)':'')+' \u2014 '+detail+timing+'.'+turn; }
   else { elSub.innerHTML=_lead+'Closest live source reads '+detail+timing+'.'+turn; }
