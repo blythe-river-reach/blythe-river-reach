@@ -41,15 +41,15 @@
   .updated{margin-left:auto; color:var(--muted); font-size:13px; display:flex; align-items:center; gap:10px}
   button{background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:5px 12px; font-size:13px; cursor:pointer}
   button:hover{border-color:var(--water)}
-  .strip{display:flex; align-items:center; gap:8px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin:14px 0 22px; padding:10px 14px; background:var(--panel); border:1px solid var(--border); border-radius:10px}
+  .strip{display:flex; align-items:center; gap:8px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin:14px 0 22px; padding:10px 14px; background:var(--panel); border:1px solid var(--border); border-radius:10px; min-height:40px}
   .strip b{color:var(--text); font-weight:500}
   .strip .you{color:var(--house); font-weight:500}
   .strip .arrow{color:var(--border)}
   .hero{background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--water); border-radius:14px; padding:20px 22px; margin-bottom:22px}
   .hero .eyebrow{color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.08em}
   .hero .status{font-size:clamp(22px,5.2vw,31px); font-weight:600; letter-spacing:-.02em; margin:6px 0 2px; display:flex; align-items:center; gap:12px}
-  .hero .sub{color:var(--muted); font-size:14px}
-  .hero .coming{margin-top:14px; padding-top:14px; border-top:1px solid var(--border); font-size:14px; color:var(--muted)}
+  .hero .sub{color:var(--muted); font-size:14px; min-height:3em} /* reserve ~2 lines so the hero doesn't jump when data lands */
+  .hero .coming{margin-top:14px; padding-top:14px; border-top:1px solid var(--border); font-size:14px; color:var(--muted); min-height:2.6em}
   .hero .coming b{color:var(--text); font-weight:500}
   .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px}
   .card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px}
@@ -133,6 +133,13 @@
     .picker-wrap{width:100%}
     .picker-wrap select.place{flex:1; max-width:none}
     #tip-link,#mode-btn,#refresh,#share-btn,#theme-btn{font-size:13px; padding:8px 12px}
+    /* On phones the hero fills the first viewport — reserve its measured
+       loaded size so arriving data doesn't shove the page around (CLS). */
+    .strip{min-height:118px}
+    .hero .eyebrow{min-height:38px}
+    .hero .status{min-height:100px}
+    .hero .sub{min-height:130px}
+    .hero .coming{min-height:118px}
   }
   @media (prefers-reduced-motion: no-preference){
     select.place{animation:beckon 1.3s ease-in-out 3}
@@ -141,8 +148,8 @@
   .spin{display:inline-block; width:12px; height:12px; border:2px solid var(--border); border-top-color:var(--water); border-radius:50%; vertical-align:-2px}
   .skel{position:relative; overflow:hidden; background:var(--panel2); border-radius:8px}
   .skel::after{content:""; position:absolute; top:0; left:0; right:0; bottom:0; transform:translateX(-100%); background:linear-gradient(90deg, transparent, rgba(140,170,200,0.13), transparent)}
-  .skel-card{height:190px}
-  .chart-skel{height:120px; margin:6px 0 4px}
+  .skel-card{height:252px} /* matches a populated card, so the grid doesn't grow on swap */
+  .chart-skel{height:139px; margin:6px 0 4px} /* chart (120) + axis row (19) */
   .axis{position:relative; height:19px; margin-top:3px; font-size:12.5px; font-weight:600; color:var(--text); opacity:0.8; display:none}
   .axis span{position:absolute; top:0; white-space:nowrap}
   body.simple .adv-only{display:none}
@@ -167,7 +174,19 @@
   footer{color:var(--muted); font-size:12px; margin-top:28px; border-top:1px solid var(--border); padding-top:14px}
 </style>
 </head>
-<body>
+<body class="nochoice simple">
+<script>
+// Pre-paint gate: decide BEFORE any content parses which big layout classes
+// apply — has this visitor picked a spot (nochoice), and are they in simple or
+// advanced mode. Flipping either after first paint was the page's biggest
+// layout shift. Keys mirror PLACE_KEY / MODE_KEY below.
+try{
+  var _cls="nochoice simple";
+  if(/^\/s\/[a-z0-9-]+\/?$/i.test(location.pathname) || /[?&]spot=/i.test(location.search) || localStorage.getItem("blythe_place_v1")) _cls=_cls.replace("nochoice","");
+  if(localStorage.getItem("blythe_mode_v1")==='"advanced"') _cls=_cls.replace("simple","");
+  document.body.className=_cls.replace(/\s+/g," ").trim();
+}catch(e){}
+</script>
 
 <header>
   <h1>Is The River Up?</h1>
@@ -266,7 +285,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-11j</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-11k</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -1652,6 +1671,11 @@ function loadAll(){
   Promise.all([pU,pR]).then(done, done);
 }
 (function initPlaces(){
+  // The body ships as .nochoice (nothing but the welcome panel can paint), and
+  // we lift it here — before first paint — when a spot is already stored.
+  // Doing this async (in rebuild) let skeletons flash and then vanish: the
+  // page's biggest layout shift.
+  try{ if(store.get(PLACE_KEY)) document.body.className=document.body.className.replace(/ ?nochoice/,""); }catch(e){}
   var sel=document.getElementById("place-sel");
   var groups=[{seg:"upper",label:"Davis Dam \u2192 Topock (upper river)"},{seg:"lake",label:"Lake Havasu"},{seg:"strip",label:"Parker Strip (full release)"},{seg:"mid",label:"Headgate \u2192 diversion dam"},{seg:"below",label:"Below the diversion dam"}];
   sel.innerHTML=groups.map(function(g){
@@ -1664,7 +1688,9 @@ function loadAll(){
     sel.innerHTML='<option value="" disabled selected>\u2014 pick a spot \u2014</option>'+sel.innerHTML;
     sel.value="";
   } else { sel.value=currentPlace().key; }
-  sel.addEventListener("change", function(){ store.set(PLACE_KEY, sel.value); pushSpot(sel.value); rebuild(); });
+  // setTimeout lets the tap's own frame paint before the heavy full re-render
+  // (rebuild redraws every panel) — this was the page's slowest interaction.
+  sel.addEventListener("change", function(){ store.set(PLACE_KEY, sel.value); pushSpot(sel.value); setTimeout(rebuild, 0); });
 })();
 var RANGE_KEY="blythe_range_v1";
 function rangeDays(){ var d=parseInt(store.get(RANGE_KEY)||"7",10); return [1,2,4,7].indexOf(d)>=0 ? d : 7; }
@@ -1685,7 +1711,7 @@ function syncRangeButtons(){
   var rp=document.getElementById("range-pick");
   if(rp) rp.addEventListener("click", function(ev){
     var d=ev.target && ev.target.getAttribute && ev.target.getAttribute("data-d");
-    if(d){ store.set(RANGE_KEY, d); rebuild(); }
+    if(d){ store.set(RANGE_KEY, d); setTimeout(rebuild, 0); }
   });
 })();
 var MODE_KEY="blythe_mode_v1";
@@ -1723,7 +1749,11 @@ function pushSpot(k, replace){
 }
 (function initSpotUrl(){
   var k=spotFromUrl();
-  if(k){ store.set(PLACE_KEY, k); var ps0=document.getElementById("place-sel"); if(ps0) ps0.value=k; pushSpot(k, true); } // canonicalize legacy ?spot= links to /s/<key>
+  if(k){
+    store.set(PLACE_KEY, k); var ps0=document.getElementById("place-sel"); if(ps0) ps0.value=k;
+    pushSpot(k, true); // canonicalize legacy ?spot= links to /s/<key>
+    try{ document.body.className=document.body.className.replace(/ ?nochoice/,""); }catch(e){} // shared-link first visit: unhide pre-paint
+  }
   else { var cur0=store.get(PLACE_KEY); if(cur0) pushSpot(cur0, true); } // entry pageview carries the spot
   window.addEventListener("popstate", function(){
     var k2=spotFromUrl();
@@ -1737,7 +1767,7 @@ function pushSpot(k, replace){
   var wp=document.getElementById("welcome-pick");
   if(wp) wp.addEventListener("click", function(ev){
     var k=ev.target && ev.target.getAttribute && ev.target.getAttribute("data-place");
-    if(k){ store.set(PLACE_KEY, k); pushSpot(k); w.style.display="none"; var ps=document.getElementById("place-sel"); if(ps) ps.value=k; rebuild(); }
+    if(k){ store.set(PLACE_KEY, k); pushSpot(k); w.style.display="none"; var ps=document.getElementById("place-sel"); if(ps) ps.value=k; setTimeout(rebuild, 0); }
   });
 })();
 var manualRefresh=false;
