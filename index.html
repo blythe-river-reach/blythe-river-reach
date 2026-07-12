@@ -15,7 +15,7 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://istheriverup.com/">
 <meta property="og:site_name" content="Is The River Up?">
-<meta property="og:image" content="https://istheriverup.com/og-image.png">
+<meta property="og:image" content="https://istheriverup.com/og-image.png?v=2">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
@@ -41,15 +41,16 @@
   .updated{margin-left:auto; color:var(--muted); font-size:13px; display:flex; align-items:center; gap:10px}
   button{background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:5px 12px; font-size:13px; cursor:pointer}
   button:hover{border-color:var(--water)}
-  .strip{display:flex; align-items:center; gap:8px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin:14px 0 22px; padding:10px 14px; background:var(--panel); border:1px solid var(--border); border-radius:10px}
+  .strip{display:flex; align-items:center; gap:8px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin:14px 0 22px; padding:10px 14px; background:var(--panel); border:1px solid var(--border); border-radius:10px; min-height:40px}
   .strip b{color:var(--text); font-weight:500}
   .strip .you{color:var(--house); font-weight:500}
   .strip .arrow{color:var(--border)}
   .hero{background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--water); border-radius:14px; padding:20px 22px; margin-bottom:22px}
   .hero .eyebrow{color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.08em}
-  .hero .status{font-size:34px; font-weight:600; letter-spacing:-.02em; margin:6px 0 2px; display:flex; align-items:center; gap:12px}
-  .hero .sub{color:var(--muted); font-size:14px}
-  .hero .coming{margin-top:14px; padding-top:14px; border-top:1px solid var(--border); font-size:14px; color:var(--muted)}
+  .hero .status{font-size:clamp(22px,5.2vw,31px); font-weight:600; letter-spacing:-.02em; margin:6px 0 2px} /* inline flow: the arrow wraps WITH the text instead of stranding on its own flex line */
+  .hero .status>span:first-child{margin-right:6px}
+  .hero .sub{color:var(--muted); font-size:14px; min-height:3em} /* reserve ~2 lines so the hero doesn't jump when data lands */
+  .hero .coming{margin-top:14px; padding-top:14px; border-top:1px solid var(--border); font-size:14px; color:var(--muted); min-height:2.6em}
   .hero .coming b{color:var(--text); font-weight:500}
   .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px}
   .card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px}
@@ -93,14 +94,16 @@
   .pill{display:inline-block; padding:1px 9px; border-radius:20px; font-size:12px; font-weight:500}
   .pill.high{background:#12313a; color:#7fe3d6}
   .pill.low{background:#2a2114; color:#f2c98a}
+  .pill.mid{background:var(--panel2); color:var(--muted)}
   body.day .pill.high{background:#d3ece4; color:#085c3b}
   body.day .pill.low{background:#f3e4cd; color:#7a4a00}
+  body.day .pill.mid{background:#e3eaf1; color:#43586c}
+  .hero .eyebrow .pill.lvl{font-weight:700; letter-spacing:.04em; margin-left:8px; white-space:nowrap; vertical-align:baseline}
+  .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
   .expected{color:var(--muted); font-style:italic}
   .note{color:var(--muted); font-size:12px; margin-top:10px}
   .banner{background:#2a1f14; border:1px solid #6b4a1e; color:#f0c98a; border-radius:10px; padding:12px 16px; font-size:13px; margin-bottom:18px; display:none}
   body.day .banner{background:#fdf3dd; border-color:#c9a25a; color:#6b4a00}
-  body.day .fire{background:#ddf2ee; border-color:#5aa89c; color:#0b5c50}
-  .fire{background:#12313a; border:1px solid #2f6b63; color:#9fe7db; border-radius:10px; padding:12px 16px; font-size:14px; margin-top:12px; display:none}
   select.place{background:var(--panel2); color:var(--text); border:2px solid var(--water); border-radius:14px; padding:12px 18px; font-size:18px; font-weight:700; cursor:pointer; box-shadow:0 0 0 4px rgba(127,192,232,0.14); max-width:min(62vw,360px)}
   select.place:hover{box-shadow:0 0 0 6px rgba(127,192,232,0.28)}
   .pick-label{font-size:17px; color:var(--text); font-weight:700; white-space:nowrap}
@@ -127,8 +130,17 @@
   }
   @media (max-width:680px){
     .picker-wrap{width:100%}
-    .picker-wrap select.place{flex:1; max-width:none}
-    #tip-link,#mode-btn,#refresh,#share-btn,#theme-btn{font-size:13px; padding:8px 12px}
+    .picker-wrap select.place{flex:1; max-width:none; min-width:0} /* min-width:0 — else the widest option name dictates the whole page's minimum width */
+    .updated #tip-link,.updated #mode-btn,.updated #refresh,.updated #share-btn,.updated #theme-btn{font-size:13px; padding:8px 12px} /* .updated prefix outranks the desktop rule */
+    .range-picker button{padding:9px 14px} /* comfortable touch targets */
+    .axis span.minor{display:none} /* noon labels collide with day labels at this width */
+    /* On phones the hero fills the first viewport — reserve its measured
+       loaded size so arriving data doesn't shove the page around (CLS). */
+    .strip{min-height:118px}
+    .hero .eyebrow{min-height:38px}
+    .hero .status{min-height:68px}
+    .hero .sub{min-height:130px}
+    .hero .coming{min-height:118px}
   }
   @media (prefers-reduced-motion: no-preference){
     select.place{animation:beckon 1.3s ease-in-out 3}
@@ -137,12 +149,13 @@
   .spin{display:inline-block; width:12px; height:12px; border:2px solid var(--border); border-top-color:var(--water); border-radius:50%; vertical-align:-2px}
   .skel{position:relative; overflow:hidden; background:var(--panel2); border-radius:8px}
   .skel::after{content:""; position:absolute; top:0; left:0; right:0; bottom:0; transform:translateX(-100%); background:linear-gradient(90deg, transparent, rgba(140,170,200,0.13), transparent)}
-  .skel-card{height:190px}
-  .chart-skel{height:120px; margin:6px 0 4px}
+  body.day .skel::after{background:linear-gradient(90deg, transparent, rgba(30,60,90,0.10), transparent)}
+  .skel-card{height:252px} /* matches a populated card, so the grid doesn't grow on swap */
+  .chart-skel{height:156px; margin:6px 0 4px} /* chart (120) + axis row with the "now" label (36) */
   .axis{position:relative; height:19px; margin-top:3px; font-size:12.5px; font-weight:600; color:var(--text); opacity:0.8; display:none}
   .axis span{position:absolute; top:0; white-space:nowrap}
   body.simple .adv-only{display:none}
-  #tip-link,#mode-btn,#refresh,#share-btn{font-size:15px; padding:10px 18px; border-radius:12px; font-weight:700; cursor:pointer}
+  #tip-link,#mode-btn,#refresh,#share-btn,#theme-btn{font-size:15px; padding:10px 18px; border-radius:12px; font-weight:700; cursor:pointer}
   #share-btn{background:transparent; color:var(--water); border:1.5px solid var(--water); white-space:nowrap}
   #share-btn:hover{background:rgba(127,192,232,0.12)}
   body.nochoice #share-btn{display:none}
@@ -151,6 +164,7 @@
   #mode-btn{background:transparent; color:var(--water); border:1.5px solid var(--water)}
   #mode-btn:hover{background:rgba(127,192,232,0.12)}
   #refresh{background:var(--water); color:#08121e; border:1.5px solid var(--water)}
+  body.day #refresh{color:#fff} /* day --water is a dark blue; near-black text on it was ~2.6:1 */
   #refresh:hover{filter:brightness(1.12)}
   #refresh:disabled{opacity:0.55; cursor:default}
   .skel-row{height:14px; margin:10px 0}
@@ -163,13 +177,25 @@
   footer{color:var(--muted); font-size:12px; margin-top:28px; border-top:1px solid var(--border); padding-top:14px}
 </style>
 </head>
-<body>
+<body class="nochoice simple">
+<script>
+// Pre-paint gate: decide BEFORE any content parses which big layout classes
+// apply — has this visitor picked a spot (nochoice), and are they in simple or
+// advanced mode. Flipping either after first paint was the page's biggest
+// layout shift. Keys mirror PLACE_KEY / MODE_KEY below.
+try{
+  var _cls="nochoice simple";
+  if(/^\/s\/[a-z0-9-]+\/?$/i.test(location.pathname) || /[?&]spot=/i.test(location.search) || localStorage.getItem("blythe_place_v1")) _cls=_cls.replace("nochoice","");
+  if(localStorage.getItem("blythe_mode_v1")==='"advanced"') _cls=_cls.replace("simple","");
+  document.body.className=_cls.replace(/\s+/g," ").trim();
+}catch(e){}
+</script>
 
 <header>
   <h1>Is The River Up?</h1>
   <span class="coords">Davis Dam &rarr; Martinez Lake</span>
   <span class="picker-wrap"><label class="pick-label" for="place-sel">📍 Your spot:</label><select id="place-sel" class="place"></select></span>
-  <span class="updated"><span id="load-spin" class="spin" style="display:none"></span><span id="updated">Loading&hellip;</span><a href="https://ko-fi.com/IsTheRiverUp" target="_blank" rel="noopener" id="tip-link" title="This site is free — tips cover the domain and upkeep. Opens the Ko-fi tip jar in a new tab.">🛟 Tip jar</a><button id="share-btn" title="Share a link that opens right on this spot — or copy it to the clipboard.">📤 Share</button><button id="theme-btn" title="Bright-sun day mode / night mode. Auto-picks by time of day until you choose.">☀️ Day</button><button id="mode-btn">Advanced</button><button id="refresh">Refresh</button></span>
+  <span class="updated"><span id="load-spin" class="spin" style="display:none"></span><span id="updated" aria-live="polite">Loading&hellip;</span><a href="https://ko-fi.com/IsTheRiverUp" target="_blank" rel="noopener" id="tip-link" title="This site is free — tips cover the domain and upkeep. Opens the Ko-fi tip jar in a new tab.">🛟 Tip jar</a><button id="share-btn" title="Share a link that opens right on this spot — or copy it to the clipboard.">📤 Share</button><button id="theme-btn" title="Bright-sun day mode / night mode. Auto-picks by time of day until you choose.">☀️ Day</button><button id="mode-btn">Advanced</button><button id="refresh">Refresh</button></span>
 </header>
 
 <div class="strip" id="strip"></div>
@@ -214,9 +240,9 @@
       <h2>Coming toward you &mdash; next few days</h2>
       <span class="fc-now" id="hg-next"></span>
     </div>
-    <p class="lead" id="hg-lead">Loading Reclamation&rsquo;s Headgate Rock Dam schedule&hellip;</p>
+    <p class="lead" id="hg-lead">Loading Reclamation&rsquo;s dam release schedule&hellip;</p>
     <div class="skel chart-skel" id="hg-skel"></div>
-    <svg id="hg-chart" viewBox="0 0 900 120" preserveAspectRatio="none" style="display:none"></svg>
+    <svg id="hg-chart" viewBox="0 0 900 120" preserveAspectRatio="none" style="display:none" role="img" aria-label="Forecast chart: dam release schedule and measured en-route water, shifted to your spot. The next highs and lows are listed in the tide table below."></svg>
     <div class="axis" id="hg-axis"></div>
     <p class="note adv-only" id="hg-note"></p>
   </div>
@@ -228,12 +254,12 @@
       <h2 id="fc-title">Recent &mdash; nearest sensor</h2>
       <span class="fc-now" id="fc-now"></span>
     </div>
-    <p class="lead" id="fc-lead">Loading Reclamation&rsquo;s hourly record at the Water Wheel reference sensor&hellip;</p>
+    <p class="lead" id="fc-lead">Loading Reclamation&rsquo;s hourly record&hellip;</p>
     <div class="range-picker" id="range-pick">
       <button data-d="1">24h</button><button data-d="2">2 days</button><button data-d="4">4 days</button><button data-d="7">7 days</button>
     </div>
     <div class="skel chart-skel" id="fc-skel"></div>
-    <svg id="fc-chart" viewBox="0 0 900 120" preserveAspectRatio="none" style="display:none"></svg>
+    <svg id="fc-chart" viewBox="0 0 900 120" preserveAspectRatio="none" style="display:none" role="img" aria-label="Recent-flow chart from the nearest sensor. The recent highs and lows are listed in the tide table below."></svg>
     <div class="axis" id="fc-axis"></div>
     <div class="links adv-only">
       <a href="https://www.usbr.gov/lc/region/g4000/hourly/DavisParkerSchedules.pdf" target="_blank" rel="noopener" id="sched-link">Parker Dam projected schedule (PDF) &#8599;</a>
@@ -246,7 +272,7 @@
   <div class="section-panel">
     <h2>Tide table &mdash; daily highs &amp; lows</h2>
     <p class="lead" id="tide-lead">When the pulse peaks and bottoms out at your reach. Times are Arizona (MST).</p>
-    <table class="tide"><thead><tr><th>When (MST)</th><th></th><th id="tide-lvl-th">Above weekly low</th></tr></thead>
+    <table class="tide"><thead><tr><th>When (MST)</th><th><span class="sr-only">High or low</span></th><th id="tide-lvl-th">Above weekly low</th></tr></thead>
       <tbody id="tide-body"><tr><td colspan="3" style="color:var(--muted)">Loading&hellip;</td></tr></tbody>
     </table>
   </div>
@@ -262,9 +288,9 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-11e</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-11l</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
-  How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
+  How the data flows: your browser fetches the five USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their river sensors (Davis Dam to Martinez Lake), Lake Havasu&rsquo;s level, and the dam-schedule PDFs about three times an hour and publishes them for this page (the header shows how fresh that data is).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
 </footer>
 
@@ -499,7 +525,6 @@ function stageSwing(stageSeries){
 
 // ---------- helpers ----------
 function fmt(n){ return n==null ? "\u2014" : Math.round(n).toLocaleString(); }
-function fmtFt(n){ return n==null ? "\u2014" : n.toFixed(2); }
 function azTime(ms){ return new Date(ms).toLocaleString([], {timeZone:"America/Phoenix", month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}); }
 var store = {
   get:function(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } },
@@ -539,7 +564,7 @@ function spark(series){
   var vals=series.map(function(p){return p.v;}), min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), span=(max-min)||1;
   var W=280,H=38,pad=2, step=(W-2*pad)/(series.length-1), d="";
   series.forEach(function(p,i){ var x=pad+i*step, y=pad+(H-2*pad)*(1-(p.v-min)/span); d += (i?"L":"M")+x.toFixed(1)+" "+y.toFixed(1)+" "; });
-  return '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none"><path d="'+d+'" fill="none" stroke="var(--water)" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+  return '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true"><path d="'+d+'" fill="none" stroke="var(--water)" stroke-width="1.5" stroke-linejoin="round"/></svg>';
 }
 function ageShort(t){
   var m=Math.round((Date.now()-t)/60000);
@@ -554,6 +579,11 @@ function ageNote(t){
 }
 function azClock(ms){ return new Date(ms).toLocaleTimeString([], {timeZone:"America/Phoenix", hour:"numeric", minute:"2-digit"}); }
 function azDay(ms){ return new Date(ms).toLocaleDateString([], {timeZone:"America/Phoenix", weekday:"short", month:"numeric", day:"numeric"}).replace(",", ""); }
+function clockDay(ms){
+  var OFF=7*3600000, DAY=86400000;
+  var d=Math.floor((ms-OFF)/DAY)-Math.floor((Date.now()-OFF)/DAY);
+  return azClock(ms)+(d===1?" tomorrow":(d>=2?" "+azDay(ms).split(" ")[0]:""));
+}
 function areaChart(svg, series, color, dashed, axisId, showNow, hideFutureLabels, overlay){
   var _nowRef=Date.now();
   var W=900,H=120,pad=6, vals=series.map(function(p){return p.v;});
@@ -622,7 +652,7 @@ function areaChart(svg, series, color, dashed, axisId, showNow, hideFutureLabels
     ax.style.height = labels.some(function(L){return L.now;}) ? "36px" : "19px";
     ax.innerHTML = labels.map(function(L){
       var tr = L.pct<4 ? "translateX(0)" : (L.pct>96 ? "translateX(-100%)" : "translateX(-50%)");
-      return '<span style="left:'+L.pct.toFixed(2)+'%; transform:'+tr+';'+(L.now?' color:var(--water); font-weight:700; top:16px;':'')+(L.minor?' font-size:10.5px; opacity:0.65; font-weight:400;':'')+'">'+L.txt+'</span>';
+      return '<span'+(L.minor?' class="minor"':'')+' style="left:'+L.pct.toFixed(2)+'%; transform:'+tr+';'+(L.now?' color:var(--water); font-weight:700; top:16px;':'')+(L.minor?' font-size:10.5px; opacity:0.65; font-weight:400;':'')+'">'+L.txt+'</span>';
     }).join("");
     ax.style.display = labels.length ? "block" : "none";
   }
@@ -653,10 +683,12 @@ function initCrosshair(hold, svg){
     chip.textContent=azClock(best.t)+" "+azDay(best.t)+" · "+val+tag;
     line.style.left=xp.toFixed(1)+"px";
     dot.style.left=xp.toFixed(1)+"px"; dot.style.top=yp.toFixed(1)+"px";
-    var pct=xp/rect.width*100;
-    chip.style.left=xp.toFixed(1)+"px";
-    chip.style.transform = pct<10 ? "translateX(0)" : (pct>90 ? "translateX(-100%)" : "translateX(-50%)");
+    // Clamp by the chip's real width so the timestamp never clips off-screen
+    // on narrow charts (percent thresholds alone let long chips overflow).
     line.style.display=dot.style.display=chip.style.display="block";
+    var _half=(chip.offsetWidth||0)/2;
+    chip.style.transform="translateX(-50%)";
+    chip.style.left=Math.max(_half+2, Math.min(rect.width-_half-2, xp)).toFixed(1)+"px";
   }
   hold.addEventListener("pointermove", show);
   hold.addEventListener("pointerdown", show);
@@ -898,6 +930,34 @@ function buildRating(key){
     return null;
   };
 }
+// Where the water sits in its daily swing right now (last full cycle's range).
+function swingPos(flowP){
+  if(!flowP || flowP.length<6) return null;
+  var cut=Date.now()-26*3600*1000, lo=Infinity, hi=-Infinity;
+  flowP.forEach(function(p){ if(p.t>=cut){ if(p.v<lo)lo=p.v; if(p.v>hi)hi=p.v; } });
+  if(!(hi>lo) || hi-lo < 0.08*hi) return null; // no real swing to place yourself in
+  var pct=(flowP[flowP.length-1].v-lo)/(hi-lo);
+  return {pct:pct, word:(pct<0.3?"near the bottom of the swing":(pct>0.7?"near the top of the swing":"mid-swing"))};
+}
+// Words-only level badge: where the water sits vs THIS WEEK's range at the
+// spot. Prefers the physical stage (ft above weekly low / weekly swing);
+// falls back to flow percentile. Null when there's no meaningful range.
+function levelWord(abl, sw, flowP){
+  var pct=null;
+  if(abl!=null && sw!=null && sw>0.3) pct=abl/sw;
+  else if(flowP && flowP.length>=8){
+    var vals=flowP.map(function(p){ return p.v; });
+    var lo=Math.min.apply(null,vals), hi=Math.max.apply(null,vals);
+    if(hi>lo && hi-lo>=0.08*Math.abs(hi)) pct=(flowP[flowP.length-1].v-lo)/(hi-lo);
+  }
+  if(pct==null) return null;
+  pct=Math.max(0, Math.min(1, pct));
+  if(pct<0.15) return {label:"LOW", cls:"low"};
+  if(pct<0.38) return {label:"BELOW AVG", cls:"low"};
+  if(pct<0.62) return {label:"AVG", cls:"mid"};
+  if(pct<0.85) return {label:"ABOVE AVG", cls:"high"};
+  return {label:"HIGH", cls:"high"};
+}
 // "Is today's peak a big one?" — rank today's peak (measured so far, plus
 // water already en route today) against each prior day's peak at this spot.
 // Peaks arrive morning, midday, or night depending on travel time, so the
@@ -933,12 +993,13 @@ function dayRankPhrase(flowP, comp){
   peakOffs.sort(function(a,b){ return a-b; });
   var usualPeak=peakOffs[Math.floor(peakOffs.length/2)];
   var knowsPeak = lastT >= todayK*DAY+OFF+Math.min(DAY, usualPeak+2*3600000);
-  // Tense matters: say whether today's peak is still coming, here, or behind us.
+  // Sentence form — leads the hero detail text. Tense follows whether today's
+  // peak is still coming, arriving, or behind us.
   var phase = todayBest.t>now+45*60000 ? "ahead" : (todayBest.t<now-45*60000 ? "past" : "now");
-  if(below===n) return phase==="ahead" ? "the week’s biggest peak on the way" : (phase==="past" ? "coming off the week’s biggest peak" : "the week’s biggest water peak");
-  if(below>=n*0.66) return phase==="ahead" ? "a higher peak than most days on the way" : (phase==="past" ? "coming off a higher peak than most days" : "a higher peak than most days this week");
-  if(below<=n*0.34) return knowsPeak ? "a lower peak than most days this week" : "";
-  return "a typical peak for this week";
+  if(below===n) return phase==="ahead" ? "Today brings the week’s biggest peak — still on the way." : (phase==="past" ? "Today brought the week’s biggest peak." : "Today’s peak is arriving — the biggest of the week.");
+  if(below>=n*0.66) return phase==="ahead" ? "Today’s peak is on the way — higher than most days this week." : (phase==="past" ? "Today’s peak was higher than most days this week." : "Today’s peak is arriving — higher than most days this week.");
+  if(below<=n*0.34) return knowsPeak ? "Today’s peak is lower than most days this week." : "";
+  return "A typical peak today for this week.";
 }
 function renderStrip(pl){
   var el=document.getElementById("strip"); if(!el) return;
@@ -990,17 +1051,20 @@ function renderHero(){
       elS.innerHTML='<span style="color:'+TCOLOR[tr]+'">'+TMARK[tr]+'</span> Dam release is '+TWORD[tr];
       elSub.innerHTML='Lake Havasu sits <b style="color:var(--text)">above</b> Parker Dam, so it doesn\u2019t get the daily river tide. (Lake elevation appears once the data robot updates.) Release: '+detail+'.';
     }
-    elC.innerHTML="";
+    elC.innerHTML=""; elC.style.display="none"; // no "coming" block on the lake \u2014 an empty one shows a stray divider + reserved blank space
     return;
   }
   var abl=stageAboveLow(stageP), sw=stageSwing(stageP);
   var _comp=measuredArrival(pl);
-  var levelPhrase=dayRankPhrase(flowP, _comp);
+  var weekCtx=dayRankPhrase(flowP, _comp);
   var readAge=Date.now()-c.t;
-  var _statusWord=TWORD[tr]; // may be overridden to "peaking"/"bottoming out" when the measured turn is arriving now
+  var sp=swingPos(flowP), _pos=sp?" "+sp.word:"";
   var lag=lagMsFrom(ref.mile, pl);
   var timing='<span class="adv-only">'+((Math.abs(lag)>=3*60000) ? ' \u00b7 pulses arrive at '+esc(pl.name)+' '+lagLabel2(lag, ref.label) : ' \u00b7 from '+ref.label)+'</span>';
-  var turn="", _measCut=null, _measFlat=false;
+  // The headline is the 3-second answer: what's happening now + what's next,
+  // with a time. Every decision branch below sets BOTH the headline (_head)
+  // and the detail sentence (turn) from the same facts, so they can't disagree.
+  var turn="", _head=null, _measCut=null, _measFlat=false;
   var fc2=forecastSeriesFor(pl);
   // Measured future first: chain the gauges upstream of this spot \u2014 that water
   // is already in the river, en route. If the measured window contains the next
@@ -1044,26 +1108,39 @@ function renderHero(){
         var _atEdge=_up ? (_lastF.v>=_fmax-_thr*0.3) : (_lastF.v<=_fmin+_thr*0.3);
         var _tgt=(_atEdge ? (_up?'up through ':'down through ') : (_up?'rising to ':'dropping to '))+lvlM+' by '+azTime(_mt.t);
         var _tail=' That water is already past '+_srcL+' \u2014 measured, on its way.';
+        var _tT=clockDay(_mt.t);
         var hrsM=(_mt.t-Date.now())/3600000;
         var whenM=hrsM<1?'within the hour':(hrsM<1.75?'in about an hour':'in ~'+Math.round(hrsM)+' h');
         if(_ts && _ts.t-Date.now()>45*60000){
           var hrsS=(_ts.t-Date.now())/3600000;
           var whenS=hrsS<1?'within the hour':(hrsS<1.75?'in about an hour':'in ~'+Math.round(hrsS)+' h');
+          var _sT=clockDay(_ts.t);
           turn=' <b style="color:var(--text)">Expect it to '+(_up?'bottom out':'peak')+' '+whenS+'</b> (~'+azClock(_ts.t)+') \u2014 then '+_tgt+'.'+_tail;
+          if(_up){
+            _head = tr==="rising" ? {m:'rising', t:'Rising \u2014 dips ~'+_sT+', then higher'}
+                  : tr==="steady" ? {m:'steady', t:'Steady'+_pos+' \u2014 comes up ~'+_sT}
+                  : {m:'falling', t:'Dropping \u2014 turns back up ~'+_sT};
+          } else {
+            _head = tr==="falling" ? {m:'falling', t:'Dipping \u2014 peaks ~'+_sT+', then drops'}
+                  : tr==="steady" ? {m:'steady', t:'Steady'+_pos+' \u2014 drops after ~'+_sT}
+                  : {m:'rising', t:'Rising \u2014 tops out ~'+_sT+', then drops'};
+          }
         }
         else if(!_up && tr!=="falling"){
           turn=' <b style="color:var(--text)">Peaking about now</b> \u2014 then '+_tgt+'.'+_tail;
-          _statusWord="peaking";
+          _head={m:'rising', t:'Peaking now \u2014 '+(_atEdge?'falling through ~':'low water by ~')+_tT};
         }
         else if(_up && tr!=="rising"){
           turn=' <b style="color:var(--text)">Bottoming out about now</b> \u2014 then '+_tgt+'.'+_tail;
-          _statusWord="bottoming out";
+          _head={m:'falling', t:'At today\u2019s low \u2014 rising by ~'+_tT};
         }
         else if(_atEdge){
           turn=' <b style="color:var(--text)">Keeps '+(_up?'rising':'falling')+'</b> \u2014 '+(_up?'up':'down')+' through '+lvlM+' by '+azTime(_mt.t)+'.'+_tail;
+          _head=_up ? {m:'rising', t:'Rising \u2014 up through ~'+_tT} : {m:'falling', t:'Dropping \u2014 down through ~'+_tT};
         }
         else {
           turn=' <b style="color:var(--text)">Expect the '+_mt.type+' '+whenM+'</b> \u2014 about '+lvlM+' around '+azTime(_mt.t)+'.'+_tail;
+          _head=_up ? {m:'rising', t:'Rising \u2014 tops out ~'+_tT} : {m:'falling', t:'Dropping \u2014 low water ~'+_tT};
         }
       }
     }
@@ -1084,6 +1161,7 @@ function renderHero(){
       var toFt3=tideRating(pl), ft3=toFt3?toFt3(nxt.v):null;
       var lvl3=(ft3!=null?'~+'+ft3.toFixed(1)+' ft':'~'+fmt(nxt.v)+' cfs');
       turn=' <b style="color:var(--text)">Holding near the '+skipped.type+' until ~'+azTime(skipped.t)+'</b> \u2014 then '+(nxt.type==="low"?'dropping to ':'rising to ')+lvl3+' by '+azTime(nxt.t)+'.';
+      _head={m:'steady', t:'Holding near the '+skipped.type+' \u2014 '+(nxt.type==="low"?'drops':'comes up')+' ~'+clockDay(skipped.t)};
     }
     else if(nxt){
       var toFt2=tideRating(pl), ft2=toFt2?toFt2(nxt.v):null;
@@ -1106,32 +1184,54 @@ function renderHero(){
       }
       if(mism==="low-above"){
         turn=' <b style="color:var(--text)">Right now looks like the bottom</b> \u2014 the schedule doesn\u2019t call for water this low again soon: even its next dip ('+lvl2+' around '+azTime(nxt.t)+') sits above where the water is now.';
+        _head={m:'falling', t:'At the bottom \u2014 nothing lower ahead today'};
       }
       else if(mism==="high-below"){
         turn=' <b style="color:var(--text)">Right now looks like the top</b> \u2014 the schedule stays below this level: even its next peak ('+lvl2+' around '+azTime(nxt.t)+') sits under where the water is now.';
+        _head={m:'rising', t:'At the top \u2014 nothing higher ahead today'};
       }
       else if(_measFlat && _measCut && onT < _measCut-45*60000 && _measCut-Date.now() > 45*60000){
         turn=' <b style="color:var(--text)">The schedule calls for '+(nxt.type==="high"?"a rise":"a drop")+'</b> \u2014 but the water already past '+ref.label+' holds near this level through ~'+azTime(_measCut)+', so expect it after that.';
+        _head={m:'steady', t:'Steady'+_pos+' through ~'+clockDay(_measCut)+', then '+(nxt.type==="high"?'up':'down')};
       }
       else if(nxt.type==="low"){
         turn=(tr==="falling")
           ? ' <b style="color:var(--text)">Expect the low '+when+'</b> \u2014 about '+lvl2+' around '+azTime(nxt.t)+', then a rebound.'
           : ' <b style="color:var(--text)">Expect it to start dropping '+whenStart+'</b> \u2014 down to '+lvl2+' by '+azTime(nxt.t)+'.';
+        _head = tr==="falling" ? {m:'falling', t:'Dropping \u2014 low water ~'+clockDay(nxt.t)}
+              : tr==="rising" ? {m:'rising', t:'Rising \u2014 tops out ~'+clockDay(onT)+', then drops'}
+              : {m:'steady', t:'Steady'+_pos+' \u2014 drops after ~'+clockDay(onT)};
       } else {
         turn=(tr==="rising")
           ? ' <b style="color:var(--text)">Expect it to peak '+when+'</b> \u2014 about '+lvl2+' around '+azTime(nxt.t)+', then ease back.'
           : ' <b style="color:var(--text)">Expect it to start rising '+whenStart+'</b> \u2014 up to '+lvl2+' by '+azTime(nxt.t)+'.';
+        _head = tr==="rising" ? {m:'rising', t:'Rising \u2014 tops out ~'+clockDay(nxt.t)}
+              : tr==="falling" ? {m:'falling', t:'Dropping \u2014 turns back up ~'+clockDay(onT)}
+              : {m:'steady', t:'Steady'+_pos+' \u2014 comes up ~'+clockDay(onT)};
       }
     }
   }
-  elS.innerHTML='<span style="color:'+TCOLOR[tr]+'">'+TMARK[tr]+'</span> Water '+(readAge>90*60*1000 && _statusWord===TWORD[tr]?'has been ':'is ')+_statusWord+(levelPhrase?' \u00b7 '+levelPhrase:'');
-  if(abl!=null){ elSub.innerHTML='The water is about <b style="color:var(--text)" class="mono">+'+abl.toFixed(1)+' ft</b> above this week\u2019s low'+(sw!=null?' (it rises and falls ~'+sw.toFixed(1)+' ft over the week)':'')+' \u2014 '+detail+timing+'.'+turn; }
-  else { elSub.innerHTML='Closest live source reads '+detail+timing+'.'+turn; }
+  if(!_head && _measFlat && _measCut && _measCut-Date.now()>45*60000){
+    _head={m:'steady', t:'Steady'+_pos+' through ~'+clockDay(_measCut)};
+  }
+  if(!_head){
+    _head={m:tr, t:'Water '+(readAge>90*60*1000?'has been ':'is ')+TWORD[tr]+((tr==="steady")?_pos:'')};
+  }
+  // The badge states the CURRENT level, so it lives in the eyebrow — right
+  // beside "right now" — not in the sentence, where it read as if it described
+  // the forecast time.
+  var _lw=levelWord(abl, sw, flowP);
+  if(_lw) elE.innerHTML='Near '+esc(pl.name)+' right now <span class="pill lvl '+_lw.cls+'" title="Current level vs this week’s range at this spot — low · below average · average · above average · high.">'+_lw.label+'</span>';
+  elS.innerHTML='<span style="color:'+TCOLOR[_head.m]+'">'+TMARK[_head.m]+'</span> '+_head.t;
+  var _lead=weekCtx?weekCtx+' ':'';
+  if(abl!=null){ elSub.innerHTML=_lead+'The water is about <b style="color:var(--text)" class="mono">+'+abl.toFixed(1)+' ft</b> above this week\u2019s low'+(sw!=null?' (it rises and falls ~'+sw.toFixed(1)+' ft over the week)':'')+' \u2014 '+detail+timing+'.'+turn; }
+  else { elSub.innerHTML=_lead+'Closest live source reads '+detail+timing+'.'+turn; }
   var parker=STATIONS.find(function(s){ return s.key==="parker" && s.flow.length; });
   var curMph=Math.max(0.5, Math.min(8, WAVE_MPH*0.6));
   var curLine='River current: roughly <b style="color:var(--text)">~'+curMph.toFixed(1)+' mph</b> \u2014 about the speed a stick drifts by.<span class="adv-only"> (Estimated as ~60% of the measured pulse speed; actual current varies with depth and spot.)</span>';
   var _aKey=(seg==="upper")?"davis":"parker", _aMile=(seg==="upper")?DAVIS_MILE:PARKER_MILE, _aName=(seg==="upper")?"Davis":"Parker";
   var _anch=null; for(var _ai=0;_ai<STATIONS.length;_ai++){ if(STATIONS[_ai].key===_aKey && STATIONS[_ai].flow.length){ _anch=STATIONS[_ai]; break; } }
+  elC.style.display="";
   if(_anch && ref.key!==_aKey){
     var lagH=stretchHours(_aMile, pl.mile);
     var eta=lagH<1.5 ? "~"+Math.round(lagH*60)+" min" : "~"+Math.round(lagH)+" h";
@@ -1319,9 +1419,14 @@ function renderHeadgate(){
   if(!fc){
     svg.style.display="none"; nextEl.innerHTML=""; noteEl.textContent="";
     var hax=document.getElementById("hg-axis"); if(hax) hax.style.display="none";
-    if(!hgTried){ lead.innerHTML='Loading Reclamation&rsquo;s Headgate Rock Dam schedule\u2026'; }
-    else if(hgErr){ lead.innerHTML='The live schedule couldn&rsquo;t be pulled this time. Your next highs and lows are in the <b style="color:var(--text)">tide table below</b>, projected from the recent rhythm. Official schedule: <a class="site-link" href="'+HG_PDF+'" target="_blank" rel="noopener">Headgate PDF \u2197</a>.'; }
-    else { lead.innerHTML='The forecast PDF loaded but parsed no rows (Reclamation may have changed the layout). Raw schedule: <a class="site-link" href="'+HG_PDF+'" target="_blank" rel="noopener">Headgate PDF \u2197</a>.'; }
+    // Name the dam that actually feeds THIS reach \u2014 telling a Laughlin user to
+    // read the Headgate PDF points them at the wrong river segment.
+    var _sg=segFor(pl), _upperOrStrip=(_sg==="upper"||_sg==="strip"||_sg==="lake");
+    var _dam=_sg==="upper" ? "Davis Dam" : (_upperOrStrip ? "Parker Dam" : "Headgate Rock Dam");
+    var _pdf=_upperOrStrip ? "https://www.usbr.gov/lc/region/g4000/hourly/DavisParkerSchedules.pdf" : HG_PDF;
+    var _pdfName=_upperOrStrip ? "Davis/Parker PDF" : "Headgate PDF";
+    if(!hgTried){ lead.innerHTML='Loading Reclamation&rsquo;s '+_dam+' schedule\u2026'; }
+    else { lead.innerHTML='The live '+_dam+' schedule couldn&rsquo;t be pulled this time. Your next highs and lows are in the <b style="color:var(--text)">tide table below</b>, projected from the recent rhythm. Official schedule: <a class="site-link" href="'+_pdf+'" target="_blank" rel="noopener">'+_pdfName+' \u2197</a>.'; }
     return;
   }
   var now=Date.now(), fut=fc.arrival.filter(function(p){ return p.t >= now - 2*3600*1000; }), series=fut.length>=4?fut:fc.arrival;
@@ -1398,6 +1503,7 @@ function renderTide(){
   }
   if(!ref || !ref.st){ body.innerHTML = loadingNow ? '<tr><td colspan="3"><div class="skel skel-row"></div><div class="skel skel-row" style="width:70%"></div></td></tr>' : '<tr><td colspan="3" style="color:var(--muted)">Waiting for data\u2026</td></tr>'; return; }
   var p=ref.st, useStage=p.stage.length>=6, series=useStage?p.stage:p.flow;
+  if(lvlTh) lvlTh.textContent = useStage ? "Above weekly low" : "Flow (cfs)"; // header must match what the rows actually print
   var shift=lagMsFrom(ref.mile, pl);
   var wkLow=useStage ? Math.min.apply(null, series.map(function(x){return x.v;})) : null;
   var toFt=tideRating(pl);
@@ -1519,7 +1625,7 @@ function loadRelay(){
     return p.then(function(r){ if(!r.ok) throw 0; return r.json(); })
       .then(function(j){
         var age=Date.now()-new Date(j.generatedAt).getTime();
-        if(!(age>=0 && age<6*3600*1000)) throw 0;
+        if(!(age>=-10*60*1000 && age<6*3600*1000)) throw 0; // tolerate a visitor clock a few minutes slow
         j._branch=it.b;
         return j;
       }).catch(next);
@@ -1569,13 +1675,19 @@ function loadAll(){
           verdict = (prevRelayT && relayInfo.t>prevRelayT+60*1000) ? " \u00b7 fresh data just loaded" : " \u00b7 nothing newer yet \u2014 sensors report hourly";
         }
         u.textContent += " \u00b7 "+fresh+verdict+((relayInfo.branch && relayInfo.branch!=="main") ? " ("+relayInfo.branch+")" : "");
-        u.title="\u2018Up to date\u2019 means the newest data the government has published is already on screen \u2014 sensors only report hourly, so Refresh can\u2019t make new readings exist.\n\nHow the data flows:\n\u2022 Checked = when this page last pulled fresh data.\n\u2022 Data gathered = when the robot last ran. Reclamation\u2019s servers don\u2019t allow browser access, so a GitHub robot collects their 8 sensors, Lake Havasu, and both dam-schedule PDFs ~3x/hour and publishes them for this page.\n\u2022 The 4 USGS gauges are fetched live by your browser on every load.\n\u2022 Each card\u2019s \u2018reading\u2019 time = the sensor\u2019s own newest measurement (Reclamation posts hourly, often 1\u20133 h behind).";
+        manualRefresh=false; // one-shot: only the click that asked gets the verdict text
+        u.title="\u2018Up to date\u2019 means the newest data the government has published is already on screen \u2014 sensors only report hourly, so Refresh can\u2019t make new readings exist.\n\nHow the data flows:\n\u2022 Checked = when this page last pulled fresh data.\n\u2022 \u2018Data up to date\u2019 / \u2018data from X ago\u2019 = how fresh the robot\u2019s last gathering is. Reclamation\u2019s servers don\u2019t allow browser access, so a GitHub robot collects their river sensors (Davis Dam to Martinez Lake), Lake Havasu, and the dam-schedule PDFs ~3x/hour and publishes them for this page.\n\u2022 The five USGS gauges are fetched live by your browser on every load.\n\u2022 Each card\u2019s \u2018reading\u2019 time = the sensor\u2019s own newest measurement (Reclamation posts hourly, often 1\u20133 h behind).";
       }
     }
   }
   Promise.all([pU,pR]).then(done, done);
 }
 (function initPlaces(){
+  // The body ships as .nochoice (nothing but the welcome panel can paint), and
+  // we lift it here — before first paint — when a spot is already stored.
+  // Doing this async (in rebuild) let skeletons flash and then vanish: the
+  // page's biggest layout shift.
+  try{ if(store.get(PLACE_KEY)) document.body.className=document.body.className.replace(/ ?nochoice/,""); }catch(e){}
   var sel=document.getElementById("place-sel");
   var groups=[{seg:"upper",label:"Davis Dam \u2192 Topock (upper river)"},{seg:"lake",label:"Lake Havasu"},{seg:"strip",label:"Parker Strip (full release)"},{seg:"mid",label:"Headgate \u2192 diversion dam"},{seg:"below",label:"Below the diversion dam"}];
   sel.innerHTML=groups.map(function(g){
@@ -1588,7 +1700,9 @@ function loadAll(){
     sel.innerHTML='<option value="" disabled selected>\u2014 pick a spot \u2014</option>'+sel.innerHTML;
     sel.value="";
   } else { sel.value=currentPlace().key; }
-  sel.addEventListener("change", function(){ store.set(PLACE_KEY, sel.value); pushSpot(sel.value); rebuild(); });
+  // setTimeout lets the tap's own frame paint before the heavy full re-render
+  // (rebuild redraws every panel) — this was the page's slowest interaction.
+  sel.addEventListener("change", function(){ store.set(PLACE_KEY, sel.value); pushSpot(sel.value); setTimeout(rebuild, 0); });
 })();
 var RANGE_KEY="blythe_range_v1";
 function rangeDays(){ var d=parseInt(store.get(RANGE_KEY)||"7",10); return [1,2,4,7].indexOf(d)>=0 ? d : 7; }
@@ -1603,13 +1717,13 @@ function rangeLabel(){ var d=rangeDays(); return d===1 ? "24 hours" : d+" days";
 function syncRangeButtons(){
   var rp=document.getElementById("range-pick");
   if(!rp || !rp.children) return;
-  for(var i=0;i<rp.children.length;i++){ var b=rp.children[i]; b.className = (parseInt(b.getAttribute("data-d"),10)===rangeDays()) ? "on" : ""; }
+  for(var i=0;i<rp.children.length;i++){ var b=rp.children[i]; var on=(parseInt(b.getAttribute("data-d"),10)===rangeDays()); b.className = on ? "on" : ""; b.setAttribute("aria-pressed", on?"true":"false"); }
 }
 (function initRange(){
   var rp=document.getElementById("range-pick");
   if(rp) rp.addEventListener("click", function(ev){
     var d=ev.target && ev.target.getAttribute && ev.target.getAttribute("data-d");
-    if(d){ store.set(RANGE_KEY, d); rebuild(); }
+    if(d){ store.set(RANGE_KEY, d); setTimeout(rebuild, 0); }
   });
 })();
 var MODE_KEY="blythe_mode_v1";
@@ -1647,7 +1761,11 @@ function pushSpot(k, replace){
 }
 (function initSpotUrl(){
   var k=spotFromUrl();
-  if(k){ store.set(PLACE_KEY, k); var ps0=document.getElementById("place-sel"); if(ps0) ps0.value=k; pushSpot(k, true); } // canonicalize legacy ?spot= links to /s/<key>
+  if(k){
+    store.set(PLACE_KEY, k); var ps0=document.getElementById("place-sel"); if(ps0) ps0.value=k;
+    pushSpot(k, true); // canonicalize legacy ?spot= links to /s/<key>
+    try{ document.body.className=document.body.className.replace(/ ?nochoice/,""); }catch(e){} // shared-link first visit: unhide pre-paint
+  }
   else { var cur0=store.get(PLACE_KEY); if(cur0) pushSpot(cur0, true); } // entry pageview carries the spot
   window.addEventListener("popstate", function(){
     var k2=spotFromUrl();
@@ -1661,7 +1779,7 @@ function pushSpot(k, replace){
   var wp=document.getElementById("welcome-pick");
   if(wp) wp.addEventListener("click", function(ev){
     var k=ev.target && ev.target.getAttribute && ev.target.getAttribute("data-place");
-    if(k){ store.set(PLACE_KEY, k); pushSpot(k); w.style.display="none"; var ps=document.getElementById("place-sel"); if(ps) ps.value=k; rebuild(); }
+    if(k){ store.set(PLACE_KEY, k); pushSpot(k); w.style.display="none"; var ps=document.getElementById("place-sel"); if(ps) ps.value=k; setTimeout(rebuild, 0); }
   });
 })();
 var manualRefresh=false;

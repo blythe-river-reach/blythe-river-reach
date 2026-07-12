@@ -16,9 +16,9 @@ when that water actually reaches you.
 
 ## How it works
 
-There is no server. A GitHub Actions robot in this repo runs hourly: it fetches
-Reclamation's hourly sensor feed and two schedule PDFs, parses them, and commits
-a small `data/riverdata.json`. The static page (one HTML file, hosted on any
+There is no server. A GitHub Actions robot in this repo runs about three times
+an hour: it fetches Reclamation's hourly sensor feed and the dam schedule PDFs,
+parses them, and commits a small `data/riverdata.json`. The static page (one HTML file, hosted on any
 static host) reads that file straight from GitHub. That's the whole
 architecture — free to run, nothing to maintain, nothing to crash at 2 AM.
 
@@ -45,12 +45,13 @@ Some details the site handles that raw gauges don't:
 
 All data is public U.S. government data:
 
-- Bureau of Reclamation — Lower Colorado hourly conditions feed (nine river
-  sensors plus Lake Havasu elevation)
+- Bureau of Reclamation — Lower Colorado hourly conditions feed (river sensors
+  from Davis Dam to Martinez Lake, plus Lake Havasu elevation)
 - Bureau of Reclamation — Headgate Rock Dam and Davis/Parker projected release
-  schedules (PDF, parsed hourly)
-- USGS — Colorado River below Palo Verde Dam (09429100) and Palo Verde Canal
-  (09429000) real-time gauges
+  schedules (PDF, parsed on each robot run)
+- USGS — five real-time gauges: below Davis Dam (09423000), below Palo Verde
+  Dam (09429100), Palo Verde Canal (09429000), CRIT Main Canal (09428500), and
+  Poston Wasteway (09428510)
 - Bureau of Reclamation — Lower Colorado River Mile Index (Aug 2001) for
   documented river miles
 

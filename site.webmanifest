@@ -1,7 +1,7 @@
 {
   "name": "Is The River Up?",
   "short_name": "River Up",
-  "description": "Live Colorado River water levels, tide tables, and dam release forecasts — Lake Havasu to Walter's Camp.",
+  "description": "Live Colorado River water levels, tide tables, and dam release forecasts — Davis Dam to Martinez Lake.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0d1521",
