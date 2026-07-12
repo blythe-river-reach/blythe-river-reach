@@ -1,7 +1,8 @@
-// RELEASE 2026-07-10p — Is The River Up data robot (Davis Dam → Cibola)
-// Runs in GitHub Actions (Node 20). Fetches Reclamation's hourly reach feed and the
-// Headgate Rock Dam schedule PDF server-side (no CORS), parses both, and writes
-// data/riverdata.json for the dashboard to read. Exits 0 if at least one source worked.
+// RELEASE 2026-07-12a — Is The River Up data robot (Davis Dam → Martinez Lake)
+// Runs in GitHub Actions (Node 20). Fetches Reclamation's hourly reach feed (with the
+// HTML daily-report as a fallback when the JSON export stalls) plus the dam schedule
+// PDFs server-side (no CORS), parses them, and writes data/riverdata.json for the
+// dashboard to read. Exits 0 if at least one source worked.
 
 const fs = require("fs");
 
@@ -45,7 +46,7 @@ const REACH = [
   { key: "bigbend",      name: "Big Bend", role: "Reclamation sensor \u00b7 below Laughlin", order: -7, names: ["big bend"] },
   { key: "boyscout",     name: "Boy Scout Camp", role: "Reclamation sensor \u00b7 Mohave Valley", order: -6, names: ["boy scout"] },
   { key: "interstate",   name: "Interstate Bridge (Needles)", role: "Reclamation sensor \u00b7 at Needles", order: -5, names: ["interstate bridge"] },
-  { key: "topockg",      name: "Topock Bridge", role: "Reclamation sensor \u00b7 head of Havasu", order: -4, names: ["topock"] },
+  { key: "topockg",      name: "Topock Bridge", role: "Reclamation sensor \u00b7 head of Havasu", order: -4, names: ["topock", "river section 41"] },
   { key: "parker",       name: "Parker Dam release", role: "Release upstream \u00b7 early warning", order: 0, names: ["havasu"], releaseType: "release" },
   { key: "parkergage",   name: "Parker gage", role: "Below Headgate \u00b7 upper reach", order: 1, names: ["parker gage", "parker  gage"] },
   { key: "waterwheel",   name: "Water Wheel", role: "Reclamation sensor \u00b7 mid reach", order: 2, primary: true, names: ["water wheel"] },
@@ -289,6 +290,135 @@ function loadPrevious() {
   try { return JSON.parse(fs.readFileSync("data/riverdata.json", "utf8")); } catch (e) { return null; }
 }
 
+// ---------- HTML daily-report fallback ----------
+// Reclamation runs TWO export pipelines: hourlyweb.json (which this robot
+// prefers) and the server-rendered "Lower Colorado River Daily Report"
+// (hourly7.html, 7 days of tables). In July 2026 the JSON froze for a full
+// day while the HTML report stayed current, so when the JSON's newest reading
+// goes stale we parse the report and merge in the newer hours. The merge only
+// adds points NEWER than what the JSON provided, so the moment the JSON
+// recovers the fallback naturally contributes nothing.
+const HOURLY7 = "https://www.usbr.gov/lc/region/g4000/riverops/hourly7.html";
+const HTML_STALE_MS = +(process.env.HTML_FALLBACK_AFTER_MS || 3 * 3600 * 1000);
+// Report column heading -> station key. "RS 41" = "River Section 41" = the
+// Topock gauge (verified by value-matching against hourlyweb.json). "Below
+// Needles Bridge" is a DIFFERENT gauge from "Below Interstate Bridge" (values
+// disagree), and the report carries no Interstate Bridge column, so the
+// interstate sensor simply gets no HTML backup.
+const HTML_COLS = [
+  { re: /parker gage/i, key: "parkergage" },
+  { re: /water wheel/i, key: "waterwheel" },
+  { re: /i-?\s?10 bridge/i, key: "i10" },
+  { re: /mcintyre/i, key: "mcintyrepark" },
+  { re: /taylor/i, key: "taylor" },
+  { re: /oxbow/i, key: "oxbow" },
+  { re: /cibola/i, key: "cibola" },
+  { re: /picacho/i, key: "picacho" },
+  { re: /martinez/i, key: "martinez" },
+  { re: /big bend/i, key: "bigbend" },
+  { re: /rs\s*41/i, key: "topockg" },
+];
+function parseHourly7(html) {
+  const stations = {}, havasu = [];
+  const add = (key, kind, t, v) => {
+    (stations[key] = stations[key] || { flow: [], stage: [] })[kind].push({ t, v });
+  };
+  // Each day's tables sit under an accordion heading like "Sunday, 07-12-2026";
+  // associate every table with the nearest preceding date heading.
+  const dates = [];
+  const dre = /(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday),\s*(\d{2})-(\d{2})-(\d{4})/g;
+  let dm;
+  while ((dm = dre.exec(html))) dates.push({ idx: dm.index, mo: +dm[1], d: +dm[2], y: +dm[3] });
+  const tre = /<table[\s\S]*?<\/table>/gi;
+  let tm;
+  while ((tm = tre.exec(html))) {
+    const tbl = tm[0];
+    let day = null;
+    for (const d of dates) if (d.idx < tm.index && (!day || d.idx > day.idx)) day = d;
+    if (!day) continue;
+    const t0 = Date.UTC(day.y, day.mo - 1, day.d, 0, 0, 0) + 7 * 3600 * 1000; // MST midnight
+    const groups = [];
+    const thre = /<th colspan="(\d)"[^>]*>([\s\S]*?)<\/th>/gi;
+    let th;
+    while ((th = thre.exec(tbl))) groups.push({ span: +th[1], name: th[2].replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() });
+    if (!groups.length) continue;
+    const dams = groups.some((g) => /HOOVER|MOHAVE/i.test(g.name));
+    const rre = /<tr>\s*<td[^>]*>\s*(\d{4})-(\d{4})\s*<\/td>([\s\S]*?)<\/tr>/gi;
+    let rw;
+    while ((rw = rre.exec(tbl))) {
+      const startH = Math.floor(+rw[1] / 100);
+      if (!(startH >= 0 && startH <= 23)) continue;
+      const t = t0 + startH * 3600 * 1000; // hourlyweb.json stamps each hour-average at the interval START — verified against overlap
+      const cells = [];
+      const cre = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+      let c;
+      while ((c = cre.exec(rw[3]))) {
+        const raw = c[1].replace(/<[^>]*>/g, "").replace(/&nbsp;|&#160;/g, "").replace(/[, ]/g, "").trim();
+        const v = raw === "" ? null : parseFloat(raw);
+        cells.push(v != null && isFinite(v) ? v : null);
+      }
+      let ci = 0;
+      for (const g of groups) {
+        const vals = cells.slice(ci, ci + g.span);
+        ci += g.span;
+        if (dams) { // colspan-3 groups: ELEV, STORAGE, RELEASE
+          if (/DAVIS/i.test(g.name) && vals[2] != null) add("davis", "flow", t, vals[2]);
+          if (/HAVASU/i.test(g.name)) {
+            if (vals[0] != null) havasu.push({ t, v: vals[0] });
+            if (vals[2] != null) add("parker", "flow", t, vals[2]);
+          }
+        } else { // colspan-2 groups: STAGE, FLOW
+          const map = HTML_COLS.find((m) => m.re.test(g.name));
+          if (map) {
+            if (vals[0] != null) add(map.key, "stage", t, vals[0]);
+            if (vals[1] != null) add(map.key, "flow", t, vals[1]);
+          }
+        }
+      }
+    }
+  }
+  const bySorted = (arr) => arr.sort((a, b) => a.t - b.t);
+  for (const k of Object.keys(stations)) { bySorted(stations[k].flow); bySorted(stations[k].stage); }
+  return { stations, havasu: bySorted(havasu) };
+}
+function newestReading(stations) {
+  let n = 0;
+  for (const s of stations || []) for (const arr of [s.flow || [], s.stage || []]) for (const p of arr) if (p.t > n) n = p.t;
+  return n;
+}
+async function mergeHtmlFallback(out, reason) {
+  const r = await fetch(HOURLY7, { headers: { "User-Agent": "Mozilla/5.0 (compatible; blythe-river-bot)" } });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const parsed = parseHourly7(await r.text());
+  const byKey = {};
+  for (const s of out.stations) byKey[s.key] = s;
+  let merged = 0, through = 0;
+  for (const key of Object.keys(parsed.stations)) {
+    let st = byKey[key];
+    if (!st) {
+      const def = REACH.find((d) => d.key === key);
+      if (!def) continue;
+      st = { key, name: def.name, role: def.role, order: def.order, primary: !!def.primary, source: "USBR", flow: [], stage: [] };
+      out.stations.push(st);
+      byKey[key] = st;
+    }
+    for (const kind of ["flow", "stage"]) {
+      const lastT = st[kind].length ? st[kind][st[kind].length - 1].t : 0;
+      for (const p of parsed.stations[key][kind]) {
+        if (p.t > lastT) { st[kind].push(p); merged++; if (p.t > through) through = p.t; }
+      }
+    }
+  }
+  if (parsed.havasu.length) {
+    const cur = (out.havasu && out.havasu.elev) || [];
+    const lastT = cur.length ? cur[cur.length - 1].t : 0;
+    const extra = parsed.havasu.filter((p) => p.t > lastT);
+    if (extra.length) out.havasu = { elev: cur.concat(extra) };
+  }
+  out.htmlFallback = { reason, mergedPoints: merged, mergedThrough: through ? new Date(through).toISOString() : null };
+  out.errors.push("reach: " + reason + " — merged " + merged + " points from the HTML daily report" + (through ? " (through " + new Date(through).toISOString() + ")" : ""));
+}
+
 async function main() {
   const prev = loadPrevious();
   const out = { generatedAt: new Date().toISOString(), stations: [], headgate: null, errors: [] };
@@ -302,18 +432,29 @@ async function main() {
     if (!out.stations.length) out.errors.push("reach: feed loaded but no known sites matched");
     const missed = REACH.filter((d) => !out.stations.find((x) => x.key === d.key)).map((d) => d.key);
     if (missed.length) out.errors.push("reach: no series matched for: " + missed.join(", "));
-    out.calibration = calibrate(out.stations);
     const hav = toPoints(findSeries(feed.Series || [], ["havasu"], "elevation"));
     out.havasu = hav.length ? { elev: hav } : null;
   } catch (e) {
     out.errors.push("reach: " + (e && e.message ? e.message : e) + (e && e.diag ? " " + e.diag.join(" ") : ""));
     if (prev && prev.stations && prev.stations.length) {
       out.stations = prev.stations;
-      out.calibration = prev.calibration || null;
       out.havasu = prev.havasu || null;
       out.errors.push("reach: carried forward previous stations from " + prev.generatedAt);
     }
   }
+
+  // If the JSON export has stalled (or failed entirely), top up from the
+  // server-rendered HTML daily report. Recovers automatically: once the JSON
+  // is fresh again, nothing in the report is newer, so nothing merges.
+  const newest = newestReading(out.stations);
+  if (!out.stations.length || Date.now() - newest > HTML_STALE_MS) {
+    try {
+      await mergeHtmlFallback(out, "hourlyweb.json stale (newest reading " + (newest ? new Date(newest).toISOString() : "none") + ")");
+    } catch (e) {
+      out.errors.push("htmlreport: " + (e && e.message ? e.message : e));
+    }
+  }
+  out.calibration = calibrate(out.stations) || (prev && prev.calibration) || null;
 
   try {
     const pdf = require("pdf-parse/lib/pdf-parse.js");
@@ -357,4 +498,4 @@ async function main() {
 }
 
 if (require.main === module) main();
-module.exports = { parseHeadgate, buildStations, calibrate, xcorrPair, parseDavisParker };
+module.exports = { parseHeadgate, buildStations, calibrate, xcorrPair, parseDavisParker, parseHourly7, newestReading };
