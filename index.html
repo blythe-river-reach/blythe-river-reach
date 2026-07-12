@@ -98,7 +98,7 @@
   body.day .pill.low{background:#f3e4cd; color:#7a4a00}
   body.day .pill.mid{background:#e3eaf1; color:#43586c}
   .hero .status{flex-wrap:wrap}
-  .hero .status .pill.lvl{font-size:13px; font-weight:700; letter-spacing:.04em; padding:3px 10px; white-space:nowrap}
+  .hero .eyebrow .pill.lvl{font-weight:700; letter-spacing:.04em; margin-left:8px; white-space:nowrap; vertical-align:baseline}
   .expected{color:var(--muted); font-style:italic}
   .note{color:var(--muted); font-size:12px; margin-top:10px}
   .banner{background:#2a1f14; border:1px solid #6b4a1e; color:#f0c98a; border-radius:10px; padding:12px 16px; font-size:13px; margin-bottom:18px; display:none}
@@ -266,7 +266,7 @@
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-11i</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-11j</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the four USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their eight river sensors, Lake Havasu&rsquo;s level, and both dam-schedule PDFs about three times an hour and publishes them for this page (that&rsquo;s the &ldquo;data gathered&rdquo; time in the header).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -1194,12 +1194,12 @@ function renderHero(){
   if(!_head){
     _head={m:tr, t:'Water '+(readAge>90*60*1000?'has been ':'is ')+TWORD[tr]+((tr==="steady")?_pos:'')};
   }
-  // The badge states the CURRENT level, so it sits with the arrow up front —
-  // trailing the sentence made it look like it described the forecast time.
+  // The badge states the CURRENT level, so it lives in the eyebrow — right
+  // beside "right now" — not in the sentence, where it read as if it described
+  // the forecast time.
   var _lw=levelWord(abl, sw, flowP);
-  elS.innerHTML='<span style="color:'+TCOLOR[_head.m]+'">'+TMARK[_head.m]+'</span>'
-    +(_lw?' <span class="pill lvl '+_lw.cls+'" title="Current level vs this week’s range at this spot — low · below average · average · above average · high.">'+_lw.label+'</span>':'')
-    +' '+_head.t;
+  if(_lw) elE.innerHTML='Near '+esc(pl.name)+' right now <span class="pill lvl '+_lw.cls+'" title="Current level vs this week’s range at this spot — low · below average · average · above average · high.">'+_lw.label+'</span>';
+  elS.innerHTML='<span style="color:'+TCOLOR[_head.m]+'">'+TMARK[_head.m]+'</span> '+_head.t;
   var _lead=weekCtx?weekCtx+' ':'';
   if(abl!=null){ elSub.innerHTML=_lead+'The water is about <b style="color:var(--text)" class="mono">+'+abl.toFixed(1)+' ft</b> above this week\u2019s low'+(sw!=null?' (it rises and falls ~'+sw.toFixed(1)+' ft over the week)':'')+' \u2014 '+detail+timing+'.'+turn; }
   else { elSub.innerHTML=_lead+'Closest live source reads '+detail+timing+'.'+turn; }
