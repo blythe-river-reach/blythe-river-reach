@@ -287,7 +287,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-14a</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-14b</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the five USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their river sensors (Davis Dam to Martinez Lake), Lake Havasu&rsquo;s level, and the dam-schedule PDFs about three times an hour and publishes them for this page (the header shows how fresh that data is).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -1208,7 +1208,11 @@ function renderReach(){
     var c=cur(st.flow);
     var lagR=lagMsFrom(ref.mile, pl), shiftedR=(Math.abs(lagR)>=3*60000);
     now.innerHTML='Latest at '+esc(st.name)+' <b class="mono">'+fmt(c.v)+' cfs</b> \u00b7 '+azTime(c.t)+(shiftedR ? ' \u00b7 '+(lagR>0?'reaches ':'passed ')+esc(pl.name)+' ~'+azTime(c.t+lagR) : ' MST');
-    var seriesR=shiftedR ? st.flow.map(function(p){ return {t:p.t+lagR, v:p.v}; }) : st.flow;
+    // History + the measured en-route future (same blended outlook as the other
+    // panels), so the Recent chart also shows what's already on its way.
+    var olR=blendedOutlook(pl);
+    var seriesR=(olR && olR.flowP.length) ? olR.flowP.concat(olR.futM)
+              : (shiftedR ? st.flow.map(function(p){ return {t:p.t+lagR, v:p.v}; }) : st.flow);
     var r=areaChart(svg, rangeCut(seriesR), "var(--water)", false, "fc-axis", true, true);
     var d=Math.abs(ref.mile-pl.mile);
     lead.innerHTML='The last '+rangeLabel()+' near '+esc(pl.name)+', from '+ref.label+(shiftedR ? ' \u2014 clock reads arrival at '+esc(pl.name)+(lagR>0 ? '; the stretch past \u201cnow\u201d is water already released upstream, on its way here' : '') : '')+(d>=0.5 ? ' \u2014 the closest live sensor to '+esc(pl.name) : ' \u2014 right at '+esc(pl.name))+'.<span class="adv-only"> ('+(d>=0.5?d.toFixed(0)+' river mi away. ':'')+'Flow swings between <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b> and <b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs in a daily rhythm.)</span>';
@@ -1413,11 +1417,19 @@ function renderHeadgate(){
     else { lead.innerHTML='The live '+_dam+' schedule couldn&rsquo;t be pulled this time. Your next highs and lows are in the <b style="color:var(--text)">tide table below</b>, projected from the recent rhythm. Official schedule: <a class="site-link" href="'+_pdf+'" target="_blank" rel="noopener">'+_pdfName+' \u2197</a>.'; }
     return;
   }
-  var now=Date.now(), fut=fc.arrival.filter(function(p){ return p.t >= now - 2*3600*1000; }), series=fut.length>=4?fut:fc.arrival;
-  // Water already measured at upstream gauges, en route here — drawn solid on
-  // top of the dashed schedule. Same blended outlook the hero and tide use.
+  // Show ~12 h of context before "now" so the solid measured line has some
+  // history to stand on instead of hugging the left edge.
+  var now=Date.now(), fut=fc.arrival.filter(function(p){ return p.t >= now - 12*3600*1000; }), series=fut.length>=4?fut:fc.arrival;
+  // Solid line = ACTUAL readings for the past 12 h, then the measured en-route
+  // water, drawn over the dashed schedule — so you can also see how well the
+  // schedule has been tracking reality. Same blended outlook as hero and tide.
   var ol=blendedOutlook(pl);
-  var ovPts=(ol && ol.futM.length>=3) ? ol.futM : null;
+  var ovPts=null;
+  if(ol){
+    var _past=ol.flowP.filter(function(p2){ return p2.t>=now-12*3600*1000; });
+    var _ov=_past.concat(ol.futM);
+    if(_ov.length>=3) ovPts=_ov;
+  }
   var r=areaChart(svg, series, "var(--house)", true, "hg-axis", true, false, ovPts);
   var _blend=ovPts ? ovPts.concat(series.filter(function(p2){ return p2.t>ol.horizon; })) : series;
   svg._series=_blend; // crosshair reads measured values inside the horizon, schedule beyond
@@ -1674,7 +1686,7 @@ function rangeDays(){ var d=parseInt(store.get(RANGE_KEY)||"7",10); return [1,2,
 function rangeCut(series){
   var d=rangeDays();
   if(d>=7 || !series || !series.length) return series;
-  var cut=series[series.length-1].t - d*86400000;
+  var cut=Date.now() - d*86400000; // anchor at NOW: the en-route future stays visible at every range
   var out=series.filter(function(p){ return p.t>=cut; });
   return out.length>=6 ? out : series;
 }
