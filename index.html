@@ -287,7 +287,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-14b</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-14c</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the five USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their river sensors (Davis Dam to Martinez Lake), Lake Havasu&rsquo;s level, and the dam-schedule PDFs about three times an hour and publishes them for this page (the header shows how fresh that data is).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -1417,16 +1417,16 @@ function renderHeadgate(){
     else { lead.innerHTML='The live '+_dam+' schedule couldn&rsquo;t be pulled this time. Your next highs and lows are in the <b style="color:var(--text)">tide table below</b>, projected from the recent rhythm. Official schedule: <a class="site-link" href="'+_pdf+'" target="_blank" rel="noopener">'+_pdfName+' \u2197</a>.'; }
     return;
   }
-  // Show ~12 h of context before "now" so the solid measured line has some
+  // Show ~5 h of context before "now" so the solid measured line has some
   // history to stand on instead of hugging the left edge.
-  var now=Date.now(), fut=fc.arrival.filter(function(p){ return p.t >= now - 12*3600*1000; }), series=fut.length>=4?fut:fc.arrival;
-  // Solid line = ACTUAL readings for the past 12 h, then the measured en-route
+  var now=Date.now(), fut=fc.arrival.filter(function(p){ return p.t >= now - 5*3600*1000; }), series=fut.length>=4?fut:fc.arrival;
+  // Solid line = ACTUAL readings for the past 5 h, then the measured en-route
   // water, drawn over the dashed schedule — so you can also see how well the
   // schedule has been tracking reality. Same blended outlook as hero and tide.
   var ol=blendedOutlook(pl);
   var ovPts=null;
   if(ol){
-    var _past=ol.flowP.filter(function(p2){ return p2.t>=now-12*3600*1000; });
+    var _past=ol.flowP.filter(function(p2){ return p2.t>=now-5*3600*1000; });
     var _ov=_past.concat(ol.futM);
     if(_ov.length>=3) ovPts=_ov;
   }
