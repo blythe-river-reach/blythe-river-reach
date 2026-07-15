@@ -287,7 +287,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-14c</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-14d</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the five USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their river sensors (Davis Dam to Martinez Lake), Lake Havasu&rsquo;s level, and the dam-schedule PDFs about three times an hour and publishes them for this page (the header shows how fresh that data is).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -930,14 +930,16 @@ function buildRating(key){
     return null;
   };
 }
-// Where the water sits in its daily swing right now (last full cycle's range).
-function swingPos(flowP){
-  if(!flowP || flowP.length<6) return null;
-  var cut=Date.now()-26*3600*1000, lo=Infinity, hi=-Infinity;
-  flowP.forEach(function(p){ if(p.t>=cut){ if(p.v<lo)lo=p.v; if(p.v>hi)hi=p.v; } });
-  if(!(hi>lo) || hi-lo < 0.08*hi) return null; // no real swing to place yourself in
-  var pct=(flowP[flowP.length-1].v-lo)/(hi-lo);
-  return {pct:pct, word:(pct<0.3?"near the bottom of the swing":(pct>0.7?"near the top of the swing":"mid-swing"))};
+// ONE 5-bucket level scale for the whole page: the eyebrow pill AND every
+// destination the hero names use it, so "low water" can only ever mean water
+// that is actually low for this week — never just the bottom of a cycle.
+function bucketOf(pct){
+  pct=Math.max(0, Math.min(1, pct));
+  if(pct<0.15) return {label:"LOW", cls:"low", phrase:"low water", hold:"Holding low"};
+  if(pct<0.38) return {label:"BELOW AVG", cls:"low", phrase:"below average", hold:"Holding below average"};
+  if(pct<0.62) return {label:"AVG", cls:"mid", phrase:"about average", hold:"Holding near average"};
+  if(pct<0.85) return {label:"ABOVE AVG", cls:"high", phrase:"above average", hold:"Holding above average"};
+  return {label:"HIGH", cls:"high", phrase:"high water", hold:"Holding high"};
 }
 // Words-only level badge: where the water sits vs THIS WEEK's range at the
 // spot. Prefers the physical stage (ft above weekly low / weekly swing);
@@ -950,13 +952,7 @@ function levelWord(abl, sw, flowP){
     var lo=Math.min.apply(null,vals), hi=Math.max.apply(null,vals);
     if(hi>lo && hi-lo>=0.08*Math.abs(hi)) pct=(flowP[flowP.length-1].v-lo)/(hi-lo);
   }
-  if(pct==null) return null;
-  pct=Math.max(0, Math.min(1, pct));
-  if(pct<0.15) return {label:"LOW", cls:"low"};
-  if(pct<0.38) return {label:"BELOW AVG", cls:"low"};
-  if(pct<0.62) return {label:"AVG", cls:"mid"};
-  if(pct<0.85) return {label:"ABOVE AVG", cls:"high"};
-  return {label:"HIGH", cls:"high"};
+  return pct==null ? null : bucketOf(pct);
 }
 // "Is today's peak a big one?" — rank today's peak (measured so far, plus
 // water already en route today) against each prior day's peak at this spot.
@@ -1058,8 +1054,21 @@ function renderHero(){
   var _comp=measuredArrival(pl);
   var weekCtx=dayRankPhrase(flowP, _comp);
   var readAge=Date.now()-c.t;
-  var sp=swingPos(flowP), _pos=sp?" "+sp.word:"";
   var lag=lagMsFrom(ref.mile, pl);
+  // Level bucket for ANY value, on the same weekly scale as the eyebrow pill —
+  // so a cycle bottom that lands at an average level is called "about
+  // average", never "low water".
+  var _toFtH=tideRating(pl);
+  function bucketPhrase(v){
+    var pct=null, ftv=_toFtH?_toFtH(v):null;
+    if(ftv!=null && sw!=null && sw>0.3) pct=ftv/sw;
+    else if(flowP.length>=8){
+      var _vals=flowP.map(function(p3){ return p3.v; });
+      var _lo=Math.min.apply(null,_vals), _hi=Math.max.apply(null,_vals);
+      if(_hi>_lo && _hi-_lo>=0.08*Math.abs(_hi)) pct=(v-_lo)/(_hi-_lo);
+    }
+    return pct==null ? null : bucketOf(pct);
+  }
   var timing='<span class="adv-only">'+((Math.abs(lag)>=3*60000) ? ' \u00b7 pulses arrive at '+esc(pl.name)+' '+lagLabel2(lag, ref.label) : ' \u00b7 from '+ref.label)+'</span>';
   // The headline is the 3-second answer: what's happening now + what's next,
   // with a time. Hero, forecast-chart header, and tide table all read the SAME
@@ -1073,8 +1082,11 @@ function renderHero(){
     var _thr=0.15*((Math.max.apply(null,_wk)-Math.min.apply(null,_wk))||1);
     var e0=_ol.events[0], e1=_ol.events[1]||null;
     var _up=(e0.type==="high");
-    var toFtM=tideRating(pl), ftM=toFtM?toFtM(e0.v):null;
+    var ftM=_toFtH?_toFtH(e0.v):null;
     var lvlM=(ftM!=null?'~+'+ftM.toFixed(1)+' ft':'~'+fmt(Math.round(e0.v))+' cfs');
+    var _bk=bucketPhrase(e0.v);
+    var _dst=_bk?_bk.phrase:null;                                  // headline destination, e.g. "about average"
+    var _dstFull=(_dst?_dst+' ('+lvlM+')':'about '+lvlM);          // sentence destination with the number
     // attribution: event inside the measured window = water already in the river
     var _meas=(_ol.horizon && e0.t<=_ol.horizon);
     var _srcL=ref.label;
@@ -1121,47 +1133,49 @@ function renderHero(){
       var _sT=_ts?clockDay(_ts.t):null;
       var hrsS=_ts?(_ts.t-Date.now())/3600000:0;
       var whenS=hrsS<1?'within the hour':(hrsS<1.75?'in about an hour':'in ~'+Math.round(hrsS)+' h');
-      if(!_up){ // heading to a LOW at e0
+      var _bkNow=bucketPhrase(_cv);
+      var _holdW=_bkNow?_bkNow.hold:'Holding steady';
+      if(!_up){ // heading to the cycle bottom at e0
         if(interMove){
-          turn=' <b style="color:var(--text)">Expect it to peak '+whenS+'</b> (~'+azClock(_ts.t)+') \u2014 then dropping to '+lvlM+' by '+azTime(e0.t)+'.'+_tail;
-          _head = tr==="falling" ? {m:'falling', t:'Dipping \u2014 peaks ~'+_sT+', then drops'}
-                : {m:'rising', t:'Rising \u2014 tops out ~'+_sT+', then drops'};
+          turn=' <b style="color:var(--text)">Expect it to peak '+whenS+'</b> (~'+azClock(_ts.t)+') \u2014 then down to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
+          _head = tr==="falling" ? {m:'falling', t:'Dipping \u2014 peaks ~'+_sT+', then '+(_dst?'down to '+_dst:'drops')}
+                : {m:'rising', t:'Rising \u2014 tops out ~'+_sT+', then '+(_dst?'down to '+_dst:'drops')};
         }
         else if(startLater){
-          turn=' <b style="color:var(--text)">Holding near the top until ~'+azClock(_ts.t)+'</b> \u2014 then dropping to '+lvlM+' by '+azTime(e0.t)+'.'+_tail;
-          _head={m:'steady', t:'Holding high \u2014 drops after ~'+_sT};
+          turn=' <b style="color:var(--text)">Holding near the top until ~'+azClock(_ts.t)+'</b> \u2014 then down to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
+          _head={m:'steady', t:_holdW+' \u2014 drops after ~'+_sT};
         }
         else if(tr==="rising"){
-          turn=' <b style="color:var(--text)">Peaking about now</b> \u2014 then dropping to '+lvlM+' by '+azTime(e0.t)+'.'+_tail;
-          _head={m:'rising', t:'Peaking now \u2014 low water by ~'+_tT};
+          turn=' <b style="color:var(--text)">Peaking about now</b> \u2014 then down to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
+          _head={m:'rising', t:'Peaking now \u2014 down to '+(_dst||'the daily low')+' by ~'+_tT};
         }
         else {
-          turn=' <b style="color:var(--text)">Expect the low '+whenM+'</b> \u2014 about '+lvlM+' around '+azTime(e0.t)+(e1&&e1.type==="high"?', then back up':'')+'.'+_tail;
-          _head={m:'falling', t:'Dropping \u2014 low water ~'+_tT};
+          turn=' <b style="color:var(--text)">Expect the dip '+whenM+'</b> \u2014 down to '+_dstFull+' around '+azTime(e0.t)+(e1&&e1.type==="high"?', then back up':'')+'.'+_tail;
+          _head={m:'falling', t:'Dropping \u2014 down to '+(_dst||'the daily low')+' ~'+_tT};
         }
-      } else { // heading to a HIGH at e0
+      } else { // heading to the cycle top at e0
         if(interMove){
-          turn=' <b style="color:var(--text)">Expect it to bottom out '+whenS+'</b> (~'+azClock(_ts.t)+') \u2014 then rising to '+lvlM+' by '+azTime(e0.t)+'.'+_tail;
-          _head = tr==="rising" ? {m:'rising', t:'Rising \u2014 dips ~'+_sT+', then higher'}
+          turn=' <b style="color:var(--text)">Expect it to bottom out '+whenS+'</b> (~'+azClock(_ts.t)+') \u2014 then up to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
+          _head = tr==="rising" ? {m:'rising', t:'Rising \u2014 dips ~'+_sT+', then '+(_dst?'up to '+_dst:'higher')}
                 : {m:'falling', t:'Dropping \u2014 turns back up ~'+_sT};
         }
         else if(startLater){
-          turn=' <b style="color:var(--text)">Holding near the bottom until ~'+azClock(_ts.t)+'</b> \u2014 then rising to '+lvlM+' by '+azTime(e0.t)+'.'+_tail;
-          _head={m:'steady', t:'Holding low \u2014 comes up ~'+_sT};
+          turn=' <b style="color:var(--text)">Holding near the bottom until ~'+azClock(_ts.t)+'</b> \u2014 then up to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
+          _head={m:'steady', t:_holdW+' \u2014 comes up ~'+_sT};
         }
         else if(tr==="falling"){
-          turn=' <b style="color:var(--text)">Bottoming out about now</b> \u2014 then rising to '+lvlM+' by '+azTime(e0.t)+'.'+_tail;
-          _head={m:'falling', t:'At today\u2019s low \u2014 rising by ~'+_tT};
+          turn=' <b style="color:var(--text)">Bottoming out about now</b> \u2014 then up to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
+          _head={m:'falling', t:'At today\u2019s low \u2014 up to '+(_dst||'the daily high')+' by ~'+_tT};
         }
         else {
-          turn=' <b style="color:var(--text)">Expect the high '+whenM+'</b> \u2014 about '+lvlM+' around '+azTime(e0.t)+(e1&&e1.type==="low"?', then easing back':'')+'.'+_tail;
-          _head={m:'rising', t:'Rising \u2014 tops out ~'+_tT};
+          turn=' <b style="color:var(--text)">Expect the peak '+whenM+'</b> \u2014 up to '+_dstFull+' around '+azTime(e0.t)+(e1&&e1.type==="low"?', then easing back':'')+'.'+_tail;
+          _head={m:'rising', t:'Rising \u2014 up to '+(_dst||'the daily high')+' by ~'+_tT};
         }
       }
     }
   }
   if(!_head){
-    _head={m:tr, t:'Water '+(readAge>90*60*1000?'has been ':'is ')+TWORD[tr]+((tr==="steady")?_pos:'')};
+    _head={m:tr, t:'Water '+(readAge>90*60*1000?'has been ':'is ')+TWORD[tr]}; // the eyebrow pill carries the level
   }
   // The badge states the CURRENT level, so it lives in the eyebrow — right
   // beside "right now" — not in the sentence, where it read as if it described
