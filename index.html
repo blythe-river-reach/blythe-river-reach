@@ -154,7 +154,7 @@
   .axis{position:relative; height:19px; margin-top:3px; margin-left:38px; font-size:12.5px; font-weight:600; color:var(--text); opacity:0.8; display:none} /* margin matches the chart-hold gutter */
   .axis span{position:absolute; top:0; white-space:nowrap}
   body.simple .adv-only{display:none}
-  #tip-link,#mode-btn,#refresh,#share-btn,#theme-btn{font-size:15px; padding:10px 18px; border-radius:12px; font-weight:700; cursor:pointer}
+  #tip-link,#mode-btn,#refresh,#share-btn,#theme-btn{font-size:15px; padding:10px 18px; border-radius:12px; font-weight:700; cursor:pointer; white-space:nowrap; flex-shrink:0} /* a growing status line must never squeeze a button into wrapping */
   #share-btn{background:transparent; color:var(--water); border:1.5px solid var(--water); white-space:nowrap}
   #share-btn:hover{background:rgba(127,192,232,0.12)}
   body.nochoice #share-btn{display:none}
@@ -287,7 +287,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-14d</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-14e</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the five USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their river sensors (Davis Dam to Martinez Lake), Lake Havasu&rsquo;s level, and the dam-schedule PDFs about three times an hour and publishes them for this page (the header shows how fresh that data is).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
