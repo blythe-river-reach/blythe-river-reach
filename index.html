@@ -287,7 +287,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-16b</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-16c</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the five USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their river sensors (Davis Dam to Martinez Lake), Lake Havasu&rsquo;s level, and the dam-schedule PDFs about three times an hour and publishes them for this page (the header shows how fresh that data is).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -1402,11 +1402,10 @@ function measuredArrival(pl){
 // to the current reading, with the trued dam schedule appended beyond the
 // measured horizon. The hero, the forecast chart header, and the tide table
 // all read THIS list, so no two panels can tell different stories.
-// Anchoring: the composite future comes from farther gauges trued on weekly
-// statistics, so at any given moment it can sit a couple thousand cfs off the
-// near gauge's present reading (attenuation varies with flow). We shift the
-// measured window by that seam gap, fading the correction to zero by the
-// horizon, so the outlook starts at reality and ends where the schedule picks up.
+// Anchoring: only when the composite disagrees with the reference sensor AT
+// THE SAME INSTANT (the gauge-handoff fades normally make this ~0). It must
+// NEVER compare across an hour of real change — during a steep dam ramp that
+// smeared genuine drops into phantom shelves.
 function blendedOutlook(pl){
   var ref=refFor(pl);
   if(!ref || !ref.st) return null;
@@ -1423,8 +1422,17 @@ function blendedOutlook(pl){
   var futM=[];
   if(comp){
     var raw=comp.points.filter(function(p){ return p.t>now; });
-    if(raw.length>=2 && cv!=null){
-      var delta=cv-raw[0].v, span=Math.max(1, horizon-now);
+    var delta=0;
+    if(raw.length>=2 && cv!=null && flowP.length){
+      var tc=flowP[flowP.length-1].t, bd=1e18, atTc=null;
+      for(var ci=0; ci<comp.points.length; ci++){
+        var dd=Math.abs(comp.points[ci].t-tc);
+        if(dd<bd){ bd=dd; atTc=comp.points[ci]; }
+      }
+      if(atTc && bd<=90*60000) delta=cv-atTc.v; // same-instant gap only
+    }
+    if(raw.length>=2 && Math.abs(delta)>1){
+      var span=Math.max(1, horizon-now);
       futM=raw.map(function(p){
         var w=1-Math.min(1,(p.t-now)/span);
         return {t:p.t, v:Math.max(0, p.v+delta*w), src:p.src};
