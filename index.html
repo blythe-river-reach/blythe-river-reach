@@ -287,7 +287,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-14e</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-16a</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the five USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their river sensors (Davis Dam to Martinez Lake), Lake Havasu&rsquo;s level, and the dam-schedule PDFs about three times an hour and publishes them for this page (the header shows how fresh that data is).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -1359,6 +1359,19 @@ function measuredArrival(pl){
         }
       }
     }
+    // Seam continuity: the true-up matches WEEKLY stats, not the instant this
+    // gauge takes over — the handoff can step >1,000 cfs and paint a phantom
+    // peak. Fade the residual step out over ~6 h of the tail.
+    if(out.length){
+      var _sd=out[out.length-1].v - tail[0].v;
+      if(Math.abs(_sd)>1){
+        var _st0=tail[0].t, _FADE=6*3600000;
+        tail=tail.map(function(p){
+          var w=1-Math.min(1,(p.t-_st0)/_FADE);
+          return {t:p.t, v:Math.max(0, p.v+_sd*w), src:p.src};
+        });
+      }
+    }
     out=out.concat(tail);
     coverEnd=tail[tail.length-1].t;
     srcs.push(g.label);
@@ -1400,6 +1413,19 @@ function blendedOutlook(pl){
     } else futM=raw;
   }
   var futS=fc ? fc.arrival.filter(function(p){ return p.t>Math.max(now, horizon); }) : [];
+  // Same continuity treatment where measurement hands off to the schedule —
+  // the two are independent estimates and can disagree by thousands of cfs at
+  // the horizon; fade the step into the schedule's first ~6 h.
+  if(futM.length && futS.length){
+    var dS=futM[futM.length-1].v - futS[0].v;
+    if(Math.abs(dS)>1){
+      var s0=futS[0].t, FADE2=6*3600000;
+      futS=futS.map(function(p){
+        var w=1-Math.min(1,(p.t-s0)/FADE2);
+        return {t:p.t, v:Math.max(0, p.v+dS*w)};
+      });
+    }
+  }
   var blend=futM.concat(futS);
   var events=blend.length>=6 ? findTides(blend).filter(function(e){ return e.t>now; }) : [];
   return { ref:ref, lag:lag, flowP:flowP, cv:cv, comp:comp, fc:fc, horizon:horizon, futM:futM, blend:blend, events:events };
