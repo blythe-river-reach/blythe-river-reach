@@ -287,7 +287,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-16a</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-16b</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the five USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their river sensors (Davis Dam to Martinez Lake), Lake Havasu&rsquo;s level, and the dam-schedule PDFs about three times an hour and publishes them for this page (the header shows how fresh that data is).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -583,13 +583,34 @@ function clockDay(ms){
   var d=Math.floor((ms-OFF)/DAY)-Math.floor((Date.now()-OFF)/DAY);
   return azClock(ms)+(d===1?" tomorrow":(d>=2?" "+azDay(ms).split(" ")[0]:""));
 }
-function areaChart(svg, series, color, dashed, axisId, showNow, hideFutureLabels, overlay){
+// Monotone-cubic path (harmonic-mean tangents): passes exactly through every
+// point and can never overshoot a real extreme — smooth without inventing
+// water that was never measured. Used for MEASURED lines only; the schedule
+// keeps straight segments because its square steps are what the dam publishes.
+function pathSmooth(pts){
+  if(pts.length<3){ return pts.map(function(p,i){ return (i?"L":"M")+p.x.toFixed(1)+" "+p.y.toFixed(1); }).join(" "); }
+  var n=pts.length, d=[], m=[];
+  for(var i=0;i<n-1;i++){ var h=pts[i+1].x-pts[i].x; d.push(h>0 ? (pts[i+1].y-pts[i].y)/h : 0); }
+  m.push(d[0]);
+  for(var j=1;j<n-1;j++){ m.push((d[j-1]*d[j]<=0) ? 0 : 2*d[j-1]*d[j]/(d[j-1]+d[j])); }
+  m.push(d[n-2]);
+  var out="M"+pts[0].x.toFixed(1)+" "+pts[0].y.toFixed(1);
+  for(var k=0;k<n-1;k++){
+    var hx=(pts[k+1].x-pts[k].x)/3;
+    out+=" C"+(pts[k].x+hx).toFixed(1)+" "+(pts[k].y+m[k]*hx).toFixed(1)
+       +" "+(pts[k+1].x-hx).toFixed(1)+" "+(pts[k+1].y-m[k+1]*hx).toFixed(1)
+       +" "+pts[k+1].x.toFixed(1)+" "+pts[k+1].y.toFixed(1);
+  }
+  return out;
+}
+function areaChart(svg, series, color, dashed, axisId, showNow, hideFutureLabels, overlay, smoothLine){
   var _nowRef=Date.now();
   var W=900,H=120,pad=6, vals=series.map(function(p){return p.v;});
   if(overlay && overlay.length) vals=vals.concat(overlay.map(function(p){return p.v;}));
   var min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), span=(max-min)||1, step=(W-2*pad)/(series.length-1), line="", area="";
-  series.forEach(function(p,i){ var x=pad+i*step, y=pad+(H-2*pad)*(1-(p.v-min)/span); line+=(i?"L":"M")+x.toFixed(1)+" "+y.toFixed(1)+" "; area+=(i?"L":"M")+x.toFixed(1)+" "+y.toFixed(1)+" "; });
-  area += "L"+(pad+(series.length-1)*step).toFixed(1)+" "+(H-pad)+" L"+pad+" "+(H-pad)+" Z";
+  var linePts=series.map(function(p,i){ return {x:pad+i*step, y:pad+(H-2*pad)*(1-(p.v-min)/span)}; });
+  line = smoothLine ? pathSmooth(linePts) : linePts.map(function(p,i){ return (i?"L":"M")+p.x.toFixed(1)+" "+p.y.toFixed(1); }).join(" ");
+  area = line + " L"+(pad+(series.length-1)*step).toFixed(1)+" "+(H-pad)+" L"+pad+" "+(H-pad)+" Z";
   // day boundaries (MST midnights) + optional "now" marker
   var t0=series[0].t, t1=series[series.length-1].t, T=(t1-t0)||1;
   function X(t){ return pad + (t-t0)/T*(W-2*pad); }
@@ -622,12 +643,10 @@ function areaChart(svg, series, color, dashed, axisId, showNow, hideFutureLabels
   marks += '<line x1="0" y1="'+(H/2).toFixed(0)+'" x2="'+W+'" y2="'+(H/2).toFixed(0)+'" stroke="rgba(150,185,215,0.16)" stroke-width="1"/>';
   var ovPath="";
   if(overlay && overlay.length>1){
-    var od="";
-    overlay.forEach(function(p,i){
-      var x=pad+(p.t-t0)/T*(W-2*pad), y=pad+(H-2*pad)*(1-(p.v-min)/span);
-      od+=(i?"L":"M")+x.toFixed(1)+" "+y.toFixed(1)+" ";
+    var ovPts=overlay.map(function(p){
+      return {x:pad+(p.t-t0)/T*(W-2*pad), y:pad+(H-2*pad)*(1-(p.v-min)/span)};
     });
-    ovPath='<path d="'+od+'" fill="none" stroke="var(--water)" stroke-width="2.2" stroke-linejoin="round"/>';
+    ovPath='<path d="'+pathSmooth(ovPts)+'" fill="none" stroke="var(--water)" stroke-width="2.2" stroke-linejoin="round"/>';
   }
   svg.innerHTML = marks + '<path d="'+area+'" fill="'+color+'" opacity="0.11"/><path d="'+line+'" fill="none" stroke="'+color+'" stroke-width="1.5"'+(dashed?' stroke-dasharray="5 4"':'')+'/>'+ovPath;
   svg._series=series; svg._t0=t0; svg._t1=t1; svg._min=min; svg._max=max;
@@ -1206,7 +1225,7 @@ function renderReach(){
     if(title) title.textContent="Recent \u2014 Lake Havasu elevation";
     var lc=havasuData[havasuData.length-1];
     now.innerHTML='Lake now <b class="mono">'+lc.v.toFixed(2)+' ft</b> \u00b7 '+azTime(lc.t)+' MST';
-    var lr=areaChart(svg, rangeCut(havasuData), "var(--water)", false, "fc-axis", true, true);
+    var lr=areaChart(svg, rangeCut(havasuData), "var(--water)", false, "fc-axis", true, true, null, true);
     lead.innerHTML='The lake\u2019s elevation over the last '+rangeLabel()+' \u2014 it ranged just <b class="mono" style="color:var(--text)">'+lr.min.toFixed(2)+'</b>\u2013<b class="mono" style="color:var(--text)">'+lr.max.toFixed(2)+' ft</b> while the river below swings several feet a day.';
     return;
   }
@@ -1227,7 +1246,7 @@ function renderReach(){
     var olR=blendedOutlook(pl);
     var seriesR=(olR && olR.flowP.length) ? olR.flowP.concat(olR.futM)
               : (shiftedR ? st.flow.map(function(p){ return {t:p.t+lagR, v:p.v}; }) : st.flow);
-    var r=areaChart(svg, rangeCut(seriesR), "var(--water)", false, "fc-axis", true, true);
+    var r=areaChart(svg, rangeCut(seriesR), "var(--water)", false, "fc-axis", true, true, null, true);
     var d=Math.abs(ref.mile-pl.mile);
     lead.innerHTML='The last '+rangeLabel()+' near '+esc(pl.name)+', from '+ref.label+(shiftedR ? ' \u2014 clock reads arrival at '+esc(pl.name)+(lagR>0 ? '; the stretch past \u201cnow\u201d is water already released upstream, on its way here' : '') : '')+(d>=0.5 ? ' \u2014 the closest live sensor to '+esc(pl.name) : ' \u2014 right at '+esc(pl.name))+'.<span class="adv-only"> ('+(d>=0.5?d.toFixed(0)+' river mi away. ':'')+'Flow swings between <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b> and <b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs in a daily rhythm.)</span>';
   } else {
