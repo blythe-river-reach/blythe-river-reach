@@ -1163,7 +1163,7 @@ function renderHero(){
           _head = tr==="falling" ? {m:'falling', t:'Dipping \u2014 peaks ~'+_sT+', then '+(_dst?'down to '+_dst:'drops')}
                 : {m:'rising', t:'Rising \u2014 tops out ~'+_sT+', then '+(_dst?'down to '+_dst:'drops')};
         }
-        else if(startLater){
+        else if(startLater && tr!=="falling"){ // a measured fall overrules the schedule's plateau \u2014 never "holding" while the river is visibly dropping
           turn=' <b style="color:var(--text)">Holding near the top until ~'+azClock(_ts.t)+'</b> \u2014 then down to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
           _head={m:'steady', t:_holdW+' \u2014 drops after ~'+_sT};
         }
@@ -1172,8 +1172,9 @@ function renderHero(){
           _head={m:'rising', t:'Peaking now \u2014 down to '+(_dst||'the daily low')+' by ~'+_tT};
         }
         else {
-          turn=' <b style="color:var(--text)">Expect the dip '+whenM+'</b> \u2014 down to '+_dstFull+' around '+azTime(e0.t)+(e1&&e1.type==="high"?', then back up':'')+'.'+_tail;
-          _head={m:'falling', t:'Dropping \u2014 down to '+(_dst||'the daily low')+' ~'+_tT};
+          var _pause=startLater?'easing off around ~'+azClock(_ts.t)+', then ':'';
+          turn=' <b style="color:var(--text)">Expect the dip '+whenM+'</b> \u2014 '+_pause+'down to '+_dstFull+' around '+azTime(e0.t)+(e1&&e1.type==="high"?', then back up':'')+'.'+_tail;
+          _head={m:'falling', t:'Dropping \u2014 down to '+(_dst||'the daily low')+' ~'+_tT+(e1&&e1.type==="high"?', then back up':'')};
         }
       } else { // heading to the cycle top at e0
         if(interMove){
@@ -1181,7 +1182,7 @@ function renderHero(){
           _head = tr==="rising" ? {m:'rising', t:'Rising \u2014 dips ~'+_sT+', then '+(_dst?'up to '+_dst:'higher')}
                 : {m:'falling', t:'Dropping \u2014 turns back up ~'+_sT};
         }
-        else if(startLater){
+        else if(startLater && tr!=="rising"){ // mirror: a measured rise overrules "holding near the bottom"
           turn=' <b style="color:var(--text)">Holding near the bottom until ~'+azClock(_ts.t)+'</b> \u2014 then up to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
           _head={m:'steady', t:_holdW+' \u2014 comes up ~'+_sT};
         }
@@ -1190,8 +1191,9 @@ function renderHero(){
           _head={m:'falling', t:'At today\u2019s low \u2014 up to '+(_dst||'the daily high')+' by ~'+_tT};
         }
         else {
-          turn=' <b style="color:var(--text)">Expect the peak '+whenM+'</b> \u2014 up to '+_dstFull+' around '+azTime(e0.t)+(e1&&e1.type==="low"?', then easing back':'')+'.'+_tail;
-          _head={m:'rising', t:'Rising \u2014 up to '+(_dst||'the daily high')+' by ~'+_tT};
+          var _pause2=startLater?'leveling off around ~'+azClock(_ts.t)+', then ':'';
+          turn=' <b style="color:var(--text)">Expect the peak '+whenM+'</b> \u2014 '+_pause2+'up to '+_dstFull+' around '+azTime(e0.t)+(e1&&e1.type==="low"?', then easing back':'')+'.'+_tail;
+          _head={m:'rising', t:'Rising \u2014 up to '+(_dst||'the daily high')+' by ~'+_tT+(e1&&e1.type==="low"?', then easing back':'')};
         }
       }
     }
