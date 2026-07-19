@@ -311,7 +311,7 @@ function loadPrevious() {
 // element, the sample count, used only for merging).
 const HIST_DAYS = 400;
 const HIST_REFRESH_MS = +(process.env.HISTORY_REFRESH_MS || 6 * 3600 * 1000);
-const HIST_VERSION = 5; // bump when the site list / fetch logic changes so a carried-forward backfill refetches immediately
+const HIST_VERSION = 6; // bump when the site list / fetch logic changes so a carried-forward backfill refetches immediately
 const HIST_USGS = [
   { id: "09423000", key: "belowdavisusgs", name: "Colorado River below Davis Dam (USGS)" },
   { id: "09424000", key: "topockg",        name: "Colorado River near Topock (USGS)" },
@@ -453,6 +453,31 @@ async function fetchUsgsHistory(diag) {
       } else if (diag) diag.push(def.key + ":none(" + daily.length + "d iv) [" + chunkDiag.join(" ") + "]");
     } catch (e) {
       if (diag) diag.push(def.key + ":err " + String(e && e.message ? e.message : e).slice(0, 60));
+    }
+  }
+  // The daily-values feed for these sites carries means only — no daily
+  // min/max — which leaves the year chart with no low–high band. Derive the
+  // band from the 15-minute record and merge it into the daily rows.
+  for (const def of HIST_USGS) {
+    const site = out[def.key];
+    if (!site || !site.flow || site.derived === "iv") continue;
+    const missing = site.flow.filter((p) => p[2] == null || p[3] == null).length;
+    if (missing < site.flow.length * 0.3) continue;
+    try {
+      const cd = [];
+      const daily = await fetchUsgsIvDaily(def.id, HIST_DAYS, cd, "00060");
+      if (daily.length) {
+        const by = {};
+        for (const p of daily) by[p[0]] = p;
+        let filled = 0;
+        for (const p of site.flow) {
+          const q = by[p[0]];
+          if (q) { if (p[2] == null) p[2] = q[2]; if (p[3] == null) p[3] = q[3]; if (p[1] == null) p[1] = q[1]; filled++; }
+        }
+        if (diag) diag.push(def.key + ":+minmax" + filled + "d");
+      } else if (diag) diag.push(def.key + ":minmax0 [" + cd.join(" ") + "]");
+    } catch (e) {
+      if (diag) diag.push(def.key + ":minmax err " + String(e && e.message ? e.message : e).slice(0, 40));
     }
   }
   return out;
