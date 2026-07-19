@@ -390,31 +390,6 @@ async function fetchUsgsIvDaily(id, days, chunkDiag, param) {
   }).sort((a, b) => a[0] - b[0]);
 }
 
-// TEMP probe: the IV service returns 200s with empty values from Actions while
-// DV works — hit several URL shapes for one site and log what each returns.
-async function probeUsgsIv(diag) {
-  const variants = [
-    ["p7-65", "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=09423000&parameterCd=00065&period=P7D&siteStatus=all"],
-    ["p30-both", "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=09423000&parameterCd=00060,00065&period=P30D&siteStatus=all"],
-    ["multi-page", "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=09429100,09423000&parameterCd=00060,00065&period=P7D&siteStatus=all"],
-    ["win7", "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=09423000&parameterCd=00065&startDT=" + new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10) + "&endDT=" + new Date().toISOString().slice(0, 10) + "&siteStatus=all"],
-  ];
-  for (const [tag, url] of variants) {
-    try {
-      const r = await fetch(url, { headers: HIST_UA });
-      const body = await r.text();
-      let ts = 0, n = 0;
-      try {
-        const j = JSON.parse(body);
-        for (const t of (j.value && j.value.timeSeries) || []) { ts++; for (const b of t.values || []) n += (b.value || []).length; }
-      } catch (e) {}
-      diag.push("probe " + tag + ": " + r.status + " len" + body.length + " ts" + ts + " n" + n + (n === 0 ? " body<<" + body.slice(0, 200).replace(/\s+/g, " ") + ">>" : ""));
-    } catch (e) {
-      diag.push("probe " + tag + ": fetch " + String(e && e.message ? e.message : e).slice(0, 60));
-    }
-  }
-}
-
 async function fetchUsgsHistory(diag) {
   const ids = HIST_USGS.map((s) => s.id).join(",");
   const url = "https://waterservices.usgs.gov/nwis/dv/?format=json&sites=" + ids +
@@ -696,7 +671,6 @@ async function main() {
     if (!(histAge < HIST_REFRESH_MS) || !usgsHist || usgsHist.v !== HIST_VERSION) {
       const diag = [];
       try {
-        await probeUsgsIv(diag);
         const sites = await fetchUsgsHistory(diag);
         if (Object.keys(sites).length) usgsHist = { v: HIST_VERSION, fetchedAt: new Date().toISOString(), sites, diag: diag.join(", ") };
         else out.errors.push("history: USGS daily service returned no usable series" + (usgsHist ? " — kept previous backfill" : ""));

@@ -1038,15 +1038,18 @@ function histSeries(key, kind, minDays){
   return { pts:pick, usgsId:(pick===uu && u.id)||null, srcName:(pick===uu ? u.name : "the data robot’s day-by-day archive") };
 }
 // Which long-record gauge best describes this spot? Its own, if it keeps a
-// year of history; otherwise the nearest year-keeping gauge on the same
-// stretch of river (same water, so "high for the year" carries over).
-var HIST_PROXY={ upper:"belowdavisusgs", lake:"parker", strip:"parker", mid:"parker", below:"belowpv" };
+// year of history; otherwise walk toward the nearest year-keeping gauge on
+// the river (same water system, so "high for the year" carries over — the
+// text always names the gauge it used). The upstream USGS gauges (below
+// Davis, Topock, below Parker) stopped transmitting, so upstream spots lean
+// on the Blythe-reach gauge until the robot's own archive matures.
+var HIST_PROXY={ upper:["belowdavisusgs","parker","belowpv"], lake:["parker","belowpv"], strip:["parker","belowpv"], mid:["parker","belowpv"], below:["belowpv","martinez"] };
 function histFor(pl, ref){
   var tried=[];
   if(ref && ref.key) tried.push(ref.key);
   var seg=segFor(pl);
   if(seg==="below" && pl.mile<75) tried.push("martinez"); // Picacho / Martinez Lake reach sits far below the Blythe gauge
-  tried.push(HIST_PROXY[seg]||"belowpv");
+  (HIST_PROXY[seg]||["belowpv"]).forEach(function(k){ if(tried.indexOf(k)<0) tried.push(k); });
   for(var i=0;i<tried.length;i++){
     // flow history first; the regulated upper-river gauges publish only gage
     // height, and a year of stage answers "is the water high" just as well
