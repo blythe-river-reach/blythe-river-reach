@@ -267,6 +267,19 @@ try{
   </div>
 </section>
 
+<section id="yr-sec" style="display:none">
+  <div class="section-panel">
+    <div class="fc-head">
+      <h2 id="yr-title">The past year &mdash; is the water actually high?</h2>
+      <span class="fc-now" id="yr-now"></span>
+    </div>
+    <p class="lead" id="yr-lead"></p>
+    <svg id="yr-chart" viewBox="0 0 900 120" preserveAspectRatio="none" style="display:none" role="img" aria-label="Daily average flow over the past year at the nearest long-record gauge, with the current level marked as a dashed line."></svg>
+    <div class="axis" id="yr-axis"></div>
+    <p class="note" id="yr-note"></p>
+  </div>
+</section>
+
 <section>
   <div class="section-panel">
     <h2>Tide table &mdash; daily highs &amp; lows</h2>
@@ -287,7 +300,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-14e</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-19a</span> &mdash; past-year history &middot; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the five USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their river sensors (Davis Dam to Martinez Lake), Lake Havasu&rsquo;s level, and the dam-schedule PDFs about three times an hour and publishes them for this page (the header shows how fresh that data is).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -837,7 +850,7 @@ function rebuild(){
   st.forEach(function(s){ if(RIVER_ORDER[s.key]!=null) s.order=RIVER_ORDER[s.key]; });
   st.sort(function(a,b){ return (a.order==null?99:a.order)-(b.order==null?99:b.order); });
   STATIONS=st;
-  renderCards(); renderHero(); renderHeadgate(); renderReach(); renderTide(); renderCal();
+  renderCards(); renderHero(); renderHeadgate(); renderReach(); renderYear(); renderTide(); renderCal();
   var _sl=document.getElementById("sched-link");
   if(_sl) _sl.textContent=(segFor(currentPlace())==="upper" ? "Davis Dam" : "Parker Dam")+" projected schedule (PDF) \u2197";
   (function staleCheck(){
@@ -904,6 +917,13 @@ function renderCards(){
     var metaHtml;
     if(abl!=null){ metaHtml='<span>water <span class="mono">+'+abl.toFixed(1)+'</span> ft above wk low</span><span>swings <span class="mono">~'+(sw!=null?sw.toFixed(1):'\u2014')+'</span> ft/wk</span>'; }
     else { metaHtml='<span>release flow</span><span>7-day <span class="mono">'+fmt(lo)+'\u2013'+fmt(hi)+'</span> cfs</span>'; }
+    // Year line for any site that keeps (or has grown) a year of history
+    var yrHtml="", _hs=histSeries(s.key, "flow", 300);
+    if(_hs && s.flow.length){
+      var _ys2=yearStats(_hs), _nv=avg24(s.flow);
+      if(_nv==null && f) _nv=f.v;
+      if(_ys2 && _nv!=null) yrHtml='<div class="meta"><span>past year: above <span class="mono">'+Math.round(_ys2.pctOf(_nv)*100)+'%</span> of days</span><span class="adv-only">typical <span class="mono">'+fmt(_ys2.p25)+'\u2013'+fmt(_ys2.p75)+'</span> cfs</span></div>';
+    }
     return '<div class="card'+((_ref && s.key===_ref.key)?' primary':'')+'">'+
       '<div class="role"><span>'+((_ref && s.key===_ref.key)?('Reference for '+esc(_pl.name)):s.role)+'</span><span class="src">'+s.source+'</span></div>'+
       '<div class="name">'+s.name+'</div>'+
@@ -911,7 +931,7 @@ function renderCards(){
         '<span class="trend" style="color:'+TCOLOR[tr]+'">'+TMARK[tr]+' '+TWORD[tr]+'</span></div>'+
       levelHtml+
       spark(s.flow.length?s.flow:s.stage)+
-      '<div class="meta">'+metaHtml+'</div>'+
+      '<div class="meta">'+metaHtml+'</div>'+yrHtml+
       '<div class="stamp">reading '+when+' MST'+(_cp?ageShort(_cp.t):'')+' \u00b7 '+link+(s.source==="USGS"?' \u00b7 fetched live by your browser':' \u00b7 via the data robot')+'</div></div>';
   }).join("");
 }
@@ -996,6 +1016,157 @@ function dayRankPhrase(flowP, comp){
   if(below>=n*0.66) return phase==="ahead" ? "Today’s peak is on the way — higher than most days this week." : (phase==="past" ? "Today’s peak was higher than most days this week." : "Today’s peak is arriving — higher than most days this week.");
   if(below<=n*0.34) return knowsPeak ? "Today’s peak is lower than most days this week." : "";
   return "A typical peak today for this week.";
+}
+// ---------- Past-year context ----------
+// The robot ships two kinds of history in riverdata.json: a year+ of USGS
+// daily stats for the five gauges on this reach that publish one, and a
+// day-by-day archive it accumulates from Reclamation's hourly sensors (those
+// build up over time). Points are compact arrays [tMstMidnight, avg, min, max].
+var histData=null;
+function histVal(p){ return p[1]!=null ? p[1] : (p[2]!=null&&p[3]!=null ? (p[2]+p[3])/2 : (p[2]!=null?p[2]:p[3])); }
+function histSeries(key, kind, minDays){
+  if(!histData) return null;
+  kind=kind||"flow"; minDays=minDays||300;
+  var u=histData.usgs && histData.usgs.sites && histData.usgs.sites[key];
+  var a=histData.accum && histData.accum.sites && histData.accum.sites[key];
+  var uu=(u&&u[kind])||null, aa=(a&&a[kind])||null;
+  // prefer whichever record is longer — the USGS backfill wins until the
+  // robot's own archive outgrows it
+  var pick=((uu&&uu.length)||0)>=((aa&&aa.length)||0) ? uu : aa;
+  if(!pick || pick.length<minDays) return null;
+  return { pts:pick, usgsId:(pick===uu && u.id)||null, srcName:(pick===uu ? u.name : "the data robot’s day-by-day archive") };
+}
+// Which long-record gauge best describes this spot? Its own, if it keeps a
+// year of history; otherwise the nearest year-keeping gauge on the same
+// stretch of river (same water, so "high for the year" carries over).
+var HIST_PROXY={ upper:"belowdavisusgs", lake:"parker", strip:"parker", mid:"parker", below:"belowpv" };
+function histFor(pl, ref){
+  var tried=[];
+  if(ref && ref.key) tried.push(ref.key);
+  var seg=segFor(pl);
+  if(seg==="below" && pl.mile<75) tried.push("martinez"); // Picacho / Martinez Lake reach sits far below the Blythe gauge
+  tried.push(HIST_PROXY[seg]||"belowpv");
+  for(var i=0;i<tried.length;i++){
+    var h=histSeries(tried[i], "flow", 300);
+    if(h){ h.key=tried[i]; h.exact=!!(ref && tried[i]===ref.key); return h; }
+  }
+  return null;
+}
+function yearStats(h){
+  var cutY=Date.now()-370*86400000, vals=[];
+  h.pts.forEach(function(p){ if(p[0]>=cutY){ var v=histVal(p); if(v!=null) vals.push(v); } });
+  if(vals.length<200) return null;
+  vals.sort(function(a,b){ return a-b; });
+  function q(f){ return vals[Math.min(vals.length-1, Math.floor(f*(vals.length-1)))]; }
+  return { n:vals.length, min:vals[0], max:vals[vals.length-1], p25:q(0.25), p50:q(0.5), p75:q(0.75),
+    pctOf:function(v){ var b=0; for(var i=0;i<vals.length;i++){ if(vals[i]<v) b++; else break; } return b/vals.length; } };
+}
+function yearPhrase(pct){
+  if(pct>=0.97) return "about as high as it’s been all year";
+  if(pct>=0.85) return "genuinely high for the year";
+  if(pct>=0.6)  return "on the high side of the past year";
+  if(pct>=0.4)  return "a typical level for the past year";
+  if(pct>=0.15) return "on the low side of the past year";
+  return "low for the year";
+}
+// The year verdict for a spot: the best history gauge, its year stats, and
+// where that gauge's CURRENT water (last 24 h average — apples-to-apples with
+// daily averages) sits in the year. Compares a gauge only against ITSELF, so
+// canal diversions between gauges can't skew the percentile.
+function yearContext(pl, ref){
+  var h=histFor(pl, ref); if(!h) return null;
+  var ys=yearStats(h); if(!ys) return null;
+  var live=null;
+  for(var i=0;i<STATIONS.length;i++){ if(STATIONS[i].key===h.key && STATIONS[i].flow.length){ live=STATIONS[i]; break; } }
+  var nowV=live ? (avg24(live.flow)!=null ? avg24(live.flow) : (cur(live.flow)?cur(live.flow).v:null)) : null;
+  if(nowV==null){ var lp=h.pts[h.pts.length-1]; nowV=histVal(lp); } // gauge quiet — use its newest archived day
+  if(nowV==null) return null;
+  var si=sensorInfo(h.key);
+  return { h:h, ys:ys, nowV:nowV, pct:ys.pctOf(nowV), phrase:yearPhrase(ys.pctOf(nowV)), gaugeLabel:(si?si.label:h.key) };
+}
+// The 12-month chart: daily min–max band, daily-average line, month grid, and
+// a dashed "you are here" line at the current level.
+function yearChart(svg, yc, axisId){
+  var W=900,H=120,pad=6;
+  var cutY=Date.now()-366*86400000;
+  var pts=yc.h.pts.filter(function(p){ return p[0]>=cutY; })
+    .map(function(p){ return {t:p[0], v:histVal(p), lo:p[2], hi:p[3]}; })
+    .filter(function(p){ return p.v!=null; });
+  if(pts.length<30){ svg.style.display="none"; return null; }
+  var vals=[];
+  pts.forEach(function(p){ vals.push(p.v); if(p.lo!=null) vals.push(p.lo); if(p.hi!=null) vals.push(p.hi); });
+  if(yc.nowV!=null) vals.push(yc.nowV);
+  var min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), span=(max-min)||1;
+  var t0=pts[0].t, t1=Math.max(pts[pts.length-1].t, Date.now()), T=(t1-t0)||1;
+  function X(t){ return pad+(t-t0)/T*(W-2*pad); }
+  function Y(v){ return pad+(H-2*pad)*(1-(v-min)/span); }
+  var marks="", labels=[];
+  var d0=new Date(t0-7*3600000), yy=d0.getUTCFullYear(), mm=d0.getUTCMonth(), k=0;
+  for(;;){
+    mm++; if(mm>11){ mm=0; yy++; }
+    var mT=Date.UTC(yy, mm, 1)+7*3600000;
+    if(mT>=t1) break;
+    var x=X(mT);
+    marks+='<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.35)" stroke-width="1"/>';
+    if(k%2===0) labels.push({pct:x/W*100, txt:new Date(mT).toLocaleDateString([], {timeZone:"America/Phoenix", month:"short"})});
+    k++;
+  }
+  marks+='<line x1="0" y1="'+(H/2).toFixed(0)+'" x2="'+W+'" y2="'+(H/2).toFixed(0)+'" stroke="rgba(150,185,215,0.16)" stroke-width="1"/>';
+  var bandPts=pts.filter(function(p){ return p.lo!=null && p.hi!=null; }), band="";
+  if(bandPts.length>pts.length*0.5){
+    var up="", down="";
+    bandPts.forEach(function(p,i){ up+=(i?"L":"M")+X(p.t).toFixed(1)+" "+Y(p.hi).toFixed(1)+" "; });
+    for(var bi=bandPts.length-1;bi>=0;bi--){ down+="L"+X(bandPts[bi].t).toFixed(1)+" "+Y(bandPts[bi].lo).toFixed(1)+" "; }
+    band='<path d="'+up+down+'Z" fill="var(--water)" opacity="0.14"/>';
+  }
+  var line="";
+  pts.forEach(function(p,i){ line+=(i?"L":"M")+X(p.t).toFixed(1)+" "+Y(p.v).toFixed(1)+" "; });
+  var nowMark="";
+  if(yc.nowV!=null){
+    var yn=Y(yc.nowV);
+    nowMark='<line x1="0" y1="'+yn.toFixed(1)+'" x2="'+W+'" y2="'+yn.toFixed(1)+'" stroke="var(--house)" stroke-width="1.6" stroke-dasharray="6 5" opacity="0.9"/>'
+      +'<circle cx="'+X(t1).toFixed(1)+'" cy="'+yn.toFixed(1)+'" r="4.5" fill="var(--house)"/>';
+  }
+  svg.innerHTML=marks+band+'<path d="'+line+'" fill="none" stroke="var(--water)" stroke-width="1.6"/>'+nowMark;
+  svg._series=pts; svg._t0=t0; svg._t1=t1; svg._min=min; svg._max=max;
+  try{
+    var host=svg.parentNode;
+    if(host && document.createElement){
+      var hold=svg._hold;
+      if(!hold){
+        hold=document.createElement("div"); hold.className="chart-hold";
+        host.insertBefore(hold, svg); hold.appendChild(svg); svg._hold=hold;
+        var yl=document.createElement("div"); yl.className="ylab"; hold.appendChild(yl); svg._ylab=yl;
+        initCrosshair(hold, svg);
+      }
+      var fmtY=function(v){ return (Math.abs(max)<1000) ? v.toFixed(1) : (Math.abs(v)>=9500 ? Math.round(v/1000)+"k" : (v/1000).toFixed(1)+"k"); };
+      svg._ylab.innerHTML='<span class="yl-top">'+fmtY(max)+'</span><span class="yl-mid">'+fmtY((max+min)/2)+'</span><span class="yl-bot">'+fmtY(min)+'</span>';
+    }
+  }catch(e){}
+  svg.style.display="block";
+  var ax=axisId ? document.getElementById(axisId) : null;
+  if(ax){
+    ax.style.height="19px";
+    ax.innerHTML=labels.map(function(L){
+      var tr=L.pct<4 ? "translateX(0)" : (L.pct>96 ? "translateX(-100%)" : "translateX(-50%)");
+      return '<span style="left:'+L.pct.toFixed(2)+'%; transform:'+tr+';">'+L.txt+'</span>';
+    }).join("");
+    ax.style.display=labels.length ? "block" : "none";
+  }
+  return {min:min, max:max};
+}
+function renderYear(){
+  var sec=document.getElementById("yr-sec"); if(!sec) return;
+  var pl=currentPlace(), ref=refFor(pl);
+  var yc=(segFor(pl)!=="lake") ? yearContext(pl, ref) : null;
+  if(!yc){ sec.style.display="none"; return; }
+  sec.style.display="";
+  var svg=document.getElementById("yr-chart"), lead=document.getElementById("yr-lead"), nowEl=document.getElementById("yr-now"), note=document.getElementById("yr-note");
+  nowEl.innerHTML='last 24 h avg <b class="mono">'+fmt(yc.nowV)+' cfs</b>';
+  yearChart(svg, yc, "yr-axis");
+  var pctW=Math.round(yc.pct*100);
+  lead.innerHTML='The last 12 months at '+esc(yc.gaugeLabel)+(yc.h.exact?'':' — the closest gauge to '+esc(pl.name)+' with a year of records')+'. Right now the river is running <b style="color:var(--text)">'+yc.phrase+'</b>: the last 24 hours averaged more water than <b style="color:var(--text)" class="mono">'+pctW+'%</b> of the year’s days. A typical day this past year ran <b class="mono" style="color:var(--text)">'+fmt(yc.ys.p25)+'–'+fmt(yc.ys.p75)+'</b> cfs; the year’s full range was <b class="mono" style="color:var(--text)">'+fmt(yc.ys.min)+'–'+fmt(yc.ys.max)+'</b>.';
+  note.innerHTML='Blue line: each day’s average flow · shaded band: that day’s low–high swing · dashed line: where the last 24 hours sit. <span class="adv-only">Backfilled from the USGS daily-values archive'+(yc.h.usgsId?' (site '+yc.h.usgsId+')':'')+'; Reclamation-only sensors are building their own archive — the robot saves each day’s stats as it runs, so those charts grow over time.</span>';
 }
 function renderStrip(pl){
   var el=document.getElementById("strip"); if(!el) return;
@@ -1183,9 +1354,25 @@ function renderHero(){
   var _lw=levelWord(abl, sw, flowP);
   if(_lw) elE.innerHTML='Near '+esc(pl.name)+' right now <span class="pill lvl '+_lw.cls+'" title="Current level vs this week’s range at this spot — low · below average · average · above average · high.">'+_lw.label+'</span>';
   elS.innerHTML='<span style="color:'+TCOLOR[_head.m]+'">'+TMARK[_head.m]+'</span> '+_head.t;
+  // The past-year reality check: is the water actually high, or just high for
+  // this week? Weekly badge and year percentile, reconciled in one sentence.
+  var yrTxt="", _yc=yearContext(pl, ref);
+  if(_yc){
+    var _pctW=Math.round(_yc.pct*100), vs="";
+    if(_lw){
+      var wkHigh=_lw.cls==="high", wkLow=_lw.cls==="low";
+      var yrHigh=_yc.pct>=0.6, yrLow=_yc.pct<0.4;
+      if(wkHigh && yrHigh) vs="Not just a big week \u2014 the river really is up.";
+      else if(wkHigh && yrLow) vs="High for this week, but still less water than a typical day this past year.";
+      else if(wkHigh) vs="High for this week, but about normal for the year.";
+      else if(wkLow && yrLow) vs="Low for this week and for the year.";
+      else if(wkLow && yrHigh) vs="A low moment this week \u2014 yet still more water than most of the past year.";
+    }
+    yrTxt=' <b style="color:var(--text)">Past-year check:</b> the last 24 h averaged <span class="mono">'+fmt(_yc.nowV)+' cfs</span>'+(_yc.h.exact?'':' at '+esc(_yc.gaugeLabel))+' \u2014 more water than '+_pctW+'% of days in the last 12 months. '+(vs||('That\u2019s '+_yc.phrase+'.'))+' <a href="#yr-sec" style="color:var(--water)">See the year \u2193</a>';
+  }
   var _lead=weekCtx?weekCtx+' ':'';
-  if(abl!=null){ elSub.innerHTML=_lead+'The water is about <b style="color:var(--text)" class="mono">+'+abl.toFixed(1)+' ft</b> above this week\u2019s low'+(sw!=null?' (it rises and falls ~'+sw.toFixed(1)+' ft over the week)':'')+' \u2014 '+detail+timing+'.'+turn; }
-  else { elSub.innerHTML=_lead+'Closest live source reads '+detail+timing+'.'+turn; }
+  if(abl!=null){ elSub.innerHTML=_lead+'The water is about <b style="color:var(--text)" class="mono">+'+abl.toFixed(1)+' ft</b> above this week\u2019s low'+(sw!=null?' (it rises and falls ~'+sw.toFixed(1)+' ft over the week)':'')+' \u2014 '+detail+timing+'.'+turn+yrTxt; }
+  else { elSub.innerHTML=_lead+'Closest live source reads '+detail+timing+'.'+turn+yrTxt; }
   var parker=STATIONS.find(function(s){ return s.key==="parker" && s.flow.length; });
   var curMph=Math.max(0.5, Math.min(8, WAVE_MPH*0.6));
   var curLine='River current: roughly <b style="color:var(--text)">~'+curMph.toFixed(1)+' mph</b> \u2014 about the speed a stick drifts by.<span class="adv-only"> (Estimated as ~60% of the measured pulse speed; actual current varies with depth and spot.)</span>';
@@ -1644,6 +1831,7 @@ function loadAll(){
       if(j.parkerSchedule && j.parkerSchedule.points && j.parkerSchedule.points.length){ psData=j.parkerSchedule.points; }
       if(j.davisSchedule && j.davisSchedule.points && j.davisSchedule.points.length){ dsData=j.davisSchedule.points; }
       if(j.havasu && j.havasu.elev && j.havasu.elev.length){ havasuData=j.havasu.elev; }
+      if(j.history && (j.history.usgs || j.history.accum)){ histData=j.history; }
     }
     rebuild(); // paint whatever we have right now
     var tasks=[];

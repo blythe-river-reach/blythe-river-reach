@@ -287,7 +287,115 @@ function salvageJson(text) {
 }
 
 function loadPrevious() {
-  try { return JSON.parse(fs.readFileSync("data/riverdata.json", "utf8")); } catch (e) { return null; }
+  // On non-main branches the workflow renames the output to riverdata-<branch>.json
+  // AFTER this script runs, so the freshest previous data lives under that name —
+  // read it first or carry-forward (and the history archive) would silently reset.
+  const branch = process.env.GITHUB_REF_NAME;
+  const candidates = [];
+  if (branch && branch !== "main") candidates.push("data/riverdata-" + branch + ".json");
+  candidates.push("data/riverdata.json");
+  for (const f of candidates) {
+    try { return JSON.parse(fs.readFileSync(f, "utf8")); } catch (e) {}
+  }
+  return null;
+}
+
+// ---------- Past-year history ----------
+// Two sources, one goal: let the dashboard say whether today's water is high
+// for the YEAR, not just for this week.
+//  1. USGS daily-values backfill — the only public source with a year+ of
+//     record on this reach; five gauges along it publish daily stats.
+//  2. A day-by-day min/avg/max archive accumulated from Reclamation's hourly
+//     sensors on every run, so the USBR-only sites grow their own history.
+// Points are compact arrays: [tMstMidnight, avg, min, max] (accum adds a 5th
+// element, the sample count, used only for merging).
+const HIST_DAYS = 400;
+const HIST_REFRESH_MS = +(process.env.HISTORY_REFRESH_MS || 6 * 3600 * 1000);
+const HIST_USGS = [
+  { id: "09423000", key: "belowdavisusgs", name: "Colorado River below Davis Dam (USGS)" },
+  { id: "09424000", key: "topockg",        name: "Colorado River near Topock (USGS)" },
+  { id: "09427520", key: "parker",         name: "Colorado River below Parker Dam (USGS)" },
+  { id: "09429100", key: "belowpv",        name: "Colorado River below Palo Verde Dam (USGS)" },
+  { id: "09429500", key: "martinez",       name: "Colorado River above Imperial Dam (USGS)" },
+];
+
+async function fetchUsgsHistory() {
+  const ids = HIST_USGS.map((s) => s.id).join(",");
+  const url = "https://waterservices.usgs.gov/nwis/dv/?format=json&sites=" + ids +
+    "&parameterCd=00060,00065&statCd=00003,00001,00002&period=P" + HIST_DAYS + "D&siteStatus=all";
+  const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; blythe-river-bot)", "Accept": "application/json" } });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const j = await r.json();
+  const sites = {};
+  for (const ts of (j.value && j.value.timeSeries) || []) {
+    const siteId = ts.sourceInfo && ts.sourceInfo.siteCode && ts.sourceInfo.siteCode[0] && ts.sourceInfo.siteCode[0].value;
+    const def = HIST_USGS.find((s) => s.id === siteId);
+    if (!def) continue;
+    const param = ts.variable && ts.variable.variableCode && ts.variable.variableCode[0] && ts.variable.variableCode[0].value;
+    const kind = param === "00060" ? "flow" : param === "00065" ? "stage" : null;
+    if (!kind) continue;
+    let stat = null;
+    try { stat = ts.variable.options.option[0].optionCode; } catch (e) {}
+    const slot = stat === "00001" ? 3 : stat === "00002" ? 2 : 1; // [t, avg, min, max]
+    const vals = (ts.values && ts.values[0] && ts.values[0].value) || [];
+    const site = (sites[def.key] = sites[def.key] || { id: def.id, name: def.name, flow: {}, stage: {} });
+    for (const v of vals) {
+      const m = String(v.dateTime).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      const num = parseFloat(v.value);
+      if (!m || !isFinite(num) || num <= -999990) continue; // -999999 = USGS missing-value sentinel
+      const t = Date.UTC(+m[1], +m[2] - 1, +m[3], 0, 0, 0) + 7 * 3600 * 1000; // MST midnight
+      (site[kind][t] = site[kind][t] || [t, null, null, null])[slot] = num;
+    }
+  }
+  const out = {};
+  for (const key of Object.keys(sites)) {
+    const s = sites[key], o = { id: s.id, name: s.name };
+    for (const kind of ["flow", "stage"]) {
+      const arr = Object.values(s[kind])
+        .filter((p) => p[1] != null || p[2] != null || p[3] != null)
+        .sort((a, b) => a[0] - b[0]);
+      if (arr.length) o[kind] = arr;
+    }
+    if (o.flow || o.stage) out[key] = o;
+  }
+  return out;
+}
+
+function accumulateDaily(stations, prevAccum) {
+  const DAY = 86400000, OFF = 7 * 3600 * 1000;
+  const prevSites = (prevAccum && prevAccum.sites) || {};
+  const outSites = {};
+  const today = Math.floor((Date.now() - OFF) / DAY) * DAY + OFF;
+  for (const st of stations || []) {
+    const entry = {};
+    for (const kind of ["flow", "stage"]) {
+      const pts = st[kind] || [];
+      const byDay = {};
+      for (const p of pts) {
+        const d = Math.floor((p.t - OFF) / DAY) * DAY + OFF;
+        (byDay[d] = byDay[d] || []).push(p.v);
+      }
+      const merged = {};
+      for (const p of (prevSites[st.key] && prevSites[st.key][kind]) || []) merged[p[0]] = p;
+      for (const d of Object.keys(byDay)) {
+        const vs = byDay[d];
+        const avg = vs.reduce((s, v) => s + v, 0) / vs.length;
+        const fresh = [+d, +avg.toFixed(2), +Math.min.apply(null, vs).toFixed(2), +Math.max.apply(null, vs).toFixed(2), vs.length];
+        const old = merged[d];
+        // Keep whichever aggregate saw more of the day — a frozen full day must
+        // not be overwritten by a thinner re-read after a feed outage. Today is
+        // always still filling, so the fresh read wins there.
+        if (!old || +d === today || (old[4] || 0) <= fresh[4]) merged[d] = fresh;
+      }
+      const cutoff = Date.now() - HIST_DAYS * DAY;
+      const arr = Object.values(merged).filter((p) => p[0] >= cutoff).sort((a, b) => a[0] - b[0]);
+      if (arr.length) entry[kind] = arr;
+    }
+    if (entry.flow || entry.stage) outSites[st.key] = entry;
+  }
+  // stations that missed this run keep their archive
+  for (const key of Object.keys(prevSites)) if (!outSites[key]) outSites[key] = prevSites[key];
+  return { updatedAt: new Date().toISOString(), sites: outSites };
 }
 
 // ---------- HTML daily-report fallback ----------
@@ -456,6 +564,28 @@ async function main() {
   }
   out.calibration = calibrate(out.stations) || (prev && prev.calibration) || null;
 
+  // Past-year history: refresh the USGS daily backfill a few times a day and
+  // carry it forward between refreshes; fold today's hourly readings into the
+  // per-sensor daily archive on every run.
+  try {
+    const prevHist = (prev && prev.history) || {};
+    let usgsHist = prevHist.usgs || null;
+    const histAge = usgsHist && usgsHist.fetchedAt ? Date.now() - new Date(usgsHist.fetchedAt).getTime() : Infinity;
+    if (!(histAge < HIST_REFRESH_MS)) {
+      try {
+        const sites = await fetchUsgsHistory();
+        if (Object.keys(sites).length) usgsHist = { fetchedAt: new Date().toISOString(), sites };
+        else out.errors.push("history: USGS daily service returned no usable series" + (usgsHist ? " — kept previous backfill" : ""));
+      } catch (e) {
+        out.errors.push("history: " + (e && e.message ? e.message : e) + (usgsHist ? " — kept previous backfill" : ""));
+      }
+    }
+    out.history = { usgs: usgsHist, accum: accumulateDaily(out.stations, prevHist.accum) };
+  } catch (e) {
+    out.errors.push("history: " + (e && e.message ? e.message : e));
+    if (prev && prev.history) out.history = prev.history;
+  }
+
   try {
     const pdf = require("pdf-parse/lib/pdf-parse.js");
     const r = await fetch(HG, { headers: { "User-Agent": "blythe-river-bot" } });
@@ -489,13 +619,16 @@ async function main() {
 
   fs.mkdirSync("data", { recursive: true });
   fs.writeFileSync("data/riverdata.json", JSON.stringify(out));
+  const histUsgsN = out.history && out.history.usgs ? Object.keys(out.history.usgs.sites || {}).length : 0;
+  const histAccumN = out.history && out.history.accum ? Object.keys(out.history.accum.sites || {}).length : 0;
   console.log(
     "stations:", out.stations.map((s) => s.key + ":" + s.flow.length + "f/" + s.stage.length + "s").join(", ") || "none",
     "| headgate pts:", out.headgate ? out.headgate.downstream.length : 0,
+    "| history:", histUsgsN + " USGS backfill site(s), " + histAccumN + " accumulating",
     "| errors:", out.errors.join(" ; ") || "none"
   );
   if (!out.stations.length && !out.headgate) process.exit(1);
 }
 
 if (require.main === module) main();
-module.exports = { parseHeadgate, buildStations, calibrate, xcorrPair, parseDavisParker, parseHourly7, newestReading };
+module.exports = { parseHeadgate, buildStations, calibrate, xcorrPair, parseDavisParker, parseHourly7, newestReading, accumulateDaily, fetchUsgsHistory };
