@@ -311,7 +311,7 @@ function loadPrevious() {
 // element, the sample count, used only for merging).
 const HIST_DAYS = 400;
 const HIST_REFRESH_MS = +(process.env.HISTORY_REFRESH_MS || 6 * 3600 * 1000);
-const HIST_VERSION = 3; // bump when the site list / fetch logic changes so a carried-forward backfill refetches immediately
+const HIST_VERSION = 4; // bump when the site list / fetch logic changes so a carried-forward backfill refetches immediately
 const HIST_USGS = [
   { id: "09423000", key: "belowdavisusgs", name: "Colorado River below Davis Dam (USGS)" },
   { id: "09424000", key: "topockg",        name: "Colorado River near Topock (USGS)" },
@@ -327,10 +327,11 @@ const HIST_UA = { "User-Agent": "Mozilla/5.0 (compatible; blythe-river-bot)", "A
 // Instantaneous-values fallback: several gauges on this reach never publish
 // daily statistics but do keep years of 15-minute data. Pull a year in
 // ~100-day chunks and reduce to daily min/avg/max ourselves.
-async function fetchUsgsIvDaily(id, days, chunkDiag) {
+async function fetchUsgsIvDaily(id, days, chunkDiag, param) {
   const DAY = 86400000, OFF = 7 * 3600 * 1000;
   const byDay = {};
   const end = Date.now();
+  const decimals = param === "00065" ? 2 : 0; // stage needs its decimals, flow doesn't
   let total = 0;
   const ingest = (j) => {
     let n = 0, series = 0;
@@ -356,7 +357,7 @@ async function fetchUsgsIvDaily(id, days, chunkDiag) {
     const s = new Date(Math.max(end - (c + 1) * 100 * DAY, end - days * DAY));
     if (e <= s) break;
     const url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=" + id +
-      "&parameterCd=00060&startDT=" + s.toISOString().slice(0, 10) + "&endDT=" + e.toISOString().slice(0, 10) + "&siteStatus=all";
+      "&parameterCd=" + param + "&startDT=" + s.toISOString().slice(0, 10) + "&endDT=" + e.toISOString().slice(0, 10) + "&siteStatus=all";
     try {
       const r = await fetch(url, { headers: HIST_UA });
       const body = await r.text();
@@ -370,7 +371,7 @@ async function fetchUsgsIvDaily(id, days, chunkDiag) {
   // If the windowed requests produced nothing, fall back to the same URL shape
   // the dashboard uses live (period=), which is known to work for these sites.
   if (!total) {
-    const url2 = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=" + id + "&parameterCd=00060&period=P120D&siteStatus=all";
+    const url2 = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=" + id + "&parameterCd=" + param + "&period=P120D&siteStatus=all";
     try {
       const r2 = await fetch(url2, { headers: HIST_UA });
       const body2 = await r2.text();
@@ -381,10 +382,11 @@ async function fetchUsgsIvDaily(id, days, chunkDiag) {
       if (chunkDiag) chunkDiag.push("p120:fetch " + String(fe && fe.message ? fe.message : fe).slice(0, 40));
     }
   }
+  const rnd = (v) => +v.toFixed(decimals);
   return Object.keys(byDay).map((d) => {
     const vs = byDay[d];
     const avg = vs.reduce((s, v) => s + v, 0) / vs.length;
-    return [+d, Math.round(avg), Math.round(Math.min.apply(null, vs)), Math.round(Math.max.apply(null, vs))];
+    return [+d, rnd(avg), rnd(Math.min.apply(null, vs)), rnd(Math.max.apply(null, vs))];
   }).sort((a, b) => a[0] - b[0]);
 }
 
@@ -435,10 +437,19 @@ async function fetchUsgsHistory(diag) {
     if (have) { if (diag) diag.push(def.key + ":dv" + out[def.key].flow.length + "d"); continue; }
     try {
       const chunkDiag = [];
-      const daily = await fetchUsgsIvDaily(def.id, HIST_DAYS, chunkDiag);
-      if (daily.length >= 60 && !(out[def.key] && out[def.key].flow && out[def.key].flow.length >= daily.length)) {
-        out[def.key] = Object.assign(out[def.key] || { id: def.id, name: def.name }, { flow: daily, derived: "iv" });
-        if (diag) diag.push(def.key + ":iv" + daily.length + "d [" + chunkDiag.join(" ") + "]");
+      let daily = await fetchUsgsIvDaily(def.id, HIST_DAYS, chunkDiag, "00060");
+      let kind = "flow";
+      if (daily.length < 60) {
+        // Regulated-reach gauges here often publish NO discharge at all — just
+        // gage height. A year of stage still answers "is the water high".
+        chunkDiag.push("| 00065:");
+        const st = await fetchUsgsIvDaily(def.id, HIST_DAYS, chunkDiag, "00065");
+        if (st.length > daily.length) { daily = st; kind = "stage"; }
+      }
+      if (daily.length >= 60 && !(out[def.key] && out[def.key][kind] && out[def.key][kind].length >= daily.length)) {
+        out[def.key] = Object.assign(out[def.key] || { id: def.id, name: def.name }, { derived: "iv" });
+        out[def.key][kind] = daily;
+        if (diag) diag.push(def.key + ":iv-" + kind + daily.length + "d");
       } else if (diag) diag.push(def.key + ":none(" + daily.length + "d iv) [" + chunkDiag.join(" ") + "]");
     } catch (e) {
       if (diag) diag.push(def.key + ":err " + String(e && e.message ? e.message : e).slice(0, 60));
