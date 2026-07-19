@@ -311,7 +311,7 @@ function loadPrevious() {
 // element, the sample count, used only for merging).
 const HIST_DAYS = 400;
 const HIST_REFRESH_MS = +(process.env.HISTORY_REFRESH_MS || 6 * 3600 * 1000);
-const HIST_VERSION = 2; // bump when the site list / fetch logic changes so a carried-forward backfill refetches immediately
+const HIST_VERSION = 3; // bump when the site list / fetch logic changes so a carried-forward backfill refetches immediately
 const HIST_USGS = [
   { id: "09423000", key: "belowdavisusgs", name: "Colorado River below Davis Dam (USGS)" },
   { id: "09424000", key: "topockg",        name: "Colorado River near Topock (USGS)" },
@@ -327,20 +327,15 @@ const HIST_UA = { "User-Agent": "Mozilla/5.0 (compatible; blythe-river-bot)", "A
 // Instantaneous-values fallback: several gauges on this reach never publish
 // daily statistics but do keep years of 15-minute data. Pull a year in
 // ~100-day chunks and reduce to daily min/avg/max ourselves.
-async function fetchUsgsIvDaily(id, days) {
+async function fetchUsgsIvDaily(id, days, chunkDiag) {
   const DAY = 86400000, OFF = 7 * 3600 * 1000;
   const byDay = {};
   const end = Date.now();
-  for (let c = 0; c < Math.ceil(days / 100); c++) {
-    const e = new Date(end - c * 100 * DAY);
-    const s = new Date(Math.max(end - (c + 1) * 100 * DAY, end - days * DAY));
-    if (e <= s) break;
-    const url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=" + id +
-      "&parameterCd=00060&startDT=" + s.toISOString().slice(0, 10) + "&endDT=" + e.toISOString().slice(0, 10) + "&siteStatus=all";
-    const r = await fetch(url, { headers: HIST_UA });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const j = await r.json();
+  let total = 0;
+  const ingest = (j) => {
+    let n = 0, series = 0;
     for (const ts of (j.value && j.value.timeSeries) || []) {
+      series++;
       for (const block of ts.values || []) {
         for (const v of block.value || []) {
           const num = parseFloat(v.value);
@@ -349,8 +344,41 @@ async function fetchUsgsIvDaily(id, days) {
           if (!isFinite(t)) continue;
           const d = Math.floor((t - OFF) / DAY) * DAY + OFF;
           (byDay[d] = byDay[d] || []).push(num);
+          n++;
         }
       }
+    }
+    total += n;
+    return { series, n };
+  };
+  for (let c = 0; c < Math.ceil(days / 100); c++) {
+    const e = new Date(end - c * 100 * DAY);
+    const s = new Date(Math.max(end - (c + 1) * 100 * DAY, end - days * DAY));
+    if (e <= s) break;
+    const url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=" + id +
+      "&parameterCd=00060&startDT=" + s.toISOString().slice(0, 10) + "&endDT=" + e.toISOString().slice(0, 10) + "&siteStatus=all";
+    try {
+      const r = await fetch(url, { headers: HIST_UA });
+      const body = await r.text();
+      let got = { series: 0, n: 0 };
+      if (r.ok) { try { got = ingest(JSON.parse(body)); } catch (pe) { if (chunkDiag) chunkDiag.push("c" + c + ":parse " + String(pe.message).slice(0, 40)); continue; } }
+      if (chunkDiag) chunkDiag.push("c" + c + ":" + r.status + " len" + body.length + " ts" + got.series + " n" + got.n);
+    } catch (fe) {
+      if (chunkDiag) chunkDiag.push("c" + c + ":fetch " + String(fe && fe.message ? fe.message : fe).slice(0, 40));
+    }
+  }
+  // If the windowed requests produced nothing, fall back to the same URL shape
+  // the dashboard uses live (period=), which is known to work for these sites.
+  if (!total) {
+    const url2 = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=" + id + "&parameterCd=00060&period=P120D&siteStatus=all";
+    try {
+      const r2 = await fetch(url2, { headers: HIST_UA });
+      const body2 = await r2.text();
+      let got2 = { series: 0, n: 0 };
+      if (r2.ok) { try { got2 = ingest(JSON.parse(body2)); } catch (pe) {} }
+      if (chunkDiag) chunkDiag.push("p120:" + r2.status + " len" + body2.length + " ts" + got2.series + " n" + got2.n);
+    } catch (fe) {
+      if (chunkDiag) chunkDiag.push("p120:fetch " + String(fe && fe.message ? fe.message : fe).slice(0, 40));
     }
   }
   return Object.keys(byDay).map((d) => {
@@ -406,11 +434,12 @@ async function fetchUsgsHistory(diag) {
     const have = out[def.key] && out[def.key].flow && out[def.key].flow.length >= 300;
     if (have) { if (diag) diag.push(def.key + ":dv" + out[def.key].flow.length + "d"); continue; }
     try {
-      const daily = await fetchUsgsIvDaily(def.id, HIST_DAYS);
+      const chunkDiag = [];
+      const daily = await fetchUsgsIvDaily(def.id, HIST_DAYS, chunkDiag);
       if (daily.length >= 60 && !(out[def.key] && out[def.key].flow && out[def.key].flow.length >= daily.length)) {
         out[def.key] = Object.assign(out[def.key] || { id: def.id, name: def.name }, { flow: daily, derived: "iv" });
-        if (diag) diag.push(def.key + ":iv" + daily.length + "d");
-      } else if (diag) diag.push(def.key + ":none(" + daily.length + "d iv)");
+        if (diag) diag.push(def.key + ":iv" + daily.length + "d [" + chunkDiag.join(" ") + "]");
+      } else if (diag) diag.push(def.key + ":none(" + daily.length + "d iv) [" + chunkDiag.join(" ") + "]");
     } catch (e) {
       if (diag) diag.push(def.key + ":err " + String(e && e.message ? e.message : e).slice(0, 60));
     }
