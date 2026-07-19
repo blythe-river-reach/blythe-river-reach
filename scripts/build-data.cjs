@@ -311,19 +311,60 @@ function loadPrevious() {
 // element, the sample count, used only for merging).
 const HIST_DAYS = 400;
 const HIST_REFRESH_MS = +(process.env.HISTORY_REFRESH_MS || 6 * 3600 * 1000);
+const HIST_VERSION = 2; // bump when the site list / fetch logic changes so a carried-forward backfill refetches immediately
 const HIST_USGS = [
   { id: "09423000", key: "belowdavisusgs", name: "Colorado River below Davis Dam (USGS)" },
   { id: "09424000", key: "topockg",        name: "Colorado River near Topock (USGS)" },
   { id: "09427520", key: "parker",         name: "Colorado River below Parker Dam (USGS)" },
   { id: "09429100", key: "belowpv",        name: "Colorado River below Palo Verde Dam (USGS)" },
-  { id: "09429500", key: "martinez",       name: "Colorado River above Imperial Dam (USGS)" },
+  // NOT 09429500 — that gauge sits BELOW Imperial Dam and reads the ~500 cfs
+  // left after the All-American Canal diversion, which says nothing about the
+  // water at Martinez Lake. 09429490 is the above-dam gauge.
+  { id: "09429490", key: "martinez",       name: "Colorado River above Imperial Dam (USGS)" },
 ];
+const HIST_UA = { "User-Agent": "Mozilla/5.0 (compatible; blythe-river-bot)", "Accept": "application/json" };
 
-async function fetchUsgsHistory() {
+// Instantaneous-values fallback: several gauges on this reach never publish
+// daily statistics but do keep years of 15-minute data. Pull a year in
+// ~100-day chunks and reduce to daily min/avg/max ourselves.
+async function fetchUsgsIvDaily(id, days) {
+  const DAY = 86400000, OFF = 7 * 3600 * 1000;
+  const byDay = {};
+  const end = Date.now();
+  for (let c = 0; c < Math.ceil(days / 100); c++) {
+    const e = new Date(end - c * 100 * DAY);
+    const s = new Date(Math.max(end - (c + 1) * 100 * DAY, end - days * DAY));
+    if (e <= s) break;
+    const url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=" + id +
+      "&parameterCd=00060&startDT=" + s.toISOString().slice(0, 10) + "&endDT=" + e.toISOString().slice(0, 10) + "&siteStatus=all";
+    const r = await fetch(url, { headers: HIST_UA });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    for (const ts of (j.value && j.value.timeSeries) || []) {
+      for (const block of ts.values || []) {
+        for (const v of block.value || []) {
+          const num = parseFloat(v.value);
+          if (!isFinite(num) || num <= -999990) continue;
+          const t = new Date(v.dateTime).getTime();
+          if (!isFinite(t)) continue;
+          const d = Math.floor((t - OFF) / DAY) * DAY + OFF;
+          (byDay[d] = byDay[d] || []).push(num);
+        }
+      }
+    }
+  }
+  return Object.keys(byDay).map((d) => {
+    const vs = byDay[d];
+    const avg = vs.reduce((s, v) => s + v, 0) / vs.length;
+    return [+d, Math.round(avg), Math.round(Math.min.apply(null, vs)), Math.round(Math.max.apply(null, vs))];
+  }).sort((a, b) => a[0] - b[0]);
+}
+
+async function fetchUsgsHistory(diag) {
   const ids = HIST_USGS.map((s) => s.id).join(",");
   const url = "https://waterservices.usgs.gov/nwis/dv/?format=json&sites=" + ids +
     "&parameterCd=00060,00065&statCd=00003,00001,00002&period=P" + HIST_DAYS + "D&siteStatus=all";
-  const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; blythe-river-bot)", "Accept": "application/json" } });
+  const r = await fetch(url, { headers: HIST_UA });
   if (!r.ok) throw new Error("HTTP " + r.status);
   const j = await r.json();
   const sites = {};
@@ -337,14 +378,16 @@ async function fetchUsgsHistory() {
     let stat = null;
     try { stat = ts.variable.options.option[0].optionCode; } catch (e) {}
     const slot = stat === "00001" ? 3 : stat === "00002" ? 2 : 1; // [t, avg, min, max]
-    const vals = (ts.values && ts.values[0] && ts.values[0].value) || [];
     const site = (sites[def.key] = sites[def.key] || { id: def.id, name: def.name, flow: {}, stage: {} });
-    for (const v of vals) {
-      const m = String(v.dateTime).match(/^(\d{4})-(\d{2})-(\d{2})/);
-      const num = parseFloat(v.value);
-      if (!m || !isFinite(num) || num <= -999990) continue; // -999999 = USGS missing-value sentinel
-      const t = Date.UTC(+m[1], +m[2] - 1, +m[3], 0, 0, 0) + 7 * 3600 * 1000; // MST midnight
-      (site[kind][t] = site[kind][t] || [t, null, null, null])[slot] = num;
+    if (ts.sourceInfo && ts.sourceInfo.siteName) site.name = ts.sourceInfo.siteName + " (USGS)";
+    for (const block of ts.values || []) { // a series can split across method blocks
+      for (const v of block.value || []) {
+        const m = String(v.dateTime).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        const num = parseFloat(v.value);
+        if (!m || !isFinite(num) || num <= -999990) continue; // -999999 = USGS missing-value sentinel
+        const t = Date.UTC(+m[1], +m[2] - 1, +m[3], 0, 0, 0) + 7 * 3600 * 1000; // MST midnight
+        (site[kind][t] = site[kind][t] || [t, null, null, null])[slot] = num;
+      }
     }
   }
   const out = {};
@@ -357,6 +400,20 @@ async function fetchUsgsHistory() {
       if (arr.length) o[kind] = arr;
     }
     if (o.flow || o.stage) out[key] = o;
+  }
+  // Sites the daily service can't cover get the instantaneous-values fallback.
+  for (const def of HIST_USGS) {
+    const have = out[def.key] && out[def.key].flow && out[def.key].flow.length >= 300;
+    if (have) { if (diag) diag.push(def.key + ":dv" + out[def.key].flow.length + "d"); continue; }
+    try {
+      const daily = await fetchUsgsIvDaily(def.id, HIST_DAYS);
+      if (daily.length >= 60 && !(out[def.key] && out[def.key].flow && out[def.key].flow.length >= daily.length)) {
+        out[def.key] = Object.assign(out[def.key] || { id: def.id, name: def.name }, { flow: daily, derived: "iv" });
+        if (diag) diag.push(def.key + ":iv" + daily.length + "d");
+      } else if (diag) diag.push(def.key + ":none(" + daily.length + "d iv)");
+    } catch (e) {
+      if (diag) diag.push(def.key + ":err " + String(e && e.message ? e.message : e).slice(0, 60));
+    }
   }
   return out;
 }
@@ -571,14 +628,16 @@ async function main() {
     const prevHist = (prev && prev.history) || {};
     let usgsHist = prevHist.usgs || null;
     const histAge = usgsHist && usgsHist.fetchedAt ? Date.now() - new Date(usgsHist.fetchedAt).getTime() : Infinity;
-    if (!(histAge < HIST_REFRESH_MS)) {
+    if (!(histAge < HIST_REFRESH_MS) || !usgsHist || usgsHist.v !== HIST_VERSION) {
+      const diag = [];
       try {
-        const sites = await fetchUsgsHistory();
-        if (Object.keys(sites).length) usgsHist = { fetchedAt: new Date().toISOString(), sites };
+        const sites = await fetchUsgsHistory(diag);
+        if (Object.keys(sites).length) usgsHist = { v: HIST_VERSION, fetchedAt: new Date().toISOString(), sites, diag: diag.join(", ") };
         else out.errors.push("history: USGS daily service returned no usable series" + (usgsHist ? " — kept previous backfill" : ""));
       } catch (e) {
         out.errors.push("history: " + (e && e.message ? e.message : e) + (usgsHist ? " — kept previous backfill" : ""));
       }
+      if (diag.length) console.log("history diag:", diag.join(", "));
     }
     out.history = { usgs: usgsHist, accum: accumulateDaily(out.stations, prevHist.accum) };
   } catch (e) {
