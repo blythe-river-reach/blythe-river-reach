@@ -303,7 +303,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-19g</span> &mdash; past-year history &middot; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-19h</span> &mdash; past-year history &middot; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the five USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their river sensors (Davis Dam to Martinez Lake), Lake Havasu&rsquo;s level, and the dam-schedule PDFs about three times an hour and publishes them for this page (the header shows how fresh that data is).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -1093,6 +1093,17 @@ function yearPhrase(pct){
 // daily averages) sits in the year. Compares a gauge only against ITSELF, so
 // canal diversions between gauges can't skew the percentile.
 function yearContext(pl, ref){
+  // Lake spots grade the LAKE's elevation against its own year — Reclamation's
+  // water accounting keeps a daily elevation record for Lake Havasu.
+  if(segFor(pl)==="lake"){
+    var hl=histSeries("havasu","stage",300);
+    if(!hl) return null;
+    hl.kind="stage"; hl.key="havasu"; hl.exact=true;
+    var ysl=yearStats(hl); if(!ysl) return null;
+    var nvl=(havasuData&&havasuData.length)?havasuData[havasuData.length-1].v:histVal(hl.pts[hl.pts.length-1]);
+    if(nvl==null) return null;
+    return { h:hl, ys:ysl, kind:"stage", nowV:nvl, pct:ysl.pctOf(nvl), phrase:yearPhrase(ysl.pctOf(nvl)), gaugeLabel:"Lake Havasu", lake:true };
+  }
   var h=histFor(pl, ref); if(!h) return null;
   var ys=yearStats(h); if(!ys) return null;
   var kind=h.kind||"flow", live=null;
@@ -1188,7 +1199,7 @@ function yearChart(svg, yc, axisId){
   // a partially-covered year doesn't get bridged with made-up shade
   var band="", seg=[];
   function flushSeg(){
-    if(seg.length>=8){
+    if(seg.length>=3){ // 3+ days is a legit band; 8 kept main's fresh 7-day archive invisible
       var top=yrSmoothPath(seg.map(function(s){ return {x:X(s.t), y:Y(s.hi)}; }));
       var bot=yrSmoothPath(seg.slice().reverse().map(function(s){ return {x:X(s.t), y:Y(s.lo)}; })).replace(/^M/, "L");
       band+='<path d="'+top+" "+bot+' Z" fill="var(--water)" opacity="0.16"/>';
@@ -1253,17 +1264,19 @@ function yearChart(svg, yc, axisId){
 function renderYear(){
   var sec=document.getElementById("yr-sec"); if(!sec) return;
   var pl=currentPlace(), ref=refFor(pl);
-  var yc=(segFor(pl)!=="lake") ? yearContext(pl, ref) : null;
+  var yc=yearContext(pl, ref);
   if(!yc){ sec.style.display="none"; return; }
   sec.style.display="";
   var svg=document.getElementById("yr-chart"), lead=document.getElementById("yr-lead"), nowEl=document.getElementById("yr-now"), note=document.getElementById("yr-note");
-  nowEl.innerHTML='last 24 h avg <b class="mono">'+histFmt(yc.nowV, yc.kind)+'</b>';
+  nowEl.innerHTML=(yc.lake?'lake now ':'last 24 h avg ')+'<b class="mono">'+histFmt(yc.nowV, yc.kind)+'</b>';
   syncYrRange();
   yearChart(svg, yc, "yr-axis");
   var pctW=Math.round(yc.pct*100);
-  var cmp=yc.kind==="stage"?"sat higher than":"averaged more water than";
-  lead.innerHTML='The last 12 months at '+esc(yc.gaugeLabel)+(yc.h.exact?'':' — the closest gauge to '+esc(pl.name)+' with a year of records')+'. Right now the river is running <b style="color:var(--text)">'+yc.phrase+'</b>: the last 24 hours '+cmp+' <b style="color:var(--text)" class="mono">'+pctW+'%</b> of the year’s days. A typical day this past year ran <b class="mono" style="color:var(--text)">'+histRange(yc.ys.p25, yc.ys.p75, yc.kind)+'</b>; the year’s full range was <b class="mono" style="color:var(--text)">'+histRange(yc.ys.min, yc.ys.max, yc.kind)+'</b>.';
-  note.innerHTML='Blue line: each day’s average '+(yc.kind==="stage"?'water level (gauge height, ft)':'flow')+', lightly smoothed · shaded band: that day’s low–high swing · dashed line: where the last 24 hours sit. <span class="adv-only">Source: '+esc(yc.h.srcName)+(yc.h.usgsId?' (USGS site '+yc.h.usgsId+')':'')+'. Reclamation-only sensors are also building their own archive — the robot saves each day’s stats as it runs, so those charts grow over time.</span>';
+  var cmp=yc.lake?"sits higher than":(yc.kind==="stage"?"sat higher than":"averaged more water than");
+  var nowClause=yc.lake?'today’s lake level':'the last 24 hours';
+  lead.innerHTML='The last 12 months at '+esc(yc.gaugeLabel)+(yc.h.exact?'':' — the closest gauge to '+esc(pl.name)+' with a year of records')+'. Right now the '+(yc.lake?'lake is sitting':'river is running')+' <b style="color:var(--text)">'+yc.phrase+'</b>: '+nowClause+' '+cmp+' <b style="color:var(--text)" class="mono">'+pctW+'%</b> of the year’s days. A typical day this past year ran <b class="mono" style="color:var(--text)">'+histRange(yc.ys.p25, yc.ys.p75, yc.kind)+'</b>; the year’s full range was <b class="mono" style="color:var(--text)">'+histRange(yc.ys.min, yc.ys.max, yc.kind)+'</b>.';
+  var hasBand=yc.h.pts.some(function(p){ return p[2]!=null && p[3]!=null; });
+  note.innerHTML='Blue line: each day’s average '+(yc.lake?'lake elevation (ft above sea level)':(yc.kind==="stage"?'water level (gauge height, ft)':'flow'))+', lightly smoothed'+(hasBand?' · shaded band: that day’s low–high swing':'')+' · dashed line: where '+(yc.lake?'the lake sits today':'the last 24 hours sit')+'. <span class="adv-only">Source: '+esc(yc.h.srcName)+(yc.h.usgsId?' (USGS site '+yc.h.usgsId+')':'')+'. Reclamation-only sensors are also building their own archive — the robot saves each day’s stats as it runs, so those charts grow over time.</span>';
 }
 function renderStrip(pl){
   var el=document.getElementById("strip"); if(!el) return;
@@ -1311,6 +1324,12 @@ function renderHero(){
       var eLo=Math.min.apply(null, havasuData.map(function(x){return x.v;})), eHi=Math.max.apply(null, havasuData.map(function(x){return x.v;}));
       elS.innerHTML='<span style="color:'+col+'">'+mark+'</span> Lake at <span class="mono">'+eN.toFixed(2)+' ft</span> \u00b7 '+word;
       elSub.innerHTML='Lake elevation as of '+azTime(last.t)+' MST \u2014 it has moved only ~<b style="color:var(--text)" class="mono">'+(eHi-eLo).toFixed(2)+' ft</b> all week (no daily river tide up here). What matters downstream is the release: '+detail+'.';
+      var _ycL=yearContext(pl, ref);
+      if(_ycL){
+        var _pbL=bucketOf(_ycL.pct);
+        elE.innerHTML='Near '+esc(pl.name)+' right now <span class="pill lvl '+_pbL.cls+'" title="Lake elevation vs the PAST YEAR \u2014 today\u2019s level against 12 months of daily readings. low \u00b7 below average \u00b7 average \u00b7 above average \u00b7 high.">'+_pbL.label+'</span>';
+        elSub.innerHTML+=' Today\u2019s level sits higher than <b style="color:var(--text)" class="mono">'+Math.round(_ycL.pct*100)+'%</b> of the past year\u2019s days \u2014 <b style="color:var(--text)">'+_ycL.phrase+'</b>.';
+      }
     } else {
       elS.innerHTML='<span style="color:'+TCOLOR[tr]+'">'+TMARK[tr]+'</span> Dam release is '+TWORD[tr];
       elSub.innerHTML='Lake Havasu sits <b style="color:var(--text)">above</b> Parker Dam, so it doesn\u2019t get the daily river tide. (Lake elevation appears once the data robot updates.) Release: '+detail+'.';

@@ -311,7 +311,7 @@ function loadPrevious() {
 // element, the sample count, used only for merging).
 const HIST_DAYS = 400;
 const HIST_REFRESH_MS = +(process.env.HISTORY_REFRESH_MS || 6 * 3600 * 1000);
-const HIST_VERSION = 7; // bump when the site list / fetch logic changes so a carried-forward backfill refetches immediately
+const HIST_VERSION = 8; // bump when the site list / fetch logic changes so a carried-forward backfill refetches immediately
 const HIST_USGS = [
   { id: "09423000", key: "belowdavisusgs", name: "Colorado River below Davis Dam (USGS)" },
   { id: "09424000", key: "topockg",        name: "Colorado River near Topock (USGS)" },
@@ -493,21 +493,27 @@ async function fetchAccumHistory(diag) {
   if (!r.ok) throw new Error("HTTP " + r.status);
   const j = await r.json();
   const defs = [
-    { key: "davis",  site: /^lake mohave$/i,  name: "Davis Dam daily release — Reclamation water accounting" },
-    { key: "parker", site: /^lake havasu$/i, name: "Parker Dam daily release — Reclamation water accounting" },
+    { key: "davis",  site: /^lake mohave$/i, dtype: /average total release/i, kind: "flow",  round: 0, name: "Davis Dam daily release — Reclamation water accounting" },
+    { key: "parker", site: /^lake havasu$/i, dtype: /average total release/i, kind: "flow",  round: 0, name: "Parker Dam daily release — Reclamation water accounting" },
+    { key: "havasu", site: /^lake havasu$/i, dtype: /ws elevation/i,          kind: "stage", round: 2, name: "Lake Havasu daily elevation — Reclamation water accounting" },
   ];
   const out = {};
   for (const def of defs) {
-    const s = (j.Series || []).find((x) => def.site.test((x.SiteName || "").trim()) && /average total release/i.test(x.DataTypeName || ""));
+    const s = (j.Series || []).find((x) => def.site.test((x.SiteName || "").trim()) && def.dtype.test(x.DataTypeName || ""));
     if (!s) { if (diag) diag.push(def.key + ":accumweb-miss"); continue; }
     const rows = [];
     for (const d of s.Data || []) {
       const t = borToEpoch(d.t);
       const v = d.v === "" ? null : parseFloat(d.v);
-      if (t && v != null && isFinite(v)) rows.push([t, Math.round(v), null, null]);
+      if (t && v != null && isFinite(v)) rows.push([t, +v.toFixed(def.round), null, null]);
     }
     rows.sort((a, b) => a[0] - b[0]);
-    if (rows.length >= 300) { out[def.key] = { id: null, name: def.name, flow: rows }; if (diag) diag.push(def.key + ":accumweb" + rows.length + "d"); }
+    if (rows.length >= 300) {
+      const entry = { id: null, name: def.name };
+      entry[def.kind] = rows;
+      out[def.key] = entry;
+      if (diag) diag.push(def.key + ":accumweb-" + def.kind + rows.length + "d");
+    }
     else if (diag) diag.push(def.key + ":accumweb-short" + rows.length + "d");
   }
   return out;
