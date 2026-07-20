@@ -303,7 +303,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-19d</span> &mdash; past-year history &middot; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-19e</span> &mdash; past-year history &middot; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the five USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their river sensors (Davis Dam to Martinez Lake), Lake Havasu&rsquo;s level, and the dam-schedule PDFs about three times an hour and publishes them for this page (the header shows how fresh that data is).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -693,10 +693,12 @@ function initCrosshair(hold, svg){
     for(var i=1;i<s.length;i++){ var d=Math.abs(s[i].t-t); if(d<bd){ bd=d; best=s[i]; } }
     var _off=rect.left-hold.getBoundingClientRect().left; // hold has a left gutter; positions are hold-relative
     var xp=_off+rect.width*(pad+(best.t-t0)/T*(W-2*pad))/W;
-    var yp=rect.height*(pad+(H-2*pad)*(1-(best.v-min)/span))/H;
+    var _yv=svg._yVal ? svg._yVal(best) : best.v; // charts drawing a smoothed line pin the dot to the curve
+    if(_yv==null) _yv=best.v;
+    var yp=rect.height*(pad+(H-2*pad)*(1-(_yv-min)/span))/H;
     var val=(Math.abs(max)<1000) ? best.v.toFixed(2)+" ft" : fmt(best.v)+" cfs";
     var tag=(best.t>Date.now()+60000) ? " · expected" : "";
-    chip.textContent=azClock(best.t)+" "+azDay(best.t)+" · "+val+tag;
+    chip.textContent=svg._chip ? svg._chip(best) : (azClock(best.t)+" "+azDay(best.t)+" · "+val+tag);
     line.style.left=xp.toFixed(1)+"px";
     dot.style.left=xp.toFixed(1)+"px"; dot.style.top=yp.toFixed(1)+"px";
     // Clamp by the chip's real width so the timestamp never clips off-screen
@@ -1197,7 +1199,7 @@ function yearChart(svg, yc, axisId){
   });
   flushSeg();
   var linePts=[];
-  pts.forEach(function(p,i){ if(smooth[i]!=null) linePts.push({x:X(p.t), y:Y(smooth[i])}); });
+  pts.forEach(function(p,i){ p.sv=smooth[i]; if(smooth[i]!=null) linePts.push({x:X(p.t), y:Y(smooth[i])}); });
   var line=yrSmoothPath(linePts);
   var nowMark="";
   if(yc.nowV!=null){
@@ -1207,6 +1209,17 @@ function yearChart(svg, yc, axisId){
   }
   svg.innerHTML=marks+band+'<path d="'+line+'" fill="none" stroke="var(--water)" stroke-width="1.6"/>'+nowMark;
   svg._series=pts; svg._t0=t0; svg._t1=t1; svg._min=min; svg._max=max;
+  // Crosshair hooks: the dot rides the DRAWN (smoothed) curve, but the chip
+  // states the day's real numbers — true daily average plus the measured
+  // low–high swing where the archive has it.
+  svg._yVal=function(p){ return p.sv!=null ? p.sv : p.v; };
+  var _kind=yc.kind;
+  svg._chip=function(p){
+    var d=new Date(p.t).toLocaleDateString([], {timeZone:"America/Phoenix", month:"short", day:"numeric", year:"numeric"});
+    var s=d+" · avg "+histFmt(p.v, _kind);
+    if(p.lo!=null && p.hi!=null) s+=" · swing "+histRange(p.lo, p.hi, _kind);
+    return s;
+  };
   try{
     var host=svg.parentNode;
     if(host && document.createElement){
