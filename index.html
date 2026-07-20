@@ -303,7 +303,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-19f</span> &mdash; past-year history &middot; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-19g</span> &mdash; past-year history &middot; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the five USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their river sensors (Davis Dam to Martinez Lake), Lake Havasu&rsquo;s level, and the dam-schedule PDFs about three times an hour and publishes them for this page (the header shows how fresh that data is).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -1409,7 +1409,7 @@ function renderHero(){
           _head = tr==="falling" ? {m:'falling', t:'Dipping \u2014 peaks ~'+_sT+', then '+(_dst?'down to '+_dst:'drops')}
                 : {m:'rising', t:'Rising \u2014 tops out ~'+_sT+', then '+(_dst?'down to '+_dst:'drops')};
         }
-        else if(startLater){
+        else if(startLater && tr!=="falling"){ // a measured fall overrules the schedule's plateau \u2014 never "holding" while the river is visibly dropping
           turn=' <b style="color:var(--text)">Holding near the top until ~'+azClock(_ts.t)+'</b> \u2014 then down to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
           _head={m:'steady', t:_holdW+' \u2014 drops after ~'+_sT};
         }
@@ -1418,8 +1418,9 @@ function renderHero(){
           _head={m:'rising', t:'Peaking now \u2014 down to '+(_dst||'the daily low')+' by ~'+_tT};
         }
         else {
-          turn=' <b style="color:var(--text)">Expect the dip '+whenM+'</b> \u2014 down to '+_dstFull+' around '+azTime(e0.t)+(e1&&e1.type==="high"?', then back up':'')+'.'+_tail;
-          _head={m:'falling', t:'Dropping \u2014 down to '+(_dst||'the daily low')+' ~'+_tT};
+          var _pause=startLater?'easing off around ~'+azClock(_ts.t)+', then ':'';
+          turn=' <b style="color:var(--text)">Expect the dip '+whenM+'</b> \u2014 '+_pause+'down to '+_dstFull+' around '+azTime(e0.t)+(e1&&e1.type==="high"?', then back up':'')+'.'+_tail;
+          _head={m:'falling', t:'Dropping \u2014 down to '+(_dst||'the daily low')+' ~'+_tT+(e1&&e1.type==="high"?', then back up':'')};
         }
       } else { // heading to the cycle top at e0
         if(interMove){
@@ -1427,7 +1428,7 @@ function renderHero(){
           _head = tr==="rising" ? {m:'rising', t:'Rising \u2014 dips ~'+_sT+', then '+(_dst?'up to '+_dst:'higher')}
                 : {m:'falling', t:'Dropping \u2014 turns back up ~'+_sT};
         }
-        else if(startLater){
+        else if(startLater && tr!=="rising"){ // mirror: a measured rise overrules "holding near the bottom"
           turn=' <b style="color:var(--text)">Holding near the bottom until ~'+azClock(_ts.t)+'</b> \u2014 then up to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
           _head={m:'steady', t:_holdW+' \u2014 comes up ~'+_sT};
         }
@@ -1436,8 +1437,9 @@ function renderHero(){
           _head={m:'falling', t:'At today\u2019s low \u2014 up to '+(_dst||'the daily high')+' by ~'+_tT};
         }
         else {
-          turn=' <b style="color:var(--text)">Expect the peak '+whenM+'</b> \u2014 up to '+_dstFull+' around '+azTime(e0.t)+(e1&&e1.type==="low"?', then easing back':'')+'.'+_tail;
-          _head={m:'rising', t:'Rising \u2014 up to '+(_dst||'the daily high')+' by ~'+_tT};
+          var _pause2=startLater?'leveling off around ~'+azClock(_ts.t)+', then ':'';
+          turn=' <b style="color:var(--text)">Expect the peak '+whenM+'</b> \u2014 '+_pause2+'up to '+_dstFull+' around '+azTime(e0.t)+(e1&&e1.type==="low"?', then easing back':'')+'.'+_tail;
+          _head={m:'rising', t:'Rising \u2014 up to '+(_dst||'the daily high')+' by ~'+_tT+(e1&&e1.type==="low"?', then easing back':'')};
         }
       }
     }
@@ -1651,6 +1653,19 @@ function measuredArrival(pl){
         }
       }
     }
+    // Seam continuity: the true-up matches WEEKLY stats, not the instant this
+    // gauge takes over — the handoff can step >1,000 cfs and paint a phantom
+    // peak. Fade the residual step out over ~6 h of the tail.
+    if(out.length){
+      var _sd=out[out.length-1].v - tail[0].v;
+      if(Math.abs(_sd)>1){
+        var _st0=tail[0].t, _FADE=6*3600000;
+        tail=tail.map(function(p){
+          var w=1-Math.min(1,(p.t-_st0)/_FADE);
+          return {t:p.t, v:Math.max(0, p.v+_sd*w), src:p.src};
+        });
+      }
+    }
     out=out.concat(tail);
     coverEnd=tail[tail.length-1].t;
     srcs.push(g.label);
@@ -1683,8 +1698,21 @@ function blendedOutlook(pl){
   var futM=[];
   if(comp){
     var raw=comp.points.filter(function(p){ return p.t>now; });
-    if(raw.length>=2 && cv!=null){
-      var delta=cv-raw[0].v, span=Math.max(1, horizon-now);
+    // Anchor ONLY when the composite disagrees with the reference sensor at
+    // the SAME moment (comparing across an hour of real change smears steep
+    // dam ramps into phantom shelves). With the handoff fades above this is
+    // normally ~0.
+    var delta=0;
+    if(raw.length>=2 && cv!=null && flowP.length){
+      var tc=flowP[flowP.length-1].t, bd=1e18, atTc=null;
+      for(var ci=0; ci<comp.points.length; ci++){
+        var dd=Math.abs(comp.points[ci].t-tc);
+        if(dd<bd){ bd=dd; atTc=comp.points[ci]; }
+      }
+      if(atTc && bd<=90*60000) delta=cv-atTc.v; // same-instant gap only
+    }
+    if(raw.length>=2 && Math.abs(delta)>1){
+      var span=Math.max(1, horizon-now);
       futM=raw.map(function(p){
         var w=1-Math.min(1,(p.t-now)/span);
         return {t:p.t, v:Math.max(0, p.v+delta*w), src:p.src};
@@ -1692,6 +1720,19 @@ function blendedOutlook(pl){
     } else futM=raw;
   }
   var futS=fc ? fc.arrival.filter(function(p){ return p.t>Math.max(now, horizon); }) : [];
+  // Same continuity treatment where measurement hands off to the schedule —
+  // independent estimates can disagree by thousands of cfs at the horizon;
+  // fade the step into the schedule's first ~6 h.
+  if(futM.length && futS.length){
+    var dS=futM[futM.length-1].v - futS[0].v;
+    if(Math.abs(dS)>1){
+      var s0=futS[0].t, FADE2=6*3600000;
+      futS=futS.map(function(p){
+        var w=1-Math.min(1,(p.t-s0)/FADE2);
+        return {t:p.t, v:Math.max(0, p.v+dS*w)};
+      });
+    }
+  }
   var blend=futM.concat(futS);
   var events=blend.length>=6 ? findTides(blend).filter(function(e){ return e.t>now; }) : [];
   return { ref:ref, lag:lag, flowP:flowP, cv:cv, comp:comp, fc:fc, horizon:horizon, futM:futM, blend:blend, events:events };
