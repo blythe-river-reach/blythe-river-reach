@@ -267,6 +267,22 @@ try{
   </div>
 </section>
 
+<section id="yr-sec" style="display:none">
+  <div class="section-panel">
+    <div class="fc-head">
+      <h2 id="yr-title">The past year &mdash; is the water actually high?</h2>
+      <span class="fc-now" id="yr-now"></span>
+    </div>
+    <p class="lead" id="yr-lead"></p>
+    <div class="range-picker" id="yr-range-pick">
+      <button data-m="3">3 months</button><button data-m="6">6 months</button><button data-m="12">12 months</button>
+    </div>
+    <svg id="yr-chart" viewBox="0 0 900 120" preserveAspectRatio="none" style="display:none" role="img" aria-label="Daily average flow over the past year at the nearest long-record gauge, with the current level marked as a dashed line."></svg>
+    <div class="axis" id="yr-axis"></div>
+    <p class="note" id="yr-note"></p>
+  </div>
+</section>
+
 <section>
   <div class="section-panel">
     <h2>Tide table &mdash; daily highs &amp; lows</h2>
@@ -287,7 +303,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-16d</span> &mdash; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-19g</span> &mdash; past-year history &middot; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the five USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their river sensors (Davis Dam to Martinez Lake), Lake Havasu&rsquo;s level, and the dam-schedule PDFs about three times an hour and publishes them for this page (the header shows how fresh that data is).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -583,26 +599,6 @@ function clockDay(ms){
   var d=Math.floor((ms-OFF)/DAY)-Math.floor((Date.now()-OFF)/DAY);
   return azClock(ms)+(d===1?" tomorrow":(d>=2?" "+azDay(ms).split(" ")[0]:""));
 }
-// Monotone-cubic path (harmonic-mean tangents): passes exactly through every
-// point and can never overshoot a real extreme — smooth without inventing
-// water that was never measured. Used for MEASURED lines only; the schedule
-// keeps straight segments because its square steps are what the dam publishes.
-function pathSmooth(pts){
-  if(pts.length<3){ return pts.map(function(p,i){ return (i?"L":"M")+p.x.toFixed(1)+" "+p.y.toFixed(1); }).join(" "); }
-  var n=pts.length, d=[], m=[];
-  for(var i=0;i<n-1;i++){ var h=pts[i+1].x-pts[i].x; d.push(h>0 ? (pts[i+1].y-pts[i].y)/h : 0); }
-  m.push(d[0]);
-  for(var j=1;j<n-1;j++){ m.push((d[j-1]*d[j]<=0) ? 0 : 2*d[j-1]*d[j]/(d[j-1]+d[j])); }
-  m.push(d[n-2]);
-  var out="M"+pts[0].x.toFixed(1)+" "+pts[0].y.toFixed(1);
-  for(var k=0;k<n-1;k++){
-    var hx=(pts[k+1].x-pts[k].x)/3;
-    out+=" C"+(pts[k].x+hx).toFixed(1)+" "+(pts[k].y+m[k]*hx).toFixed(1)
-       +" "+(pts[k+1].x-hx).toFixed(1)+" "+(pts[k+1].y-m[k+1]*hx).toFixed(1)
-       +" "+pts[k+1].x.toFixed(1)+" "+pts[k+1].y.toFixed(1);
-  }
-  return out;
-}
 function areaChart(svg, series, color, dashed, axisId, showNow, hideFutureLabels, overlay, smoothLine){
   var _nowRef=Date.now();
   var W=900,H=120,pad=6, vals=series.map(function(p){return p.v;});
@@ -610,11 +606,13 @@ function areaChart(svg, series, color, dashed, axisId, showNow, hideFutureLabels
   var min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), span=(max-min)||1, line="", area="";
   var t0=series[0].t, t1=series[series.length-1].t, T=(t1-t0)||1;
   function X(t){ return pad + (t-t0)/T*(W-2*pad); }
-  // Points are laid out by TIME, not index — the series mixes hourly and
-  // 15-minute readings, and index spacing sheared the line off the time grid
-  // the crosshair, day marks, and overlay all use.
+  // Points are laid out by TIME, not index — series mix hourly and 15-minute
+  // readings, and index spacing shears the line off the time grid that the
+  // crosshair, day marks, and overlay all use. (Re-applied after a refactor
+  // reverted it — the crosshair-vs-line mismatch at mixed-cadence spots is
+  // the symptom.)
   var linePts=series.map(function(p){ return {x:X(p.t), y:pad+(H-2*pad)*(1-(p.v-min)/span)}; });
-  line = smoothLine ? pathSmooth(linePts) : linePts.map(function(p,i){ return (i?"L":"M")+p.x.toFixed(1)+" "+p.y.toFixed(1); }).join(" ");
+  line = smoothLine ? yrSmoothPath(linePts) : linePts.map(function(p,i){ return (i?"L":"M")+p.x.toFixed(1)+" "+p.y.toFixed(1); }).join(" ");
   area = line + " L"+linePts[linePts.length-1].x.toFixed(1)+" "+(H-pad)+" L"+pad+" "+(H-pad)+" Z";
   // day boundaries (MST midnights) + optional "now" marker
   var marks="", labels=[];
@@ -649,7 +647,7 @@ function areaChart(svg, series, color, dashed, axisId, showNow, hideFutureLabels
     var ovPts=overlay.map(function(p){
       return {x:pad+(p.t-t0)/T*(W-2*pad), y:pad+(H-2*pad)*(1-(p.v-min)/span)};
     });
-    ovPath='<path d="'+pathSmooth(ovPts)+'" fill="none" stroke="var(--water)" stroke-width="2.2" stroke-linejoin="round"/>';
+    ovPath='<path d="'+yrSmoothPath(ovPts)+'" fill="none" stroke="var(--water)" stroke-width="2.2" stroke-linejoin="round"/>';
   }
   svg.innerHTML = marks + '<path d="'+area+'" fill="'+color+'" opacity="0.11"/><path d="'+line+'" fill="none" stroke="'+color+'" stroke-width="1.5"'+(dashed?' stroke-dasharray="5 4"':'')+'/>'+ovPath;
   svg._series=series; svg._t0=t0; svg._t1=t1; svg._min=min; svg._max=max;
@@ -699,10 +697,12 @@ function initCrosshair(hold, svg){
     for(var i=1;i<s.length;i++){ var d=Math.abs(s[i].t-t); if(d<bd){ bd=d; best=s[i]; } }
     var _off=rect.left-hold.getBoundingClientRect().left; // hold has a left gutter; positions are hold-relative
     var xp=_off+rect.width*(pad+(best.t-t0)/T*(W-2*pad))/W;
-    var yp=rect.height*(pad+(H-2*pad)*(1-(best.v-min)/span))/H;
+    var _yv=svg._yVal ? svg._yVal(best) : best.v; // charts drawing a smoothed line pin the dot to the curve
+    if(_yv==null) _yv=best.v;
+    var yp=rect.height*(pad+(H-2*pad)*(1-(_yv-min)/span))/H;
     var val=(Math.abs(max)<1000) ? best.v.toFixed(2)+" ft" : fmt(best.v)+" cfs";
     var tag=(best.t>Date.now()+60000) ? " · expected" : "";
-    chip.textContent=azClock(best.t)+" "+azDay(best.t)+" · "+val+tag;
+    chip.textContent=svg._chip ? svg._chip(best) : (azClock(best.t)+" "+azDay(best.t)+" · "+val+tag);
     line.style.left=xp.toFixed(1)+"px";
     dot.style.left=xp.toFixed(1)+"px"; dot.style.top=yp.toFixed(1)+"px";
     // Clamp by the chip's real width so the timestamp never clips off-screen
@@ -859,7 +859,7 @@ function rebuild(){
   st.forEach(function(s){ if(RIVER_ORDER[s.key]!=null) s.order=RIVER_ORDER[s.key]; });
   st.sort(function(a,b){ return (a.order==null?99:a.order)-(b.order==null?99:b.order); });
   STATIONS=st;
-  renderCards(); renderHero(); renderHeadgate(); renderReach(); renderTide(); renderCal();
+  renderCards(); renderHero(); renderHeadgate(); renderReach(); renderYear(); renderTide(); renderCal();
   var _sl=document.getElementById("sched-link");
   if(_sl) _sl.textContent=(segFor(currentPlace())==="upper" ? "Davis Dam" : "Parker Dam")+" projected schedule (PDF) \u2197";
   (function staleCheck(){
@@ -926,6 +926,14 @@ function renderCards(){
     var metaHtml;
     if(abl!=null){ metaHtml='<span>water <span class="mono">+'+abl.toFixed(1)+'</span> ft above wk low</span><span>swings <span class="mono">~'+(sw!=null?sw.toFixed(1):'\u2014')+'</span> ft/wk</span>'; }
     else { metaHtml='<span>release flow</span><span>7-day <span class="mono">'+fmt(lo)+'\u2013'+fmt(hi)+'</span> cfs</span>'; }
+    // Year line for any site that keeps (or has grown) a year of history
+    var yrHtml="", _hk="flow", _hs=histSeries(s.key, "flow", 300);
+    if(!_hs){ _hs=histSeries(s.key, "stage", 300); _hk="stage"; }
+    if(_hs && (s[_hk]||[]).length){
+      var _ys2=yearStats(_hs), _nv=avg24(s[_hk]);
+      if(_nv==null && cur(s[_hk])) _nv=cur(s[_hk]).v;
+      if(_ys2 && _nv!=null) yrHtml='<div class="meta"><span>past year: above <span class="mono">'+Math.round(_ys2.pctOf(_nv)*100)+'%</span> of days</span><span class="adv-only">typical <span class="mono">'+histRange(_ys2.p25, _ys2.p75, _hk)+'</span></span></div>';
+    }
     return '<div class="card'+((_ref && s.key===_ref.key)?' primary':'')+'">'+
       '<div class="role"><span>'+((_ref && s.key===_ref.key)?('Reference for '+esc(_pl.name)):s.role)+'</span><span class="src">'+s.source+'</span></div>'+
       '<div class="name">'+s.name+'</div>'+
@@ -933,7 +941,7 @@ function renderCards(){
         '<span class="trend" style="color:'+TCOLOR[tr]+'">'+TMARK[tr]+' '+TWORD[tr]+'</span></div>'+
       levelHtml+
       spark(s.flow.length?s.flow:s.stage)+
-      '<div class="meta">'+metaHtml+'</div>'+
+      '<div class="meta">'+metaHtml+'</div>'+yrHtml+
       '<div class="stamp">reading '+when+' MST'+(_cp?ageShort(_cp.t):'')+' \u00b7 '+link+(s.source==="USGS"?' \u00b7 fetched live by your browser':' \u00b7 via the data robot')+'</div></div>';
   }).join("");
 }
@@ -1018,6 +1026,244 @@ function dayRankPhrase(flowP, comp){
   if(below>=n*0.66) return phase==="ahead" ? "Today’s peak is on the way — higher than most days this week." : (phase==="past" ? "Today’s peak was higher than most days this week." : "Today’s peak is arriving — higher than most days this week.");
   if(below<=n*0.34) return knowsPeak ? "Today’s peak is lower than most days this week." : "";
   return "A typical peak today for this week.";
+}
+// ---------- Past-year context ----------
+// The robot ships two kinds of history in riverdata.json: a year+ of USGS
+// daily stats for the five gauges on this reach that publish one, and a
+// day-by-day archive it accumulates from Reclamation's hourly sensors (those
+// build up over time). Points are compact arrays [tMstMidnight, avg, min, max].
+var histData=null;
+function histVal(p){ return p[1]!=null ? p[1] : (p[2]!=null&&p[3]!=null ? (p[2]+p[3])/2 : (p[2]!=null?p[2]:p[3])); }
+function histSeries(key, kind, minDays){
+  if(!histData) return null;
+  kind=kind||"flow"; minDays=minDays||300;
+  var u=histData.usgs && histData.usgs.sites && histData.usgs.sites[key];
+  var a=histData.accum && histData.accum.sites && histData.accum.sites[key];
+  var uu=(u&&u[kind])||null, aa=(a&&a[kind])||null;
+  // prefer whichever record is longer — the USGS backfill wins until the
+  // robot's own archive outgrows it
+  var pick=((uu&&uu.length)||0)>=((aa&&aa.length)||0) ? uu : aa;
+  if(!pick || pick.length<minDays) return null;
+  return { pts:pick, usgsId:(pick===uu && u.id)||null, srcName:(pick===uu ? u.name : "the data robot’s day-by-day archive") };
+}
+// Which long-record gauge best describes this spot? Its own, if it keeps a
+// year of history; otherwise walk toward the nearest year-keeping gauge on
+// the river (same water system, so "high for the year" carries over — the
+// text always names the gauge it used). USGS retains no history for its
+// upstream gauges, so the robot backfills Davis and Parker daily releases
+// from Reclamation's water accounting (accumweb) — those anchor the upper,
+// lake, strip, and mid reaches.
+var HIST_PROXY={ upper:["davis","belowdavisusgs","parker","belowpv"], lake:["parker","belowpv"], strip:["parker","belowpv"], mid:["parker","belowpv"], below:["belowpv","martinez"] };
+function histFor(pl, ref){
+  var tried=[];
+  if(ref && ref.key) tried.push(ref.key);
+  var seg=segFor(pl);
+  if(seg==="below" && pl.mile<75) tried.push("martinez"); // Picacho / Martinez Lake reach sits far below the Blythe gauge
+  (HIST_PROXY[seg]||["belowpv"]).forEach(function(k){ if(tried.indexOf(k)<0) tried.push(k); });
+  for(var i=0;i<tried.length;i++){
+    // flow history first; the regulated upper-river gauges publish only gage
+    // height, and a year of stage answers "is the water high" just as well
+    var h=histSeries(tried[i], "flow", 300), kind="flow";
+    if(!h){ h=histSeries(tried[i], "stage", 300); kind="stage"; }
+    if(h){ h.kind=kind; h.key=tried[i]; h.exact=!!(ref && tried[i]===ref.key); return h; }
+  }
+  return null;
+}
+function histFmt(v, kind){ return kind==="stage" ? (v.toFixed(1)+" ft") : (fmt(v)+" cfs"); }
+function histRange(a, b, kind){ return kind==="stage" ? (a.toFixed(1)+"–"+b.toFixed(1)+" ft") : (fmt(a)+"–"+fmt(b)+" cfs"); }
+function yearStats(h){
+  var cutY=Date.now()-370*86400000, vals=[];
+  h.pts.forEach(function(p){ if(p[0]>=cutY){ var v=histVal(p); if(v!=null) vals.push(v); } });
+  if(vals.length<200) return null;
+  vals.sort(function(a,b){ return a-b; });
+  function q(f){ return vals[Math.min(vals.length-1, Math.floor(f*(vals.length-1)))]; }
+  return { n:vals.length, min:vals[0], max:vals[vals.length-1], p25:q(0.25), p50:q(0.5), p75:q(0.75),
+    pctOf:function(v){ var b=0; for(var i=0;i<vals.length;i++){ if(vals[i]<v) b++; else break; } return b/vals.length; } };
+}
+function yearPhrase(pct){
+  if(pct>=0.97) return "about as high as it’s been all year";
+  if(pct>=0.85) return "genuinely high for the year";
+  if(pct>=0.6)  return "on the high side of the past year";
+  if(pct>=0.4)  return "a typical level for the past year";
+  if(pct>=0.15) return "on the low side of the past year";
+  return "low for the year";
+}
+// The year verdict for a spot: the best history gauge, its year stats, and
+// where that gauge's CURRENT water (last 24 h average — apples-to-apples with
+// daily averages) sits in the year. Compares a gauge only against ITSELF, so
+// canal diversions between gauges can't skew the percentile.
+function yearContext(pl, ref){
+  var h=histFor(pl, ref); if(!h) return null;
+  var ys=yearStats(h); if(!ys) return null;
+  var kind=h.kind||"flow", live=null;
+  for(var i=0;i<STATIONS.length;i++){ if(STATIONS[i].key===h.key && (STATIONS[i][kind]||[]).length){ live=STATIONS[i]; break; } }
+  var nowV=live ? (avg24(live[kind])!=null ? avg24(live[kind]) : (cur(live[kind])?cur(live[kind]).v:null)) : null;
+  if(nowV==null){ var lp=h.pts[h.pts.length-1]; nowV=histVal(lp); } // gauge quiet — use its newest archived day
+  if(nowV==null) return null;
+  var si=sensorInfo(h.key);
+  return { h:h, ys:ys, kind:kind, nowV:nowV, pct:ys.pctOf(nowV), phrase:yearPhrase(ys.pctOf(nowV)), gaugeLabel:(si?si.label:h.key) };
+}
+// Monotone-cubic path (harmonic-mean tangents): passes through every point
+// and can never overshoot an extreme — smooth without inventing water.
+function yrSmoothPath(pts){
+  if(pts.length<3){ return pts.map(function(p,i){ return (i?"L":"M")+p.x.toFixed(1)+" "+p.y.toFixed(1); }).join(" "); }
+  var n=pts.length, d=[], m=[];
+  for(var i=0;i<n-1;i++){ var h=pts[i+1].x-pts[i].x; d.push(h>0 ? (pts[i+1].y-pts[i].y)/h : 0); }
+  m.push(d[0]);
+  for(var j=1;j<n-1;j++){ m.push((d[j-1]*d[j]<=0) ? 0 : 2*d[j-1]*d[j]/(d[j-1]+d[j])); }
+  m.push(d[n-2]);
+  var out="M"+pts[0].x.toFixed(1)+" "+pts[0].y.toFixed(1);
+  for(var k=0;k<n-1;k++){
+    var hx=(pts[k+1].x-pts[k].x)/3;
+    out+=" C"+(pts[k].x+hx).toFixed(1)+" "+(pts[k].y+m[k]*hx).toFixed(1)
+       +" "+(pts[k+1].x-hx).toFixed(1)+" "+(pts[k+1].y-m[k+1]*hx).toFixed(1)
+       +" "+pts[k+1].x.toFixed(1)+" "+pts[k+1].y.toFixed(1);
+  }
+  return out;
+}
+// Centered rolling mean — a year of daily averages carries a weekday sawtooth
+// (irrigation schedules) that reads as noise at this scale; a few-day window
+// keeps the seasonal shape and drops the jitter.
+function yrRoll(vals, w){
+  var out=[], half=Math.floor(w/2);
+  for(var i=0;i<vals.length;i++){
+    var s=0, n=0;
+    for(var j=Math.max(0,i-half); j<=Math.min(vals.length-1,i+half); j++){ if(vals[j]!=null){ s+=vals[j]; n++; } }
+    out.push(n?s/n:null);
+  }
+  return out;
+}
+// The 12-month chart: smoothed daily-average line, shaded daily low–high
+// band, month grid, and a dashed "you are here" line at the current level.
+var YR_RANGE_KEY="blythe_yrrange_v1";
+function yrRangeMonths(){ var m=parseInt(store.get(YR_RANGE_KEY)||"12",10); return [3,6,12].indexOf(m)>=0 ? m : 12; }
+function syncYrRange(){
+  var rp=document.getElementById("yr-range-pick");
+  if(!rp) return;
+  for(var i=0;i<rp.children.length;i++){ var b=rp.children[i]; var on=(parseInt(b.getAttribute("data-m"),10)===yrRangeMonths()); b.className=on?"on":""; b.setAttribute("aria-pressed", on?"true":"false"); }
+}
+(function initYrRange(){
+  var rp=document.getElementById("yr-range-pick");
+  if(rp) rp.addEventListener("click", function(ev){
+    var m=ev.target && ev.target.getAttribute && ev.target.getAttribute("data-m");
+    if(m){ store.set(YR_RANGE_KEY, m); setTimeout(renderYear, 0); }
+  });
+})();
+function yearChart(svg, yc, axisId){
+  var W=900,H=120,pad=6, DAY=86400000;
+  // The range buttons only ZOOM the chart — the verdict text stays a full
+  // 12-month comparison, so "typical for the past year" always means the year.
+  var cutY=Date.now()-Math.round(yrRangeMonths()*30.44)*DAY;
+  var pts=yc.h.pts.filter(function(p){ return p[0]>=cutY; })
+    .map(function(p){ return {t:p[0], v:histVal(p), lo:p[2], hi:p[3]}; })
+    .filter(function(p){ return p.v!=null; });
+  if(pts.length<30){ svg.style.display="none"; return null; }
+  var smooth=yrRoll(pts.map(function(p){ return p.v; }), 7);
+  var loS=yrRoll(pts.map(function(p){ return p.lo; }), 7);
+  var hiS=yrRoll(pts.map(function(p){ return p.hi; }), 7);
+  var vals=[];
+  pts.forEach(function(p,i){
+    if(smooth[i]!=null) vals.push(smooth[i]);
+    if(p.lo!=null && loS[i]!=null) vals.push(loS[i]);
+    if(p.hi!=null && hiS[i]!=null) vals.push(hiS[i]);
+  });
+  if(yc.nowV!=null) vals.push(yc.nowV);
+  var min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), span=(max-min)||1;
+  var t0=pts[0].t, t1=Math.max(pts[pts.length-1].t, Date.now()), T=(t1-t0)||1;
+  function X(t){ return pad+(t-t0)/T*(W-2*pad); }
+  function Y(v){ return pad+(H-2*pad)*(1-(v-min)/span); }
+  var marks="", labels=[];
+  var d0=new Date(t0-7*3600000), yy=d0.getUTCFullYear(), mm=d0.getUTCMonth(), k=0;
+  for(;;){
+    mm++; if(mm>11){ mm=0; yy++; }
+    var mT=Date.UTC(yy, mm, 1)+7*3600000;
+    if(mT>=t1) break;
+    var x=X(mT);
+    marks+='<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.35)" stroke-width="1"/>';
+    if(k%(yrRangeMonths()<=6?1:2)===0) labels.push({pct:x/W*100, txt:new Date(mT).toLocaleDateString([], {timeZone:"America/Phoenix", month:"short"})});
+    k++;
+  }
+  marks+='<line x1="0" y1="'+(H/2).toFixed(0)+'" x2="'+W+'" y2="'+(H/2).toFixed(0)+'" stroke="rgba(150,185,215,0.16)" stroke-width="1"/>';
+  // band: contiguous stretches of days that have a low–high; split on gaps so
+  // a partially-covered year doesn't get bridged with made-up shade
+  var band="", seg=[];
+  function flushSeg(){
+    if(seg.length>=8){
+      var top=yrSmoothPath(seg.map(function(s){ return {x:X(s.t), y:Y(s.hi)}; }));
+      var bot=yrSmoothPath(seg.slice().reverse().map(function(s){ return {x:X(s.t), y:Y(s.lo)}; })).replace(/^M/, "L");
+      band+='<path d="'+top+" "+bot+' Z" fill="var(--water)" opacity="0.16"/>';
+    }
+    seg=[];
+  }
+  pts.forEach(function(p,i){
+    if(p.lo!=null && p.hi!=null && loS[i]!=null && hiS[i]!=null){
+      if(seg.length && p.t-seg[seg.length-1].t>3*DAY) flushSeg();
+      seg.push({t:p.t, lo:loS[i], hi:hiS[i]});
+    } else flushSeg();
+  });
+  flushSeg();
+  var linePts=[];
+  pts.forEach(function(p,i){ p.sv=smooth[i]; if(smooth[i]!=null) linePts.push({x:X(p.t), y:Y(smooth[i])}); });
+  var line=yrSmoothPath(linePts);
+  var nowMark="";
+  if(yc.nowV!=null){
+    var yn=Y(yc.nowV);
+    nowMark='<line x1="0" y1="'+yn.toFixed(1)+'" x2="'+W+'" y2="'+yn.toFixed(1)+'" stroke="var(--house)" stroke-width="1.6" stroke-dasharray="6 5" opacity="0.9"/>'
+      +'<circle cx="'+X(t1).toFixed(1)+'" cy="'+yn.toFixed(1)+'" r="4.5" fill="var(--house)"/>';
+  }
+  svg.innerHTML=marks+band+'<path d="'+line+'" fill="none" stroke="var(--water)" stroke-width="1.6"/>'+nowMark;
+  svg._series=pts; svg._t0=t0; svg._t1=t1; svg._min=min; svg._max=max;
+  // Crosshair hooks: the dot rides the DRAWN (smoothed) curve, but the chip
+  // states the day's real numbers — true daily average plus the measured
+  // low–high swing where the archive has it.
+  svg._yVal=function(p){ return p.sv!=null ? p.sv : p.v; };
+  var _kind=yc.kind;
+  svg._chip=function(p){
+    var d=new Date(p.t).toLocaleDateString([], {timeZone:"America/Phoenix", month:"short", day:"numeric", year:"numeric"});
+    var s=d+" · avg "+histFmt(p.v, _kind);
+    if(p.lo!=null && p.hi!=null) s+=" · swing "+histRange(p.lo, p.hi, _kind);
+    return s;
+  };
+  try{
+    var host=svg.parentNode;
+    if(host && document.createElement){
+      var hold=svg._hold;
+      if(!hold){
+        hold=document.createElement("div"); hold.className="chart-hold";
+        host.insertBefore(hold, svg); hold.appendChild(svg); svg._hold=hold;
+        var yl=document.createElement("div"); yl.className="ylab"; hold.appendChild(yl); svg._ylab=yl;
+        initCrosshair(hold, svg);
+      }
+      var fmtY=function(v){ return (Math.abs(max)<1000) ? v.toFixed(1) : (Math.abs(v)>=9500 ? Math.round(v/1000)+"k" : (v/1000).toFixed(1)+"k"); };
+      svg._ylab.innerHTML='<span class="yl-top">'+fmtY(max)+'</span><span class="yl-mid">'+fmtY((max+min)/2)+'</span><span class="yl-bot">'+fmtY(min)+'</span>';
+    }
+  }catch(e){}
+  svg.style.display="block";
+  var ax=axisId ? document.getElementById(axisId) : null;
+  if(ax){
+    ax.style.height="19px";
+    ax.innerHTML=labels.map(function(L){
+      var tr=L.pct<4 ? "translateX(0)" : (L.pct>96 ? "translateX(-100%)" : "translateX(-50%)");
+      return '<span style="left:'+L.pct.toFixed(2)+'%; transform:'+tr+';">'+L.txt+'</span>';
+    }).join("");
+    ax.style.display=labels.length ? "block" : "none";
+  }
+  return {min:min, max:max};
+}
+function renderYear(){
+  var sec=document.getElementById("yr-sec"); if(!sec) return;
+  var pl=currentPlace(), ref=refFor(pl);
+  var yc=(segFor(pl)!=="lake") ? yearContext(pl, ref) : null;
+  if(!yc){ sec.style.display="none"; return; }
+  sec.style.display="";
+  var svg=document.getElementById("yr-chart"), lead=document.getElementById("yr-lead"), nowEl=document.getElementById("yr-now"), note=document.getElementById("yr-note");
+  nowEl.innerHTML='last 24 h avg <b class="mono">'+histFmt(yc.nowV, yc.kind)+'</b>';
+  syncYrRange();
+  yearChart(svg, yc, "yr-axis");
+  var pctW=Math.round(yc.pct*100);
+  var cmp=yc.kind==="stage"?"sat higher than":"averaged more water than";
+  lead.innerHTML='The last 12 months at '+esc(yc.gaugeLabel)+(yc.h.exact?'':' — the closest gauge to '+esc(pl.name)+' with a year of records')+'. Right now the river is running <b style="color:var(--text)">'+yc.phrase+'</b>: the last 24 hours '+cmp+' <b style="color:var(--text)" class="mono">'+pctW+'%</b> of the year’s days. A typical day this past year ran <b class="mono" style="color:var(--text)">'+histRange(yc.ys.p25, yc.ys.p75, yc.kind)+'</b>; the year’s full range was <b class="mono" style="color:var(--text)">'+histRange(yc.ys.min, yc.ys.max, yc.kind)+'</b>.';
+  note.innerHTML='Blue line: each day’s average '+(yc.kind==="stage"?'water level (gauge height, ft)':'flow')+', lightly smoothed · shaded band: that day’s low–high swing · dashed line: where the last 24 hours sit. <span class="adv-only">Source: '+esc(yc.h.srcName)+(yc.h.usgsId?' (USGS site '+yc.h.usgsId+')':'')+'. Reclamation-only sensors are also building their own archive — the robot saves each day’s stats as it runs, so those charts grow over time.</span>';
 }
 function renderStrip(pl){
   var el=document.getElementById("strip"); if(!el) return;
@@ -1203,13 +1449,37 @@ function renderHero(){
   }
   // The badge states the CURRENT level, so it lives in the eyebrow — right
   // beside "right now" — not in the sentence, where it read as if it described
-  // the forecast time.
+  // the forecast time. It grades against the PAST YEAR when a year of history
+  // exists (so "AVG" means average for the year), else this week's range.
   var _lw=levelWord(abl, sw, flowP);
-  if(_lw) elE.innerHTML='Near '+esc(pl.name)+' right now <span class="pill lvl '+_lw.cls+'" title="Current level vs this week’s range at this spot — low · below average · average · above average · high.">'+_lw.label+'</span>';
+  var _yc=yearContext(pl, ref);
+  var _pillB=_yc ? bucketOf(_yc.pct) : _lw;
+  if(_pillB){
+    var _pillTip=_yc
+      ? 'Current level vs the PAST YEAR — the last 24 h average against 12 months of daily averages'+(_yc.h.exact?'':' at '+_yc.gaugeLabel)+'. low · below average · average · above average · high.'
+      : 'Current level vs this week’s range at this spot (a year comparison appears once a year of history is available) — low · below average · average · above average · high.';
+    elE.innerHTML='Near '+esc(pl.name)+' right now <span class="pill lvl '+_pillB.cls+'" title="'+_pillTip+'">'+_pillB.label+'</span>';
+  }
   elS.innerHTML='<span style="color:'+TCOLOR[_head.m]+'">'+TMARK[_head.m]+'</span> '+_head.t;
+  // The past-year reality check: is the water actually high, or just high for
+  // this week? Weekly level and year percentile, reconciled in one sentence.
+  var yrTxt="";
+  if(_yc){
+    var _pctW=Math.round(_yc.pct*100), vs="";
+    if(_lw){
+      var wkHigh=_lw.cls==="high", wkLow=_lw.cls==="low";
+      var yrHigh=_yc.pct>=0.6, yrLow=_yc.pct<0.4;
+      if(wkHigh && yrHigh) vs="Not just a big week \u2014 the river really is up.";
+      else if(wkHigh && yrLow) vs="High for this week, but still less water than a typical day this past year.";
+      else if(wkHigh) vs="High for this week, but about normal for the year.";
+      else if(wkLow && yrLow) vs="Low for this week and for the year.";
+      else if(wkLow && yrHigh) vs="A low moment this week \u2014 yet still more water than most of the past year.";
+    }
+    yrTxt=' <b style="color:var(--text)">Past-year check:</b> the last 24 h averaged <span class="mono">'+histFmt(_yc.nowV, _yc.kind)+'</span>'+(_yc.h.exact?'':' at '+esc(_yc.gaugeLabel))+' \u2014 '+(_yc.kind==="stage"?"higher":"more water")+' than '+_pctW+'% of days in the last 12 months. '+(vs||('That\u2019s '+_yc.phrase+'.'))+' <a href="#yr-sec" style="color:var(--water)">See the year \u2193</a>';
+  }
   var _lead=weekCtx?weekCtx+' ':'';
-  if(abl!=null){ elSub.innerHTML=_lead+'The water is about <b style="color:var(--text)" class="mono">+'+abl.toFixed(1)+' ft</b> above this week\u2019s low'+(sw!=null?' (it rises and falls ~'+sw.toFixed(1)+' ft over the week)':'')+' \u2014 '+detail+timing+'.'+turn; }
-  else { elSub.innerHTML=_lead+'Closest live source reads '+detail+timing+'.'+turn; }
+  if(abl!=null){ elSub.innerHTML=_lead+'The water is about <b style="color:var(--text)" class="mono">+'+abl.toFixed(1)+' ft</b> above this week\u2019s low'+(sw!=null?' (it rises and falls ~'+sw.toFixed(1)+' ft over the week)':'')+' \u2014 '+detail+timing+'.'+turn+yrTxt; }
+  else { elSub.innerHTML=_lead+'Closest live source reads '+detail+timing+'.'+turn+yrTxt; }
   var parker=STATIONS.find(function(s){ return s.key==="parker" && s.flow.length; });
   var curMph=Math.max(0.5, Math.min(8, WAVE_MPH*0.6));
   var curLine='River current: roughly <b style="color:var(--text)">~'+curMph.toFixed(1)+' mph</b> \u2014 about the speed a stick drifts by.<span class="adv-only"> (Estimated as ~60% of the measured pulse speed; actual current varies with depth and spot.)</span>';
@@ -1407,10 +1677,11 @@ function measuredArrival(pl){
 // to the current reading, with the trued dam schedule appended beyond the
 // measured horizon. The hero, the forecast chart header, and the tide table
 // all read THIS list, so no two panels can tell different stories.
-// Anchoring: only when the composite disagrees with the reference sensor AT
-// THE SAME INSTANT (the gauge-handoff fades normally make this ~0). It must
-// NEVER compare across an hour of real change — during a steep dam ramp that
-// smeared genuine drops into phantom shelves.
+// Anchoring: the composite future comes from farther gauges trued on weekly
+// statistics, so at any given moment it can sit a couple thousand cfs off the
+// near gauge's present reading (attenuation varies with flow). We shift the
+// measured window by that seam gap, fading the correction to zero by the
+// horizon, so the outlook starts at reality and ends where the schedule picks up.
 function blendedOutlook(pl){
   var ref=refFor(pl);
   if(!ref || !ref.st) return null;
@@ -1427,6 +1698,10 @@ function blendedOutlook(pl){
   var futM=[];
   if(comp){
     var raw=comp.points.filter(function(p){ return p.t>now; });
+    // Anchor ONLY when the composite disagrees with the reference sensor at
+    // the SAME moment (comparing across an hour of real change smears steep
+    // dam ramps into phantom shelves). With the handoff fades above this is
+    // normally ~0.
     var delta=0;
     if(raw.length>=2 && cv!=null && flowP.length){
       var tc=flowP[flowP.length-1].t, bd=1e18, atTc=null;
@@ -1446,8 +1721,8 @@ function blendedOutlook(pl){
   }
   var futS=fc ? fc.arrival.filter(function(p){ return p.t>Math.max(now, horizon); }) : [];
   // Same continuity treatment where measurement hands off to the schedule —
-  // the two are independent estimates and can disagree by thousands of cfs at
-  // the horizon; fade the step into the schedule's first ~6 h.
+  // independent estimates can disagree by thousands of cfs at the horizon;
+  // fade the step into the schedule's first ~6 h.
   if(futM.length && futS.length){
     var dS=futM[futM.length-1].v - futS[0].v;
     if(Math.abs(dS)>1){
@@ -1702,6 +1977,7 @@ function loadAll(){
       if(j.parkerSchedule && j.parkerSchedule.points && j.parkerSchedule.points.length){ psData=j.parkerSchedule.points; }
       if(j.davisSchedule && j.davisSchedule.points && j.davisSchedule.points.length){ dsData=j.davisSchedule.points; }
       if(j.havasu && j.havasu.elev && j.havasu.elev.length){ havasuData=j.havasu.elev; }
+      if(j.history && (j.history.usgs || j.history.accum)){ histData=j.history; }
     }
     rebuild(); // paint whatever we have right now
     var tasks=[];
