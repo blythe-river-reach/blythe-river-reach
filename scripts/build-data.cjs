@@ -311,7 +311,7 @@ function loadPrevious() {
 // element, the sample count, used only for merging).
 const HIST_DAYS = 400;
 const HIST_REFRESH_MS = +(process.env.HISTORY_REFRESH_MS || 6 * 3600 * 1000);
-const HIST_VERSION = 6; // bump when the site list / fetch logic changes so a carried-forward backfill refetches immediately
+const HIST_VERSION = 7; // bump when the site list / fetch logic changes so a carried-forward backfill refetches immediately
 const HIST_USGS = [
   { id: "09423000", key: "belowdavisusgs", name: "Colorado River below Davis Dam (USGS)" },
   { id: "09424000", key: "topockg",        name: "Colorado River near Topock (USGS)" },
@@ -479,6 +479,36 @@ async function fetchUsgsHistory(diag) {
     } catch (e) {
       if (diag) diag.push(def.key + ":minmax err " + String(e && e.message ? e.message : e).slice(0, 40));
     }
+  }
+  return out;
+}
+
+// Reclamation's daily water accounting (accumweb.json) keeps a full YEAR of
+// daily average releases for Davis (Lake Mohave) and Parker (Lake Havasu) —
+// the exact anchors the upper/lake/strip/mid reaches need, since USGS retains
+// no history for its gauges up there. Daily averages only (no min/max band).
+const ACCUMWEB = "https://www.usbr.gov/lc/region/g4000/riverops/webreports/accumweb.json";
+async function fetchAccumHistory(diag) {
+  const r = await fetch(ACCUMWEB, { headers: HIST_UA });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const j = await r.json();
+  const defs = [
+    { key: "davis",  site: /^lake mohave$/i,  name: "Davis Dam daily release — Reclamation water accounting" },
+    { key: "parker", site: /^lake havasu$/i, name: "Parker Dam daily release — Reclamation water accounting" },
+  ];
+  const out = {};
+  for (const def of defs) {
+    const s = (j.Series || []).find((x) => def.site.test((x.SiteName || "").trim()) && /average total release/i.test(x.DataTypeName || ""));
+    if (!s) { if (diag) diag.push(def.key + ":accumweb-miss"); continue; }
+    const rows = [];
+    for (const d of s.Data || []) {
+      const t = borToEpoch(d.t);
+      const v = d.v === "" ? null : parseFloat(d.v);
+      if (t && v != null && isFinite(v)) rows.push([t, Math.round(v), null, null]);
+    }
+    rows.sort((a, b) => a[0] - b[0]);
+    if (rows.length >= 300) { out[def.key] = { id: null, name: def.name, flow: rows }; if (diag) diag.push(def.key + ":accumweb" + rows.length + "d"); }
+    else if (diag) diag.push(def.key + ":accumweb-short" + rows.length + "d");
   }
   return out;
 }
@@ -697,6 +727,16 @@ async function main() {
       const diag = [];
       try {
         const sites = await fetchUsgsHistory(diag);
+        // Reclamation's accounting fills the reaches USGS can't: Davis and
+        // Parker daily releases, a full year each.
+        try {
+          const ac = await fetchAccumHistory(diag);
+          for (const k of Object.keys(ac)) {
+            if (!(sites[k] && sites[k].flow && sites[k].flow.length >= 300)) sites[k] = ac[k];
+          }
+        } catch (e) {
+          diag.push("accumweb:err " + String(e && e.message ? e.message : e).slice(0, 60));
+        }
         if (Object.keys(sites).length) usgsHist = { v: HIST_VERSION, fetchedAt: new Date().toISOString(), sites, diag: diag.join(", ") };
         else out.errors.push("history: USGS daily service returned no usable series" + (usgsHist ? " — kept previous backfill" : ""));
       } catch (e) {

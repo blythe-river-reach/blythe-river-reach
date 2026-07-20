@@ -300,7 +300,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-19b</span> &mdash; past-year history &middot; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-19c</span> &mdash; past-year history &middot; place picker &middot; GitHub data relay &middot; no server functions.<br>
   Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
   How the data flows: your browser fetches the five USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their river sensors (Davis Dam to Martinez Lake), Lake Havasu&rsquo;s level, and the dam-schedule PDFs about three times an hour and publishes them for this page (the header shows how fresh that data is).</span><br>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -1040,10 +1040,11 @@ function histSeries(key, kind, minDays){
 // Which long-record gauge best describes this spot? Its own, if it keeps a
 // year of history; otherwise walk toward the nearest year-keeping gauge on
 // the river (same water system, so "high for the year" carries over — the
-// text always names the gauge it used). The upstream USGS gauges (below
-// Davis, Topock, below Parker) stopped transmitting, so upstream spots lean
-// on the Blythe-reach gauge until the robot's own archive matures.
-var HIST_PROXY={ upper:["belowdavisusgs","parker","belowpv"], lake:["parker","belowpv"], strip:["parker","belowpv"], mid:["parker","belowpv"], below:["belowpv","martinez"] };
+// text always names the gauge it used). USGS retains no history for its
+// upstream gauges, so the robot backfills Davis and Parker daily releases
+// from Reclamation's water accounting (accumweb) — those anchor the upper,
+// lake, strip, and mid reaches.
+var HIST_PROXY={ upper:["davis","belowdavisusgs","parker","belowpv"], lake:["parker","belowpv"], strip:["parker","belowpv"], mid:["parker","belowpv"], below:["belowpv","martinez"] };
 function histFor(pl, ref){
   var tried=[];
   if(ref && ref.key) tried.push(ref.key);
@@ -1225,7 +1226,7 @@ function renderYear(){
   var pctW=Math.round(yc.pct*100);
   var cmp=yc.kind==="stage"?"sat higher than":"averaged more water than";
   lead.innerHTML='The last 12 months at '+esc(yc.gaugeLabel)+(yc.h.exact?'':' — the closest gauge to '+esc(pl.name)+' with a year of records')+'. Right now the river is running <b style="color:var(--text)">'+yc.phrase+'</b>: the last 24 hours '+cmp+' <b style="color:var(--text)" class="mono">'+pctW+'%</b> of the year’s days. A typical day this past year ran <b class="mono" style="color:var(--text)">'+histRange(yc.ys.p25, yc.ys.p75, yc.kind)+'</b>; the year’s full range was <b class="mono" style="color:var(--text)">'+histRange(yc.ys.min, yc.ys.max, yc.kind)+'</b>.';
-  note.innerHTML='Blue line: each day’s average '+(yc.kind==="stage"?'water level (gauge height, ft)':'flow')+', lightly smoothed · shaded band: that day’s low–high swing · dashed line: where the last 24 hours sit. <span class="adv-only">Backfilled from USGS records'+(yc.h.usgsId?' (site '+yc.h.usgsId+')':'')+'; Reclamation-only sensors are building their own archive — the robot saves each day’s stats as it runs, so those charts grow over time.</span>';
+  note.innerHTML='Blue line: each day’s average '+(yc.kind==="stage"?'water level (gauge height, ft)':'flow')+', lightly smoothed · shaded band: that day’s low–high swing · dashed line: where the last 24 hours sit. <span class="adv-only">Source: '+esc(yc.h.srcName)+(yc.h.usgsId?' (USGS site '+yc.h.usgsId+')':'')+'. Reclamation-only sensors are also building their own archive — the robot saves each day’s stats as it runs, so those charts grow over time.</span>';
 }
 function renderStrip(pl){
   var el=document.getElementById("strip"); if(!el) return;
