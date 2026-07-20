@@ -745,6 +745,23 @@ async function main() {
       if (diag.length) console.log("history diag:", diag.join(", "));
     }
     out.history = { usgs: usgsHist, accum: accumulateDaily(out.stations, prevHist.accum) };
+    // Fold the robot's own daily min/max onto backfill rows that lack a band
+    // (the Reclamation daily-release backfill is averages-only). Merged rows
+    // are carried forward in the written file, so the shaded low–high band
+    // grows day by day as the archive accretes.
+    try {
+      const hs = out.history.usgs && out.history.usgs.sites, as = out.history.accum && out.history.accum.sites;
+      if (hs && as) for (const k of Object.keys(hs)) {
+        const site = hs[k], acc = as[k];
+        if (!site.flow || !acc || !acc.flow) continue;
+        const by = {};
+        for (const p of acc.flow) by[p[0]] = p;
+        for (const row of site.flow) {
+          const q2 = by[row[0]];
+          if (q2) { if (row[2] == null && q2[2] != null) row[2] = q2[2]; if (row[3] == null && q2[3] != null) row[3] = q2[3]; }
+        }
+      }
+    } catch (e) { /* band merge is best-effort */ }
   } catch (e) {
     out.errors.push("history: " + (e && e.message ? e.message : e));
     if (prev && prev.history) out.history = prev.history;
