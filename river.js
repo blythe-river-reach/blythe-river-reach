@@ -168,6 +168,58 @@ function stretchHours(mA, mB){
   return hrs;
 }
 function lagMsFrom(refMile, p){ return (refMile>=p.mile?1:-1) * stretchHours(refMile, p.mile) * 3600 * 1000; }
+// Flow-dependent travel time: a parcel carrying flow v takes each stretch's
+// calibrated hours x (qRef/v)^beta — high water moves a little faster. The
+// robot measures beta per stretch (~0.1-0.2 here); v is clamped so an odd
+// reading can't swing the lag by more than about a third.
+function stretchHoursAt(mA, mB, v){
+  if(!(v>0)) return stretchHours(mA, mB);
+  var lo=Math.min(mA,mB), hi=Math.max(mA,mB), rem=hi-lo, hrs=0;
+  var segs=(relayCal && relayCal.segments) || [];
+  for(var i=0;i<segs.length;i++){
+    var s=segs[i], a=sensorInfo(s.from), b=sensorInfo(s.to);
+    if(!a || !b || !(s.mph>=1 && s.mph<=12)) continue;
+    var sl=Math.min(a.mile,b.mile), sh=Math.max(a.mile,b.mile);
+    var ol=Math.max(lo,sl), oh=Math.min(hi,sh);
+    if(oh>ol){
+      var f=1;
+      if(s.beta>0 && s.qRef>0){ var vc=Math.max(0.4*s.qRef, Math.min(2.5*s.qRef, v)); f=Math.pow(s.qRef/vc, s.beta); }
+      hrs += (oh-ol)/s.mph*f; rem -= (oh-ol);
+    }
+  }
+  var fr=1;
+  if(relayCal && relayCal.betaFlow>0 && relayCal.qRef>0){ var vr=Math.max(0.4*relayCal.qRef, Math.min(2.5*relayCal.qRef, v)); fr=Math.pow(relayCal.qRef/vr, relayCal.betaFlow); }
+  hrs += Math.max(0,rem)/WAVE_MPH*fr;
+  return hrs;
+}
+// Shift a series downstream by each point's OWN travel time, then put it back
+// on an hourly grid (faster parcels catching slower ones steepen the front;
+// arrival order is kept monotonic).
+function shiftByFlow(series, mFrom, mTo){
+  if(!series || !series.length) return series||[];
+  var sign=(mFrom>=mTo)?1:-1, out=[], tPrev=-Infinity;
+  for(var i=0;i<series.length;i++){
+    var p=series[i], t=p.t + sign*stretchHoursAt(mFrom, mTo, p.v)*3600000;
+    if(t<tPrev) t=tPrev; tPrev=t;
+    var o=mapV(p, function(x){ return x; }); o.t=t; if(p.past) o.past=true; if(p.src) o.src=p.src; out.push(o);
+  }
+  return resampleHourly(out);
+}
+function resampleHourly(pts){
+  if(pts.length<2) return pts;
+  var H=3600000, t0=Math.ceil(pts[0].t/H)*H, t1=Math.floor(pts[pts.length-1].t/H)*H, out=[], j=0;
+  for(var t=t0; t<=t1; t+=H){
+    while(j<pts.length-2 && pts[j+1].t<t) j++;
+    var a=pts[j], b=pts[j+1]||a, w=(b.t>a.t)?Math.max(0,Math.min(1,(t-a.t)/(b.t-a.t))):0;
+    var o={t:t, v:a.v+(b.v-a.v)*w};
+    if(a.lo!=null && b.lo!=null){ o.lo=a.lo+(b.lo-a.lo)*w; o.hi=a.hi+(b.hi-a.hi)*w; }
+    if(w<0.5 ? a.est : b.est) o.est=true;
+    if(w<0.5 ? a.past : b.past) o.past=true;
+    var src=(w<0.5?a.src:b.src); if(src) o.src=src;
+    out.push(o);
+  }
+  return out;
+}
 // Dispersion: a release pulse doesn't so much SHRINK on its way downstream as
 // SPREAD out in time (channel storage, mixed velocities). Each calibrated
 // stretch carries its own measured spread; variances add along the route, and
@@ -1412,14 +1464,17 @@ function forecastSeriesFor(pl){
   // shrinking it. Smooth by the stretch's measured spread before anything else.
   var sig=(seg==="lake") ? 0 : stretchSigmaH(originMile, pl.mile), gain=(seg==="lake") ? 1 : stretchGain(originMile, pl.mile);
   d=applyGain(disperse(d, sig), gain);
+  // Onto this spot's clock: each hour of release travels at its own speed.
+  if(seg!=="lake") d=shiftByFlow(d, originMile, pl.mile);
   if(sig>=0.5) srcNote+=" Each pulse is spread ~"+(sig<1?sig.toFixed(1):Math.round(sig))+" h by the "+Math.round(Math.abs(originMile-pl.mile))+"-mile run from "+originName+(gain<0.98?" and keeps ~"+Math.round(gain*100)+"% of its swing":"")+" (the river mostly smooths a release rather than losing it).";
   // Self-truing LEVEL: with the spread modelled, what's left is a level offset
   // (diversions, drains, seepage, plan-vs-actual) learned from the hours the
   // schedule and the local gauge have both already seen, on this spot's clock.
-  var tru=scheduleTrue(d, pl, seg==="lake"?null:originMile);
+  var tru=scheduleTrue(d, pl, null);
   if(tru){
-    d=d.map(function(p){ return mapV(p, function(v){ return Math.max(0, tru.mMed+(v-tru.sMed)*tru.scale); }); });
+    d=d.map(function(p){ var o=mapV(p, function(v){ return Math.max(0, tru.mMed+(v-tru.sMed)*tru.scale); }); if(tru.tShiftH){ o.t=p.t+tru.tShiftH*3600000; } if(p.past) o.past=true; return o; });
     var bits=[];
+    if(tru.tShiftH) bits.push('it has been arriving ~'+Math.abs(tru.tShiftH)+' h '+(tru.tShiftH<0?'earlier':'later')+' than the travel-time math says, so the timing is nudged to match');
     if(Math.abs(tru.sMed-tru.mMed)>=Math.max(120,0.04*tru.mMed)) bits.push('it runs ~'+fmt(Math.abs(tru.sMed-tru.mMed))+' cfs '+(tru.sMed>tru.mMed?'lower':'higher')+' here than the dam math says'+(seg==="below"&&tru.sMed>tru.mMed?' \u2014 mostly the Palo Verde diversion':''));
     if(tru.scale<1) bits.push('the swing runs ~'+Math.round((1-tru.scale)*100)+'% smaller here');
     if(tru.scale>1) bits.push('the swing runs ~'+Math.round((tru.scale-1)*100)+'% bigger here');
@@ -1442,8 +1497,7 @@ function forecastSeriesFor(pl){
       else { srcNote+=" Levels here run lower than shown \u2014 Palo Verde diverts water above this point."; }
     }
   }
-  var shift=(seg==="lake") ? 0 : lagMsFrom(originMile, pl);
-  var arrival=d.map(function(p){ var o=mapV(p, function(v){ return v; }); o.t=p.t+shift; if(p.past) o.past=true; return o; });
+  var arrival=d.map(function(p){ var o=mapV(p, function(v){ return v; }); o.t=p.t; if(p.past) o.past=true; return o; });
   var schedEndAt=null; for(var si=0;si<arrival.length;si++){ if(arrival[si].est){ schedEndAt=si?arrival[si-1].t:arrival[si].t; break; } }
   return { arrival:arrival, srcNote:srcNote, originMile:originMile, originName:originName, seg:seg, schedEndAt:schedEndAt, sigmaH:sig, gain:gain };
 }
@@ -1461,9 +1515,21 @@ function scheduleTrue(d, pl, originMile){
   // Pair hour by hour so only hours BOTH series cover are compared (a partial
   // window that catches one trough against a full day is worse than nothing).
   var sm={};
-  d.forEach(function(p){ if(p.est) return; var tp=p.t+shift; if(tp>=w0 && tp<=now) sm[Math.round(tp/3600000)]=p.v; });
+  d.forEach(function(p){ if(p.est) return; var tp=p.t+shift; if(tp>=w0-4*3600000 && tp<=now+4*3600000) sm[Math.round(tp/3600000)]=p.v; });
+  // Timing nudge: which small shift (+/-3 h) of the schedule best matches the
+  // gauge over the overlap? Only taken when it clearly beats no shift.
+  var mk={}; ref.st.flow.forEach(function(p){ var tp=p.t+lagR; if(tp>=w0 && tp<=now) mk[Math.round(tp/3600000)]=p.v; });
+  var bestS=0, bestE=null, e0=null;
+  for(var sh=-3; sh<=3; sh++){
+    var se=0, nn=0;
+    for(var kk in mk){ var sv0=sm[(+kk)-sh]; if(sv0==null) continue; var dd=mk[kk]-sv0; se+=dd*dd; nn++; }
+    if(nn<24) continue;
+    var er=Math.sqrt(se/nn); if(sh===0) e0=er;
+    if(bestE==null || er<bestE-1e-9){ bestE=er; bestS=sh; }
+  }
+  if(!(e0!=null && bestE!=null && bestE<0.9*e0)) bestS=0;
   var so=[], mo=[];
-  ref.st.flow.forEach(function(p){ var tp=p.t+lagR; if(tp>=w0 && tp<=now){ var k=Math.round(tp/3600000); if(sm[k]!=null){ so.push(sm[k]); mo.push(p.v); } } });
+  for(var k2 in mk){ var sv1=sm[(+k2)-bestS]; if(sv1!=null){ so.push(sv1); mo.push(mk[k2]); } }
   var overlap=(so.length>=24), sv, mv;
   if(overlap){ sv=so; mv=mo; }
   else {
@@ -1495,8 +1561,8 @@ function scheduleTrue(d, pl, originMile){
     var dif=[]; for(var di=0; di<so.length; di++) dif.push(mo[di]-so[di]);
     sMed=0; mMed=q(dif,0.5);
   }
-  if(scale===1 && Math.abs(sMed-mMed)<Math.max(80,0.03*mMed)) return null; // already true
-  return {sMed:sMed, mMed:mMed, scale:scale, label:ref.label, overlap:overlap, dbg:{so:so.length, mo:mo.length, sSpan:Math.round(sSpan), mSpan:Math.round(mSpan), shiftH:+(shift/3600000).toFixed(1), lagRH:+(lagR/3600000).toFixed(1)}};
+  if(scale===1 && !bestS && Math.abs(sMed-mMed)<Math.max(80,0.03*mMed)) return null; // already true
+  return {sMed:sMed, mMed:mMed, scale:scale, label:ref.label, overlap:overlap, tShiftH:overlap?bestS:0, dbg:{so:so.length, mo:mo.length, sSpan:Math.round(sSpan), mSpan:Math.round(mSpan), shiftH:+(shift/3600000).toFixed(1), lagRH:+(lagR/3600000).toFixed(1), tShiftH:bestS}};
 }
 // Measured future: water that already passed the gauges upstream of this spot
 // is en route — no schedule needed. Chain every in-zone gauge above the place
@@ -1515,14 +1581,20 @@ function measuredArrival(pl){
   function q(a,f){ var s=a.slice().sort(function(x,y){return x-y;}); return s[Math.max(0,Math.min(s.length-1,Math.floor(s.length*f)))]; }
   var base=null, out=[], coverEnd=0, srcs=[];
   gs.forEach(function(g){
-    var lag=stretchHours(g.mile, pl.mile)*3600000;
-    var pts=applyGain(disperse(g.flow.map(function(p){ return {t:p.t+lag, v:p.v, src:g.label}; }), stretchSigmaH(g.mile, pl.mile)), stretchGain(g.mile, pl.mile));
+    var pts=applyGain(disperse(shiftByFlow(g.flow.map(function(p){ return {t:p.t, v:p.v, src:g.label}; }), g.mile, pl.mile), stretchSigmaH(g.mile, pl.mile)), stretchGain(g.mile, pl.mile));
+    if(!pts.length) return;
     if(!base){ base=pts; out=pts.slice(); coverEnd=pts[pts.length-1].t; srcs.push(g.label); return; }
     var tail=pts.filter(function(p){ return p.t>coverEnd+60000; });
     if(!tail.length) return;
     // true this gauge to the nearest gauge over their overlap at this spot's clock
     var lo=Math.max(base[0].t, pts[0].t), hi=Math.min(base[base.length-1].t, pts[pts.length-1].t);
     if(hi-lo>24*3600000){
+      // timing nudge (+/-3 h) that best matches the nearer gauge over the overlap
+      var bm={}; base.forEach(function(p){ if(p.t>=lo&&p.t<=hi) bm[Math.round(p.t/3600000)]=p.v; });
+      var pm={}; pts.forEach(function(p){ pm[Math.round(p.t/3600000)]=p.v; });
+      var bS=0, bE=null, e00=null;
+      for(var s2=-3; s2<=3; s2++){ var se2=0, n2=0; for(var kb in bm){ var pv2=pm[(+kb)-s2]; if(pv2==null) continue; var d2=bm[kb]-pv2; se2+=d2*d2; n2++; } if(n2<24) continue; var er2=Math.sqrt(se2/n2); if(s2===0) e00=er2; if(bE==null||er2<bE-1e-9){ bE=er2; bS=s2; } }
+      if(e00!=null && bE!=null && bE<0.9*e00 && bS){ var dt=bS*3600000; pts=pts.map(function(p){ return {t:p.t+dt, v:p.v, src:p.src}; }); tail=pts.filter(function(p){ return p.t>coverEnd+60000; }); if(!tail.length) return; }
       var bv=base.filter(function(p){ return p.t>=lo&&p.t<=hi; }).map(function(p){ return p.v; });
       var gv=pts.filter(function(p){ return p.t>=lo&&p.t<=hi; }).map(function(p){ return p.v; });
       if(bv.length>=8 && gv.length>=8){

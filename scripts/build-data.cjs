@@ -249,6 +249,35 @@ function dispersionFit(aPts, bPts, lagH) {
   }
   return best;
 }
+// Does the pulse travel faster when the river is high? Cross-correlate the
+// low-flow third and the high-flow third of the upstream hours separately;
+// lag ~ (qRef / q)^beta. Small on this river (~1 h between thirds) but real.
+function flowBandLags(aPts, bPts, maxLag) {
+  const am = {}; for (const p of aPts) am[Math.round(p.t / 3600000)] = p.v;
+  const dm = {}; for (const p of bPts) dm[Math.round(p.t / 3600000)] = p.v;
+  const vs = Object.values(am).sort((p, q) => p - q), q3 = (f) => vs[Math.floor(vs.length * f)];
+  const lo = q3(0.33), hi = q3(0.67), qRef = q3(0.5);
+  const band = (sel) => {
+    let best = null; const rs = {}; let qs = [];
+    for (let lag = 0; lag <= maxLag; lag++) {
+      const xs = [], ys = [];
+      for (const k of Object.keys(am)) { const kk = +k; if (!sel(am[kk])) continue; const v = dm[kk + lag]; if (v == null) continue; xs.push(am[kk]); ys.push(v); }
+      if (xs.length < 30) continue;
+      if (!qs.length) qs = xs.slice().sort((p, q) => p - q);
+      const n = xs.length, mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+      let sxy = 0, sxx = 0, syy = 0; for (let i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; syy += (ys[i] - my) ** 2; }
+      const r = sxy / Math.sqrt((sxx * syy) || 1); rs[lag] = r; if (!best || r > best.r) best = { lag, r };
+    }
+    if (!best || best.r < 0.75 || best.lag < 1 || best.lag >= maxLag) return null;
+    let L = best.lag; const r0 = rs[L - 1], r1 = rs[L], r2 = rs[L + 1];
+    if (r0 != null && r2 != null) { const den = r0 - 2 * r1 + r2; if (den < 0) L = L + 0.5 * (r0 - r2) / den; }
+    return { lag: L, r: best.r, q: qs[Math.floor(qs.length / 2)] };
+  };
+  const L = band((v) => v < lo), Hh = band((v) => v >= hi);
+  if (!L || !Hh || !(Hh.q > L.q * 1.2)) return { qRef };
+  const beta = Math.log(L.lag / Hh.lag) / Math.log(Hh.q / L.q);
+  return { qRef, beta: +Math.max(0, Math.min(0.4, beta)).toFixed(3), lagLow: +L.lag.toFixed(1), lagHigh: +Hh.lag.toFixed(1) };
+}
 function calibrate(stations) {
   const by = {}; for (const s of stations) by[s.key] = s;
   const PAIRS = [
@@ -272,7 +301,8 @@ function calibrate(stations) {
     const x = xcorrPair(by[a].flow, by[b].flow, mi);
     if (!x) return;
     const df = dispersionFit(by[a].flow, by[b].flow, x.lagHours);
-    segments.push({ from: a, to: b, miles: mi, ...x, ...(df ? { sigmaH: df.sigmaH, gain: df.gain } : {}) });
+    const fb = flowBandLags(by[a].flow, by[b].flow, Math.min(24, Math.ceil(x.lagHours * 2) + 2));
+    segments.push({ from: a, to: b, miles: mi, ...x, ...(df ? { sigmaH: df.sigmaH, gain: df.gain } : {}), ...(fb ? fb : {}) });
   };
   for (const [a, b, mi] of PAIRS) tryPair(a, b, mi);
   const covered = (a, b) => segments.some(s => { const lo = Math.min(MILE[s.from], MILE[s.to]), hi = Math.max(MILE[s.from], MILE[s.to]); const l2 = Math.min(MILE[a], MILE[b]), h2 = Math.max(MILE[a], MILE[b]); return Math.min(hi, h2) - Math.max(lo, l2) > 0.5; });
@@ -287,7 +317,12 @@ function calibrate(stations) {
   // stretches no gauge pair covers use it.
   const gr = segments.filter(s => s.gain > 0.3 && s.gain < 1.5 && s.miles >= 8).map(s => Math.pow(s.gain, 1 / s.miles)).sort((p, q) => p - q);
   const gainPerMile = gr.length ? +(gr[Math.floor(gr.length / 2)]).toFixed(4) : null;
-  return { waveMph, dispHPerMile, gainPerMile, segments };
+  // River-wide flow-speed exponent and reference flow for uncalibrated stretches.
+  const betas = segments.filter(s => s.beta != null && s.r >= 0.85).map(s => s.beta).sort((p, q) => p - q);
+  const betaFlow = betas.length ? betas[Math.floor(betas.length / 2)] : null;
+  const qrs = segments.filter(s => s.qRef > 0).map(s => s.qRef).sort((p, q) => p - q);
+  const qRef = qrs.length ? Math.round(qrs[Math.floor(qrs.length / 2)]) : null;
+  return { waveMph, dispHPerMile, gainPerMile, betaFlow, qRef, segments };
 }
 
 // Fetch JSON with retries: Reclamation's generator sometimes serves a truncated
