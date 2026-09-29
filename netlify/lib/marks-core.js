@@ -150,7 +150,12 @@ async function setFlags(stores, patchObj) {
   if (patchObj && patchObj.notice !== undefined) {
     const n = patchObj.notice;
     if (!n || !String(n.text || "").trim()) delete next.notice;
-    else next.notice = { text: clean(n.text, 280), until: (n.until && isFinite(+new Date(n.until))) ? new Date(n.until).toISOString() : null, level: n.level === "warn" ? "warn" : "info", setAt: new Date().toISOString() };
+    else {
+      const iso = (v) => (v && isFinite(+new Date(v))) ? new Date(v).toISOString() : null;
+      const from = iso(n.from), until = iso(n.until);
+      if (from && until && new Date(until) <= new Date(from)) return Object.assign(cur, { error: "the notice would end before it starts", status: 400 });
+      next.notice = { text: clean(n.text, 280), from, until, level: n.level === "warn" ? "warn" : "info", setAt: new Date().toISOString() };
+    }
   }
   next.updatedAt = new Date().toISOString();
   await stores.settings.setJSON("flags", next); return next;

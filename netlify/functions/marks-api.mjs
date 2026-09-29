@@ -32,7 +32,7 @@ async function engineFor(branch) {
 export default async (req) => {
   const url = new URL(req.url), path = url.pathname.replace(/\/+$/, "");
   const S = stores();
-  if (path.endsWith("/marks/config")) { const f = await C.getFlags(S); const n = f.notice && (!f.notice.until || new Date(f.notice.until).getTime() > Date.now()) ? f.notice : null; return json({ ok: true, marksEnabled: !!f.marksEnabled, notice: n }); }
+  if (path.endsWith("/marks/config")) { const f = await C.getFlags(S); const now = Date.now(), fn = f.notice; const n = fn && (!fn.from || new Date(fn.from).getTime() <= now) && (!fn.until || new Date(fn.until).getTime() > now) ? fn : null; return json({ ok: true, marksEnabled: !!f.marksEnabled, notice: n }); }
   if (path.endsWith("/marks/photo")) {
     const id = String(url.searchParams.get("mark") || "");
     if (req.method === "GET") {

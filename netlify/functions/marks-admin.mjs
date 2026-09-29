@@ -30,7 +30,7 @@ export default async (req) => {
     }
     if (req.method === "POST") {
       let body = {}; try { body = await req.json(); } catch (e) { return json({ error: "bad json" }, 400); }
-      if (body.type === "settings") return json({ ok: true, flags: await C.setFlags(S, body) });
+      if (body.type === "settings") { const f = await C.setFlags(S, body); if (f.error) return json({ error: f.error }, f.status || 400); return json({ ok: true, flags: f }); }
       if (body.type === "runalerts") {
         const runKey = process.env.PUSH_RUN_KEY; if (!runKey) return json({ error: "PUSH_RUN_KEY not configured on this site" }, 503);
         const base = (process.env.DEPLOY_PRIME_URL || process.env.URL || "").replace(/\/$/, ""); if (!base) return json({ error: "site URL unknown" }, 500);
