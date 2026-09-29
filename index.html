@@ -250,6 +250,15 @@
   .al-row:last-of-type{border-bottom:0}
   .al-row input{width:20px; height:20px; margin-top:2px; flex-shrink:0; accent-color:var(--water)}
   .al-row span{flex:1}
+  .mark-strip{margin-top:12px; background:var(--tile); border:1px solid var(--border); border-radius:14px; padding:11px 13px}
+  .ms-hd{display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--muted)} .ms-hd b{color:var(--text)} .ms-hd .tbtn{margin-left:auto; padding:6px 10px; font-size:12.5px}
+  .ms-body{margin-top:8px; display:flex; flex-direction:column; gap:5px; font-size:14.5px} .ms-line.ms-now{font-size:17px; font-weight:700} .ms-line .mono{font-weight:700}
+  .tagp{font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:#f2b64a; border:1px solid #f2b64a; border-radius:999px; padding:1px 7px; margin-left:6px; font-weight:600}
+  .row.sub{padding-left:26px; font-size:14px} .row.sub .rs{opacity:.6} .row .rl{color:var(--muted); font-size:12px}
+  .pick-add{display:flex; gap:8px; flex-wrap:wrap; padding:10px 8px 4px}
+  .fld{display:block; margin:10px 0 0; font-size:13px; color:var(--muted)} .fld input,.fld textarea,.fld select{display:block; width:100%; box-sizing:border-box; margin-top:5px; background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:9px 10px; font-size:15px; font:inherit}
+  .fld textarea{min-height:64px; resize:vertical} .fld-row{display:flex; gap:8px} .fld-row .fld{flex:1}
+  .seg2{display:flex; gap:6px; margin-top:10px} .seg2 button{flex:1; font:inherit; font-size:14px; padding:9px; border-radius:10px; border:1px solid var(--border); background:var(--panel2); color:var(--muted); cursor:pointer} .seg2 button.on{color:var(--water); border-color:var(--water); font-weight:700}
   .al-sel{background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:7px 9px; font-size:14px}
   .toast{position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:var(--text); color:var(--bg); padding:10px 16px; border-radius:12px; font-size:14px; font-weight:600; z-index:50; display:none; max-width:92vw}
 </style>
@@ -320,6 +329,7 @@ try{
     <div class="today-axis"><span>midnight</span><span>6 AM</span><span>noon</span><span>6 PM</span><span>midnight</span></div>
   </div>
   <div class="tiles" id="tiles"></div>
+  <div class="mark-strip" id="mark-strip" style="display:none"></div>
   <div class="chips" id="chips" style="display:none"></div>
   <div class="lvlbar" id="lvlbar" style="display:none"></div>
   <div class="h2-foot" id="h2-foot"></div>
@@ -435,7 +445,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29j</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29k</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -465,9 +475,51 @@ try{
     <p class="note" id="al-note">Alerts arrive as normal phone/desktop notifications, checked every 10 minutes as new sensor data lands. On iPhone, first add this site to your Home Screen (Share → Add to Home Screen), then open it from there.</p>
   </div>
 </div>
+<div class="sheet" id="pl-sheet" role="dialog" aria-modal="true" aria-label="Add a place">
+  <div class="sheet-hd"><h2>✚ Add a place</h2><button class="x" id="pl-x" aria-label="Close">✕</button></div>
+  <div class="sheet-body" style="padding:0 16px 24px">
+    <p class="lead" style="margin:6px 0 4px">A beach, sandbar, dock or anywhere on the river that isn’t in the list. It stays private to you until it’s approved.</p>
+    <label class="fld">Name<input id="pl-name" maxlength="60" placeholder="e.g. Our sandbar below the point"></label>
+    <div class="fld-row"><label class="fld">River mile<input id="pl-mile" type="number" step="0.1" min="40" max="280" placeholder="from the location button"></label><label class="fld">&nbsp;<button class="tbtn" id="pl-geo-btn" style="width:100%; margin-top:5px">🧭 Use my location</button></label></div>
+    <p class="note" id="pl-geo" style="margin-top:6px"></p>
+    <label class="fld">Note (optional)<input id="pl-note" maxlength="200" placeholder="what’s here, how to find it"></label>
+    <button class="btn-water" id="pl-save">Add place</button>
+  </div>
+</div>
+<div class="sheet" id="mk-sheet" role="dialog" aria-modal="true" aria-label="Add a depth mark">
+  <div class="sheet-hd"><h2>✚ Depth mark at <span id="mk-spot"></span></h2><button class="x" id="mk-x" aria-label="Close">✕</button></div>
+  <div class="sheet-body" style="padding:0 16px 24px">
+    <p class="lead" style="margin:6px 0 4px">A mark is one fixed reference where readings are always taken: the toe of a ramp, a dock piling, the tip of a sandbar. Readings from everyone at this mark build its own depth curve.</p>
+    <label class="fld">Name<input id="mk-name" maxlength="60" placeholder="e.g. Main channel ramp"></label>
+    <label class="fld">Exactly where the reading is taken<textarea id="mk-ref" maxlength="300" placeholder="e.g. Depth at the bottom edge of the concrete ramp, centre, measured with a stick"></textarea></label>
+    <label class="fld">Landmarks, bottom to top (optional, one per line)<textarea id="mk-ladder" placeholder="toe of ramp&#10;first joint&#10;top of ramp&#10;&#10;Add a height if you know it: first joint = 1.5"></textarea></label>
+    <p class="note" style="margin-top:4px">With landmarks, people can report “water is at the first joint” instead of measuring. The heights work themselves out from readings; typing them just speeds that up.</p>
+    <div class="fld-row"><button class="tbtn" id="mk-geo-btn" style="margin-top:10px">🧭 Pin my location</button><span class="note" id="mk-geo" style="align-self:center"></span></div>
+    <button class="btn-water" id="mk-save">Add mark</button>
+  </div>
+</div>
+<div class="sheet" id="rd-sheet" role="dialog" aria-modal="true" aria-label="Report a reading">
+  <div class="sheet-hd"><h2>✎ Reading at <span id="rd-mark"></span></h2><button class="x" id="rd-x" aria-label="Close">✕</button></div>
+  <div class="sheet-body" style="padding:0 16px 24px">
+    <p class="note" id="rd-ref" style="margin:2px 0 0"></p>
+    <div class="seg2"><button id="rd-kind-depth" class="on">Measured depth</button><button id="rd-kind-rung">Water is at a landmark</button></div>
+    <div id="rd-depth-wrap"><div class="fld-row"><label class="fld">Feet<input id="rd-ft" type="number" inputmode="numeric" min="0" max="40" placeholder="0"></label><label class="fld">Inches<input id="rd-in" type="number" inputmode="numeric" min="0" max="11" placeholder="0"></label></div></div>
+    <div id="rd-rung-wrap" style="display:none">
+      <label class="fld">The water is<select id="rd-rmode"><option value="rung">right at</option><option value="between">between</option><option value="over">over the top of</option><option value="under">below the bottom of</option></select></label>
+      <label class="fld">Landmark<select id="rd-rung"></select></label>
+      <label class="fld" id="rd-rung2-wrap" style="display:none">and<select id="rd-rung2"></select></label>
+    </div>
+    <label class="fld">When<select id="rd-when"><option value="now">Right now</option><option value="1h">About an hour ago</option><option value="2h">About two hours ago</option><option value="custom">Earlier today, at…</option></select></label>
+    <input id="rd-time" type="time" class="al-sel" style="display:none; margin-top:6px; width:100%; box-sizing:border-box">
+    <label class="fld">Note (optional)<input id="rd-note" maxlength="140" placeholder="e.g. measured off the bow, choppy"></label>
+    <button class="btn-water" id="rd-save">Save reading</button>
+    <p class="note">The time matters most: the river moves several feet a day, so the reading is matched to the level the sensors say this spot had at that moment.</p>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
-<script src="/river.js?v=2026-09-29e"></script>
+<script src="/river.js?v=2026-09-29f"></script>
+<script src="/marks-math.js?v=2026-09-29f"></script>
 <script>
 // ============================================================
 // Simple-view UI, spot picker, and river ribbon — rendered on top of the
@@ -790,7 +842,7 @@ function levelText(p){ // cheap live level for the list: nearest sensor, no trav
 }
 function rowHtml(p, on){
   var f=favs().indexOf(p.key)>=0, ps=pushState(), bell=(ps && ps.spot===p.key), lt=levelText(p);
-  return '<button class="row'+(on?' on':'')+'" data-k="'+p.key+'"><span class="rs">'+statusGlyph(p)+'</span><span class="rn">'+esc(p.name)+(bell?' <span class="bell" title="Push alerts are on for this spot">🔔</span>':'')+'</span>'+(lt?'<span class="rm mono" title="Right now at the nearest sensor">'+lt+'</span>':'')+'<span class="star'+(f?' on':'')+'" data-fav="'+p.key+'" title="Favorite">'+(f?'★':'☆')+'</span></button>';
+  return '<button class="row'+(on?' on':'')+'" data-k="'+p.key+'"><span class="rs">'+statusGlyph(p)+'</span><span class="rn">'+esc(p.name)+(p.user?' <span class="tagp">'+(p.user.status==="approved"?"added by a user":"yours \u00b7 pending")+'</span>':'')+(bell?' <span class="bell" title="Push alerts are on for this spot">🔔</span>':'')+'</span>'+(lt?'<span class="rm mono" title="Right now at the nearest sensor">'+lt+'</span>':'')+'<span class="star'+(f?' on':'')+'" data-fav="'+p.key+'" title="Favorite">'+(f?'★':'☆')+'</span></button>';
 }
 function buildPicker(q){
   var list=document.getElementById("pick-list"), cur=currentPlace().key;
@@ -804,9 +856,10 @@ function buildPicker(q){
   ["upper","lake","strip","mid","below"].forEach(function(seg){
     var ps=PLACES.filter(function(p){ return segFor(p)===seg && (!q || p.name.toLowerCase().indexOf(q)>=0 || SEG_LABEL[seg].toLowerCase().indexOf(q)>=0); });
     if(!ps.length) return;
-    html+='<div class="grp">'+SEG_LABEL[seg]+'</div>'+ps.map(function(p){ return rowHtml(p, p.key===cur); }).join("");
+    html+='<div class="grp">'+SEG_LABEL[seg]+'</div>'+ps.map(function(p){ return rowHtml(p, p.key===cur)+(window.MarksUI?MarksUI.markRows(p):""); }).join("");
   });
   if(!html) html='<div class="grp">Nothing matches “'+esc(q)+'” — try a town, resort, bridge, or dam name.</div>';
+  if(window.MarksUI) html+=MarksUI.addButtons();
   html+='<p class="note" style="padding:0 8px">Each spot shows the water right now at its nearest sensor: the arrow is the trend, the number is feet above (+) or below (−) this week’s average there (or flow where there’s no height gauge). ★ favorite · 🔔 alerts on.</p>';
   list.innerHTML=html;
 }
@@ -906,5 +959,6 @@ window.onRiverRender=function(){ renderSimple(); try{ renderOutlook14(heroModel(
 // First paint before any data: show the spot name right away.
 (function(){ try{ if(store.get(PLACE_KEY)) document.getElementById("spot-name").textContent=currentPlace().name; renderRibbon(currentPlace()); }catch(e){} })();
 </script>
+<script src="/marks-ui.js?v=2026-09-29f"></script>
 </body>
 </html>

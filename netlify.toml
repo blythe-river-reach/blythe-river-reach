@@ -5,7 +5,7 @@
 # page's own river.js under Node, so it is shipped inside the bundle.
 [functions]
   node_bundler = "esbuild"
-  included_files = ["river.js"]
+  included_files = ["river.js", "marks-math.js"]
 
 # Pretty per-spot URLs (/s/<key>) all serve the one page. Cloudflare Web
 # Analytics groups by path (it drops query strings), so this is what makes

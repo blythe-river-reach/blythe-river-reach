@@ -58,3 +58,16 @@ function evalSpot(ctx, spotKey) {
 }
 
 module.exports = { makeContext, loadData, evalSpot };
+
+// Modeled level at a spot (built-in key, or a user place {id,name,mile}) at
+// time t: { cfs, ft (vs this week's average), stage (absolute sensor stage) }.
+function levelAt(ctx, place, t) {
+  let pl;
+  if (typeof place === "string") pl = ctx.PLACES.find((p) => p.key === place);
+  else if (place && place.mile > 0) { ctx.addUserPlaces([place]); pl = ctx.PLACES.find((p) => p.key === "u:" + place.id); }
+  if (!pl) return null;
+  ctx.store.set(ctx.PLACE_KEY, pl.key);
+  ctx.rebuild();
+  return ctx.levelAtSpot(pl, t);
+}
+module.exports.levelAt = levelAt;

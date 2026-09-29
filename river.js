@@ -801,6 +801,7 @@ function buildRating(key){
     return null;
   };
   fn.offset=wkDat-wkMin; // add to a datum-relative value to get feet above the week's low
+  fn.datum=wkDat;        // add to a datum-relative value to get the sensor's absolute gage height
   return fn;
 }
 // ONE 5-bucket level scale for the whole page: the eyebrow pill AND every
@@ -1753,6 +1754,35 @@ function renderHeadgate(){
   noteEl.textContent=(fc.srcNote.indexOf("Headgate report")>=0) ? ((hgData&&hgData.note)||"") : "";
 }
 
+// ---------- depth marks: the modeled level at a spot at a moment ----------
+// Flow at the spot at time t (past from the shifted sensor record, future from
+// the blended outlook), and the reference sensor's ABSOLUTE stage for that
+// flow — the stable scale every user depth reading is stored against.
+function flowAtSpot(pl, t){
+  var ol=blendedOutlook(pl); if(!ol) return null;
+  var pts=(ol.flowP||[]).concat(ol.blend||[]).filter(function(p){ return p && p.t!=null; }).sort(function(a,b){ return a.t-b.t; });
+  if(pts.length<2) return null;
+  if(t<pts[0].t-3600000 || t>pts[pts.length-1].t+3600000) return null;
+  if(t<=pts[0].t) return pts[0].v; if(t>=pts[pts.length-1].t) return pts[pts.length-1].v;
+  for(var i=1;i<pts.length;i++){ if(pts[i].t>=t){ var a=pts[i-1], b=pts[i], w=(b.t>a.t)?(t-a.t)/(b.t-a.t):0; return a.v+(b.v-a.v)*w; } }
+  return null;
+}
+function stageAbsAt(pl, v){ var r=tideRating(pl); if(!r || v==null || r.datum==null) return null; var s=r(v); return s==null?null:s+r.datum; }
+function levelAtSpot(pl, t){
+  var v=flowAtSpot(pl, t); if(v==null) return null;
+  var r=tideRating(pl), ft=r?r(v):null, stage=stageAbsAt(pl, v);
+  return { t:t, cfs:v, ft:ft, stage:stage, ref:(refFor(pl)||{}).key||null };
+}
+// User-added places ("u:<id>") join the place list so every engine path (ref
+// sensor, travel time, outlook, alerts) treats them like any other spot.
+function addUserPlaces(list){
+  (list||[]).forEach(function(u){
+    if(!u || !u.id || !(u.mile>0)) return;
+    var key="u:"+u.id, ex=PLACES.find(function(p){ return p.key===key; });
+    if(ex){ ex.name=u.name; ex.mile=u.mile; ex.user=u; return; }
+    PLACES.push({key:key, name:u.name, mile:u.mile, user:u});
+  });
+}
 // ---------- forecast replay (hindcast) ----------
 // Rewind the page's clock: hide every reading after the cutoff, feed the dam's
 // ACTUAL release as its plan, run the very same outlook the page shows, and
