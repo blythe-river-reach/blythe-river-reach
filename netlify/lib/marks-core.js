@@ -112,6 +112,7 @@ async function act(stores, body) {
   const all = await listAll(store, ""); const rec = all.find((r) => r.id === id); if (!rec) return { error: "not found", status: 404 };
   const key = rec._key; delete rec._key;
   if (action === "delete") { await store.delete(key); return { ok: true, deleted: id }; }
+  if (action === "setmile") { if (type !== "place") return { error: "mile only applies to places", status: 400 }; const mile = +body.mile; if (!(mile >= 40 && mile <= 280)) return { error: "mile out of range", status: 400 }; rec.mile = +mile.toFixed(2); rec.mileEditedAt = new Date().toISOString(); await store.setJSON(key, rec); return { ok: true, record: rec }; }
   const allowed = type === "reading" ? { ok: "ok", hide: "hidden" } : { approve: "approved", hide: "hidden", pending: "pending" };
   if (!allowed[action]) return { error: "action", status: 400 };
   rec.status = allowed[action]; rec.reviewedAt = new Date().toISOString();

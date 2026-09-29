@@ -445,7 +445,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29l</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29m</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -481,6 +481,7 @@ try{
     <p class="lead" style="margin:6px 0 4px">A beach, sandbar, dock or anywhere on the river that isn’t in the list. It stays private to you until it’s approved.</p>
     <label class="fld">Name<input id="pl-name" maxlength="60" placeholder="e.g. Our sandbar below the point"></label>
     <div class="fld-row"><label class="fld">River mile<input id="pl-mile" type="number" step="0.1" min="40" max="280" placeholder="from the location button"></label><label class="fld">&nbsp;<button class="tbtn" id="pl-geo-btn" style="width:100%; margin-top:5px">🧭 Use my location</button></label></div>
+    <label class="fld">Or place it by a spot you know<div class="fld-row" style="margin-top:5px"><select id="pl-side" style="margin-top:0; flex:0 0 auto; width:auto"><option value="up">just upstream of</option><option value="down">just downstream of</option><option value="at">right at</option></select><select id="pl-anchor" style="margin-top:0"></select><button class="tbtn" id="pl-anchor-btn">Use it</button></div></label>
     <label class="fld">Or paste a waypoint<div class="fld-row" style="margin-top:5px"><input id="pl-coords" style="margin-top:0" placeholder="33.7123, -114.5012 · DMS · or a Maps link"><button class="tbtn" id="pl-coords-btn">Use it</button></div></label>
     <p class="note" id="pl-geo" style="margin-top:6px"></p>
     <label class="fld">Note (optional)<input id="pl-note" maxlength="200" placeholder="what’s here, how to find it"></label>
@@ -962,6 +963,6 @@ window.onRiverRender=function(){ renderSimple(); try{ renderOutlook14(heroModel(
 // First paint before any data: show the spot name right away.
 (function(){ try{ if(store.get(PLACE_KEY)) document.getElementById("spot-name").textContent=currentPlace().name; renderRibbon(currentPlace()); }catch(e){} })();
 </script>
-<script src="/marks-ui.js?v=2026-09-29g"></script>
+<script src="/marks-ui.js?v=2026-09-29h"></script>
 </body>
 </html>

@@ -112,14 +112,25 @@
   // River mile from a pin: interpolate between the two nearest known places by
   // distance (good to about a mile on this straight-ish river).
   function mileFromPin(lat, lon){
-    var pts=[]; PLACES.forEach(function(p){ var g=PLACE_GEO[p.key]; if(g) pts.push({p:p, d:haversineMi([lat,lon], g)}); });
+    var pts=[]; PLACES.forEach(function(p){ var g=PLACE_GEO[p.key] || (p.user && p.user.status==="approved" && p.user.lat!=null ? [p.user.lat, p.user.lon] : null); if(g) pts.push({p:p, d:haversineMi([lat,lon], g)}); });
     if(pts.length<2) return null; pts.sort(function(a,b){ return a.d-b.d; });
     var a=pts[0], b=pts.find(function(x){ return Math.abs(x.p.mile-a.p.mile)>0.5; }) || pts[1];
     var w=a.d/((a.d+b.d)||1); var mile=a.p.mile+(b.p.mile-a.p.mile)*w;
     return { mile:+mile.toFixed(1), near:a.p, near2:b.p, dist:a.d };
   }
   // add a place
-  function openPlace(){ $("pl-name").value=""; $("pl-mile").value=""; $("pl-geo").textContent=""; $("pl-coords").value=""; $("pl-sheet")._pin=null; openS("pl-sheet"); }
+  function openPlace(){
+    $("pl-name").value=""; $("pl-mile").value=""; $("pl-geo").textContent=""; $("pl-coords").value=""; $("pl-sheet")._pin=null;
+    var cur=currentPlace(), opts=PLACES.filter(function(p){ return !/^u:/.test(p.key); }).slice().sort(function(a,b){ return b.mile-a.mile; });
+    $("pl-anchor").innerHTML=opts.map(function(p){ return '<option value="'+p.key+'"'+(p.key===cur.key?' selected':'')+'>'+esc(p.name)+'</option>'; }).join("");
+    openS("pl-sheet");
+  }
+  function useAnchor(){
+    var p=PLACES.find(function(x){ return x.key===$("pl-anchor").value; }); if(!p) return;
+    var side=$("pl-side").value, mile=p.mile+(side==="up"?0.5:side==="down"?-0.5:0);
+    $("pl-mile").value=mile.toFixed(1);
+    $("pl-geo").textContent="River mile "+mile.toFixed(1)+" \u2014 "+(side==="at"?"right at ":side==="up"?"about half a mile above ":"about half a mile below ")+p.name+". Adjust the mile if you know it better (1 mile \u2248 15 min of pulse travel).";
+  }
   function savePlace(){
     var name=$("pl-name").value.trim(), mile=parseFloat($("pl-mile").value), pin=$("pl-sheet")._pin;
     if(name.length<2){ toast("Give the place a name."); return; }
@@ -171,7 +182,7 @@
   }
   // ---- wiring ----
   document.addEventListener("click", function(ev){
-    var t=ev.target.closest && ev.target.closest("[data-pick-mark],#pick-add-mark,#pick-add-place,#mk-x,#pl-x,#rd-x,#mk-save,#pl-save,#rd-save,#mk-geo-btn,#pl-geo-btn,#mk-coords-btn,#pl-coords-btn,#rd-kind-depth,#rd-kind-rung");
+    var t=ev.target.closest && ev.target.closest("[data-pick-mark],#pick-add-mark,#pick-add-place,#mk-x,#pl-x,#rd-x,#mk-save,#pl-save,#rd-save,#mk-geo-btn,#pl-geo-btn,#mk-coords-btn,#pl-coords-btn,#pl-anchor-btn,#rd-kind-depth,#rd-kind-rung");
     if(!t) return;
     if(t.hasAttribute("data-pick-mark")){ setMark(t.getAttribute("data-pick-mark")); return; }
     switch(t.id){
@@ -184,6 +195,7 @@
       case "mk-geo-btn": geo(function(lat,lon,acc){ $("mk-sheet")._pin=[lat,lon]; $("mk-geo").textContent="Pinned ("+(acc?"±"+Math.round(acc)+" m":"")+")"; }); break;
       case "pl-geo-btn": geo(function(lat,lon,acc){ var r=mileFromPin(lat,lon); $("pl-sheet")._pin=[lat,lon]; if(r){ $("pl-mile").value=r.mile; $("pl-geo").textContent="Pinned — about river mile "+r.mile+", between "+r.near.name+" and "+r.near2.name+(r.dist>3?" ("+r.dist.toFixed(0)+" mi from the nearest known spot — check the mile)":""); } else $("pl-geo").textContent="Pinned, but couldn’t work out the river mile — type it."; }); break;
       case "pl-coords-btn": usePasted("pl-sheet","pl-coords","pl-geo",true); break;
+      case "pl-anchor-btn": useAnchor(); break;
       case "mk-coords-btn": usePasted("mk-sheet","mk-coords","mk-geo",false); break;
       case "rd-kind-depth": $("rd-kind-depth").classList.add("on"); $("rd-kind-rung").classList.remove("on"); $("rd-depth-wrap").style.display=""; $("rd-rung-wrap").style.display="none"; break;
       case "rd-kind-rung": $("rd-kind-rung").classList.add("on"); $("rd-kind-depth").classList.remove("on"); $("rd-depth-wrap").style.display="none"; $("rd-rung-wrap").style.display=""; break;
