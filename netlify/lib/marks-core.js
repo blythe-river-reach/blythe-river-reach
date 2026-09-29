@@ -147,6 +147,11 @@ async function getFlags(stores) { const f = await stores.settings.get("flags", {
 async function setFlags(stores, patchObj) {
   const cur = await getFlags(stores), next = Object.assign({}, cur);
   if (patchObj && typeof patchObj.marksEnabled === "boolean") next.marksEnabled = patchObj.marksEnabled;
+  if (patchObj && patchObj.notice !== undefined) {
+    const n = patchObj.notice;
+    if (!n || !String(n.text || "").trim()) delete next.notice;
+    else next.notice = { text: clean(n.text, 280), until: (n.until && isFinite(+new Date(n.until))) ? new Date(n.until).toISOString() : null, level: n.level === "warn" ? "warn" : "info", setAt: new Date().toISOString() };
+  }
   next.updatedAt = new Date().toISOString();
   await stores.settings.setJSON("flags", next); return next;
 }

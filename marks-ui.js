@@ -17,8 +17,9 @@
 
   // ---- load marks + user places (once per page load, then on demand) ----
   var ENABLED=null;
+  function showNotice(n){ var el=$("site-notice"); if(!el) return; if(!n || !n.text){ el.style.display="none"; return; } el.className="site-notice "+(n.level==="warn"?"warn":"info"); el.innerHTML='<b>Notice:</b> '+esc(n.text)+(n.until?' <span class="muted-sm">(until '+azTime(new Date(n.until).getTime())+')</span>':''); el.style.display="block"; }
   function load(){
-    return api("GET","/api/marks/config").then(function(c){ ENABLED=!!c.marksEnabled; }).catch(function(){ ENABLED=false; }).then(function(){
+    return api("GET","/api/marks/config").then(function(c){ ENABLED=!!c.marksEnabled; showNotice(c.notice); }).catch(function(){ ENABLED=false; }).then(function(){
       if(!ENABLED){ MARKS=[]; MARKS_BY_SPOT={}; UPLACES=[]; loaded=true; document.body.classList.add("marks-off"); if(typeof rebuild==="function") setTimeout(rebuild,0); return; }
       document.body.classList.remove("marks-off");
       return loadLists();

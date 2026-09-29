@@ -63,6 +63,7 @@
   .status-line{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; margin:8px 2px 0; min-height:18px}
   .banner{background:#2a1f14; border:1px solid #6b4a1e; color:#f0c98a; border-radius:10px; padding:10px 14px; font-size:13px; margin-top:12px; display:none}
   body.day .banner{background:#fdf3dd; border-color:#c9a25a; color:#6b4a00}
+  .site-notice{border-radius:10px; padding:10px 14px; font-size:13.5px; margin-top:12px; border:1px solid var(--water); background:rgba(56,189,224,.10); color:var(--text)} .site-notice.warn{border-color:#f2b64a; background:rgba(242,182,74,.12)}
 
   /* ---------- river ribbon ---------- */
   .ribbon{margin:14px -16px 0; padding:0 16px; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch}
@@ -331,6 +332,7 @@ try{
 </header>
 <div class="status-line"><span id="load-spin" class="spin" style="display:none"></span><span id="updated" aria-live="polite">Loading…</span></div>
 <div class="banner" id="banner"></div>
+<div class="site-notice" id="site-notice" style="display:none"></div>
 
 <nav class="ribbon" id="ribbon" aria-label="Tap a landmark to jump there"><div class="ribbon-in" id="ribbon-in"></div></nav>
 
@@ -486,7 +488,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29w</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29x</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -1059,6 +1061,6 @@ window.onRiverRender=function(){ renderSimple(); try{ renderOutlook14(heroModel(
 // First paint before any data: show the spot name right away.
 (function(){ try{ if(store.get(PLACE_KEY)) document.getElementById("spot-name").textContent=currentPlace().name; renderRibbon(currentPlace()); }catch(e){} })();
 </script>
-<script src="/marks-ui.js?v=2026-09-29o"></script>
+<script src="/marks-ui.js?v=2026-09-29p"></script>
 </body>
 </html>

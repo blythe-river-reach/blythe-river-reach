@@ -33,7 +33,34 @@
 <div id="app"><p class="muted">Enter the admin key (the push run key unless you set ADMIN_KEY) and load.</p></div>
 <div id="lb"><img alt=""></div>
 <script>
-var KEY_STORE="blythe_admin_key", Q=null, TAB="review";
+var KEY_STORE="blythe_admin_key", Q=null, TAB="review", DATA=null;
+function branch(){ var h=location.hostname||""; if(/^dev--/.test(h)||/localhost|127\.0\.0\.1/.test(h)) return "dev"; var m=h.match(/^([a-z0-9-]+)--/); return m?m[1]:"main"; }
+function loadData(){ var b=branch(), f=b==="main"?"/data/riverdata.json":"/data/riverdata-"+b+".json"; return fetch(f+"?t="+Date.now(),{cache:"no-store"}).then(function(r){ return r.ok?r.json():null; }).then(function(d){ DATA=d; }).catch(function(){ DATA=null; }); }
+function ageTxt(t){ var m=Math.round((Date.now()-t)/60000); if(m<1) return "just now"; if(m<60) return m+" min"; var h=m/60; if(h<48) return h.toFixed(1)+" h"; return Math.round(h/24)+" d"; }
+function healthHtml(){
+  if(!DATA) return '<p class="empty">Couldn\u2019t load the data file for this branch.</p>';
+  var d=DATA, gen=new Date(d.generatedAt).getTime(), h="";
+  var stale=Date.now()-gen>60*60000;
+  h+='<div class="tiles"><div class="tile'+(stale?' bad':'')+'"><b>'+ageTxt(gen)+'</b><span class="muted">since the robot last ran ('+when(d.generatedAt)+')</span></div>';
+  var ps=d.parkerSchedule&&d.parkerSchedule.points&&d.parkerSchedule.points.length?d.parkerSchedule.points[d.parkerSchedule.points.length-1].t:null;
+  h+='<div class="tile'+(ps&&ps-Date.now()<24*3600e3?' warn':'')+'"><b>'+(ps?((ps-Date.now())/3600e3).toFixed(0)+' h':'\u2014')+'</b><span class="muted">of Parker plan ahead'+(ps?' (to '+when(ps)+')':'')+'</span></div>';
+  var u=d.usgs; h+='<div class="tile'+(!u?' bad':(u.carried?' warn':''))+'"><b>'+(u?ageTxt(new Date(u.fetchedAt).getTime()):'\u2014')+'</b><span class="muted">USGS relay age'+(u&&u.carried?' \u00b7 carried: '+esc(u.carried):'')+'</span></div>';
+  h+='<div class="tile'+((d.errors||[]).length?' warn':'')+'"><b>'+(d.errors||[]).length+'</b><span class="muted">robot notes this run</span></div></div>';
+  if((d.errors||[]).length) h+='<div class="card"><b>Robot notes</b><ul class="muted" style="margin:6px 0 0; padding-left:18px">'+d.errors.map(function(e){ return '<li>'+esc(e)+'</li>'; }).join("")+'</ul></div>';
+  h+='<div class="card"><b>Sensors</b><table><tr><th>Station</th><th>Newest reading</th><th>Age</th><th>Flow</th><th>Stage</th></tr>'+(d.stations||[]).map(function(s){ var f=s.flow&&s.flow.length?s.flow[s.flow.length-1]:null, g=s.stage&&s.stage.length?s.stage[s.stage.length-1]:null, t=Math.max(f?f.t:0,g?g.t:0); var old=t&&Date.now()-t>3*3600e3; return '<tr><td>'+esc(s.name)+'</td><td>'+(t?when(t):'\u2014')+'</td><td'+(old?' style="color:var(--bad)"':'')+'>'+(t?ageTxt(t):'\u2014')+'</td><td class="mono">'+(f?Math.round(f.v).toLocaleString()+' cfs':'')+'</td><td class="mono">'+(g?g.v.toFixed(2)+' ft':'')+'</td></tr>'; }).join("")+'</table></div>';
+  var c=d.calibration; if(c) h+='<div class="card"><b>Travel-time calibration</b> <span class="muted">river-wide '+c.waveMph+' mph \u00b7 spread '+(c.dispHPerMile!=null?c.dispHPerMile+' h/mi':'\u2014')+' \u00b7 gain '+(c.gainPerMile!=null?c.gainPerMile+'/mi':'\u2014')+' \u00b7 flow exponent '+(c.betaFlow!=null?c.betaFlow:'\u2014')+'</span><table><tr><th>Stretch</th><th>Lag</th><th>Speed</th><th>Spread</th><th>Gain</th><th>Flow exp.</th><th>Fit r</th></tr>'+(c.segments||[]).map(function(s){ return '<tr><td>'+esc(s.from)+' \u2192 '+esc(s.to)+' <span class="muted">'+s.miles+' mi</span></td><td class="mono">'+s.lagHours+' h</td><td class="mono">'+s.mph+' mph</td><td class="mono">'+(s.sigmaH!=null?s.sigmaH+' h':'')+'</td><td class="mono">'+(s.gain!=null?s.gain:'')+'</td><td class="mono">'+(s.beta!=null?s.beta:'')+'</td><td class="mono">'+s.r+'</td></tr>'; }).join("")+'</table></div>';
+  var o=d.outlook; if(o&&o.skill) h+='<div class="card"><b>14-day outlook skill</b> <span class="muted">(error of the rhythm-based projection, by how far ahead)</span><pre class="muted" style="white-space:pre-wrap; font-size:12px; margin:6px 0 0">'+esc(JSON.stringify(o.skill))+'</pre></div>';
+  return h;
+}
+function pushHtml(){
+  var p=Q.push; if(!p) return '<p class="empty">No subscriber data.</p>'; if(p.error) return '<p class="empty">Couldn\u2019t read subscribers: '+esc(p.error)+'</p>';
+  var rows=Object.keys(p.bySpot||{}).sort(function(a,b){ return p.bySpot[b]-p.bySpot[a]; }).map(function(k){ return '<tr><td>'+esc(spotName(k))+'</td><td class="mono">'+p.bySpot[k]+'</td></tr>'; }).join("");
+  return '<div class="tiles"><div class="tile"><b>'+p.total+'</b><span class="muted">push subscribers</span></div></div><div class="card"><div class="row"><div class="grow"><b>Run alerts now</b><div class="muted">Evaluates every subscriber against the newest data for this branch and sends whatever is due, exactly as the robot does after each run. Nothing is sent twice.</div></div><button id="runalerts">Run now</button></div><div class="muted" id="runalerts-out" style="margin-top:6px"></div></div>'+(rows?'<div class="card"><b>By spot</b><table><tr><th>Spot</th><th>Subscribers</th></tr>'+rows+'</table></div>':'');
+}
+function noticeHtml(){
+  var n=Q.flags&&Q.flags.notice, active=n&&(!n.until||new Date(n.until).getTime()>Date.now());
+  return '<div class="card"><b>Site notice</b><div class="muted">A short message shown near the top of every page, for things like a maintenance release or a closed ramp. Leave the text empty to clear it.</div>'+(n?'<div class="muted" style="margin-top:6px">Current: \u201c'+esc(n.text)+'\u201d'+(n.until?' until '+when(n.until):'')+(active?'':' \u00b7 <span style="color:var(--warn)">expired</span>')+'</div>':'')+'<div class="row" style="margin-top:8px"><input id="nt-text" class="grow" maxlength="280" placeholder="Message" value="'+esc(n?n.text:'')+'"><select id="nt-level"><option value="info"'+(n&&n.level!=="warn"?' selected':'')+'>Info</option><option value="warn"'+(n&&n.level==="warn"?' selected':'')+'>Warning</option></select><input id="nt-until" type="datetime-local" title="Show until (optional)"><button class="primary" id="nt-save">Save notice</button></div></div>';
+}
 try{ document.getElementById("key").value=localStorage.getItem(KEY_STORE)||""; }catch(e){}
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
 function key(){ var k=document.getElementById("key").value.trim(); try{ localStorage.setItem(KEY_STORE,k); }catch(e){} return k; }
@@ -58,9 +85,10 @@ function render(){
   var q=Q, c=q.counts||{}, on=!!(q.flags&&q.flags.marksEnabled), h="";
   h+='<div class="switch"><div class="grow"><b>Landmarks &amp; depth marks on the site</b><div class="muted">Off hides the whole feature from visitors (picker rows, panel, add buttons). Everything stays stored; switch it back on any time.'+(q.flags&&q.flags.updatedAt?' Changed '+when(q.flags.updatedAt)+'.':'')+'</div></div><span class="st '+(on?'on':'off')+'">'+(on?'ON':'OFF')+'</span><button class="primary" id="toggle">'+(on?'Turn off':'Turn on')+'</button></div>';
   h+='<div class="tiles"><div class="tile'+(c.pendingPlaces?' warn':'')+'"><b>'+(c.pendingPlaces||0)+'</b><span class="muted">places to review</span></div><div class="tile'+(c.pendingMarks?' warn':'')+'"><b>'+(c.pendingMarks||0)+'</b><span class="muted">marks to review</span></div><div class="tile'+(c.flagged?' bad':'')+'"><b>'+(c.flagged||0)+'</b><span class="muted">flagged readings</span></div><div class="tile"><b>'+(c.readings||0)+'</b><span class="muted">readings in all \u00b7 '+(c.marks||0)+' marks \u00b7 '+(c.places||0)+' places</span></div></div>';
-  var tabs=[["review","Needs review"],["places","Places"],["marks","Marks"],["readings","Readings"]];
+  var tabs=[["review","Needs review"],["all","All"],["places","Places"],["marks","Marks"],["readings","Readings"],["health","Data health"],["push","Notifications"],["notice","Site notice"]];
   h+='<div class="tabs">'+tabs.map(function(t){ return '<button data-tab="'+t[0]+'"'+(TAB===t[0]?' class="on"':'')+'>'+t[1]+'</button>'; }).join("")+'</div>';
   var order={pending:0, approved:1, hidden:2}, srt=function(a,b){ return (order[a.status]||0)-(order[b.status]||0) || (a.createdAt<b.createdAt?1:-1); };
+  if(TAB==="all"){ /* handled below */ }
   if(TAB==="review"){
     var pp=q.places.filter(function(p){ return p.status==="pending"; }), pm=q.marks.filter(function(m){ return m.status==="pending"; }), fr=q.readings.filter(function(r){ return r.status==="flagged"; });
     h+='<h2>Places waiting ('+pp.length+')</h2>'+(pp.length?pp.map(placeCard).join(""):'<p class="empty">Nothing waiting.</p>');
@@ -68,17 +96,23 @@ function render(){
     h+='<h2>Flagged readings ('+fr.length+')</h2>'+(fr.length?'<div class="card flagged">'+readingsTable(fr)+'</div>':'<p class="empty">Nothing flagged.</p>');
   } else if(TAB==="places"){ h+=q.places.length?q.places.slice().sort(srt).map(placeCard).join(""):'<p class="empty">No user places yet.</p>'; }
   else if(TAB==="marks"){ h+=q.marks.length?q.marks.slice().sort(srt).map(markCard).join(""):'<p class="empty">No marks yet.</p>'; }
-  else { h+=q.marks.length?q.marks.slice().sort(srt).map(markCard).join(""):'<p class="empty">No marks, so no readings.</p>'; }
+  else if(TAB==="readings"){ h+=q.marks.length?q.marks.slice().sort(srt).map(markCard).join(""):'<p class="empty">No marks, so no readings.</p>'; }
+  else if(TAB==="all"){ h+='<h2>Places ('+q.places.length+')</h2>'+(q.places.length?q.places.slice().sort(srt).map(placeCard).join(""):'<p class="empty">None.</p>')+'<h2>Marks ('+q.marks.length+') and their readings</h2>'+(q.marks.length?q.marks.slice().sort(srt).map(markCard).join(""):'<p class="empty">None.</p>'); }
+  else if(TAB==="health"){ h+=healthHtml(); }
+  else if(TAB==="push"){ h+=pushHtml(); }
+  else if(TAB==="notice"){ h+=noticeHtml(); }
   document.getElementById("app").innerHTML=h;
   var k=key(); document.querySelectorAll("img.ph").forEach(function(img){ fetch("/api/marks-admin?photo="+encodeURIComponent(img.getAttribute("data-photo")),{headers:{"x-admin-key":k}}).then(function(r){ return r.ok?r.blob():null; }).then(function(bl){ if(bl){ img.src=URL.createObjectURL(bl); } }).catch(function(){}); });
 }
-function load(){ var st=document.getElementById("status"); st.textContent="Loading\u2026"; return api("GET").then(function(q){ Q=q; st.textContent="Loaded "+new Date().toLocaleTimeString(); render(); }).catch(function(e){ st.textContent="Error: "+e.message; }); }
+function load(){ var st=document.getElementById("status"); st.textContent="Loading\u2026"; return Promise.all([api("GET"), loadData()]).then(function(rs){ Q=rs[0]; st.textContent="Loaded "+new Date().toLocaleTimeString()+" \u00b7 "+branch(); render(); }).catch(function(e){ st.textContent="Error: "+e.message; }); }
 document.getElementById("load").addEventListener("click", load);
 document.getElementById("key").addEventListener("keydown", function(e){ if(e.key==="Enter") load(); });
 document.getElementById("app").addEventListener("click", function(ev){
   var t=ev.target.closest("button,img.ph"); if(!t) return;
   if(t.matches("img.ph")){ var lb=document.getElementById("lb"); lb.querySelector("img").src=t.src; lb.classList.add("open"); return; }
   if(t.hasAttribute("data-tab")){ TAB=t.getAttribute("data-tab"); render(); return; }
+  if(t.id==="runalerts"){ t.disabled=true; var o=document.getElementById("runalerts-out"); o.textContent="Running\u2026"; api("POST",{type:"runalerts", branch:branch()}).then(function(r){ o.textContent="Done: "+r.subscribers+" subscribers, "+r.due+" due, "+r.sent+" sent, "+r.failed+" failed, "+r.removed+" removed (data "+when(r.generatedAt)+")."; t.disabled=false; }).catch(function(e){ o.textContent="Error: "+e.message; t.disabled=false; }); return; }
+  if(t.id==="nt-save"){ var txt=document.getElementById("nt-text").value.trim(), lv=document.getElementById("nt-level").value, un=document.getElementById("nt-until").value; t.disabled=true; api("POST",{type:"settings", notice: txt?{text:txt, level:lv, until: un?new Date(un).toISOString():null}:null}).then(load).catch(function(e){ alert(e.message); t.disabled=false; }); return; }
   if(t.id==="toggle"){ var on=!!(Q.flags&&Q.flags.marksEnabled); t.disabled=true; api("POST",{type:"settings", marksEnabled:!on}).then(load).catch(function(e){ alert(e.message); t.disabled=false; }); return; }
   var row=t.closest("[data-type]"), a=t.getAttribute("data-a"); if(!row||!a) return;
   if(a==="delete" && !confirm("Delete permanently? This cannot be undone.")) return;

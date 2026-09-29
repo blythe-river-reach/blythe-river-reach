@@ -18,10 +18,27 @@ export default async (req) => {
   try {
     const url = new URL(req.url), pid = url.searchParams.get("photo");
     if (req.method === "GET" && pid) { const r = await C.photoFor(S, "", true, pid); if (r.error) return json(r, r.status || 404); return new Response(r.buf, { status: 200, headers: { "content-type": "image/jpeg", "cache-control": "private, no-store" } }); }
-    if (req.method === "GET") return json({ ok: true, spots: spots(), ...(await C.queue(S)) });
+    if (req.method === "GET") {
+      // push subscribers by spot (counts only; no endpoints leave the function)
+      let push = null;
+      try {
+        const ps = getStore({ name: "push-subs", consistency: "strong" }); const { blobs } = await ps.list(); const bySpot = {}; let n = 0;
+        for (const b of blobs) { const rec = await ps.get(b.key, { type: "json" }).catch(() => null); if (rec && rec.subscription) { n++; bySpot[rec.spot] = (bySpot[rec.spot] || 0) + 1; } }
+        push = { total: n, bySpot };
+      } catch (e) { push = { error: String(e && e.message || e) }; }
+      return json({ ok: true, spots: spots(), push, ...(await C.queue(S)) });
+    }
     if (req.method === "POST") {
       let body = {}; try { body = await req.json(); } catch (e) { return json({ error: "bad json" }, 400); }
       if (body.type === "settings") return json({ ok: true, flags: await C.setFlags(S, body) });
+      if (body.type === "runalerts") {
+        const runKey = process.env.PUSH_RUN_KEY; if (!runKey) return json({ error: "PUSH_RUN_KEY not configured on this site" }, 503);
+        const base = (process.env.DEPLOY_PRIME_URL || process.env.URL || "").replace(/\/$/, ""); if (!base) return json({ error: "site URL unknown" }, 500);
+        const branch = /^[a-z0-9-]{1,40}$/.test(String(body.branch || "")) ? body.branch : "main";
+        const r = await fetch(base + "/api/push/run", { method: "POST", headers: { "x-run-key": runKey, "content-type": "application/json" }, body: JSON.stringify({ branch }), signal: AbortSignal.timeout(50000) });
+        const out = await r.json().catch(() => ({ error: "bad response " + r.status }));
+        return json(out, r.ok ? 200 : 502);
+      }
       const r = await C.act(S, body); return json(r, r.error ? (r.status || 400) : 200);
     }
     return json({ error: "method" }, 405);
