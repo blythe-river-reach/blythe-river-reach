@@ -451,7 +451,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29p</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29q</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -854,7 +854,7 @@ function levelText(p){ // cheap live level for the list: nearest sensor, no trav
 }
 function rowHtml(p, on){
   var f=favs().indexOf(p.key)>=0, ps=pushState(), bell=(ps && ps.spot===p.key), lt=levelText(p);
-  return '<button class="row'+(on?' on':'')+'" data-k="'+p.key+'"><span class="rs">'+statusGlyph(p)+'</span><span class="rn">'+esc(p.name)+(p.user?' <span class="tagp">'+(p.user.status==="approved"?"added by a user":"yours \u00b7 pending")+'</span>':'')+(bell?' <span class="bell" title="Push alerts are on for this spot">🔔</span>':'')+'</span>'+((window.MarksUI && MarksUI.marksFor(p.key).length)?'<span class="mk-badge" data-mk="'+p.key+'" title="Depth marks here">\u2933 '+MarksUI.marksFor(p.key).length+'</span>':'')+(lt?'<span class="rm mono" title="Right now at the nearest sensor">'+lt+'</span>':'')+'<span class="star'+(f?' on':'')+'" data-fav="'+p.key+'" title="Favorite">'+(f?'★':'☆')+'</span></button>';
+  return '<button class="row'+(on?' on':'')+'" data-k="'+p.key+'"><span class="rs">'+statusGlyph(p)+'</span><span class="rn">'+esc(p.name)+(p.user?' <span class="tagp">'+(p.user.status==="approved"?"community":"yours \u00b7 pending")+'</span>':'')+(bell?' <span class="bell" title="Push alerts are on for this spot">🔔</span>':'')+'</span>'+((window.MarksUI && MarksUI.marksFor(p.key).length)?'<span class="mk-badge" data-mk="'+p.key+'" title="Depth marks here">\u2933 '+MarksUI.marksFor(p.key).length+'</span>':'')+(lt?'<span class="rm mono" title="Right now at the nearest sensor">'+lt+'</span>':'')+'<span class="star'+(f?' on':'')+'" data-fav="'+p.key+'" title="Favorite">'+(f?'★':'☆')+'</span></button>';
 }
 var PICK_OPEN_KEY="blythe_pickopen_v1", PICK_MARKS_OPEN={};
 function pickOpen(){ return store.get(PICK_OPEN_KEY)||null; }
