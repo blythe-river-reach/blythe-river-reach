@@ -5,18 +5,25 @@ import { getStore } from "@netlify/blobs";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const C = require("../lib/marks-core.js");
+const E = require("../lib/engine-node.js");
+let spotNames = null; // built-in spot key -> name, read once from river.js
+function spots() { if (!spotNames) { try { const ctx = E.makeContext(); spotNames = {}; for (const p of ctx.PLACES) spotNames[p.key] = p.name; } catch (e) { spotNames = {}; } } return spotNames; }
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 
 export default async (req) => {
   const want = process.env.ADMIN_KEY || process.env.PUSH_RUN_KEY;
   if (!want) return json({ error: "ADMIN_KEY not configured" }, 503);
   if (req.headers.get("x-admin-key") !== want) return json({ error: "unauthorized" }, 401);
-  const S = { places: getStore("marks-places"), marks: getStore("marks-marks"), readings: getStore("marks-readings"), ratelimit: getStore("marks-ratelimit"), photos: getStore("marks-photos") };
+  const S = { places: getStore("marks-places"), marks: getStore("marks-marks"), readings: getStore("marks-readings"), ratelimit: getStore("marks-ratelimit"), photos: getStore("marks-photos"), settings: getStore("marks-settings") };
   try {
     const url = new URL(req.url), pid = url.searchParams.get("photo");
     if (req.method === "GET" && pid) { const r = await C.photoFor(S, "", true, pid); if (r.error) return json(r, r.status || 404); return new Response(r.buf, { status: 200, headers: { "content-type": "image/jpeg", "cache-control": "private, no-store" } }); }
-    if (req.method === "GET") return json({ ok: true, ...(await C.queue(S)) });
-    if (req.method === "POST") { let body = {}; try { body = await req.json(); } catch (e) { return json({ error: "bad json" }, 400); } const r = await C.act(S, body); return json(r, r.error ? (r.status || 400) : 200); }
+    if (req.method === "GET") return json({ ok: true, spots: spots(), ...(await C.queue(S)) });
+    if (req.method === "POST") {
+      let body = {}; try { body = await req.json(); } catch (e) { return json({ error: "bad json" }, 400); }
+      if (body.type === "settings") return json({ ok: true, flags: await C.setFlags(S, body) });
+      const r = await C.act(S, body); return json(r, r.error ? (r.status || 400) : 200);
+    }
     return json({ error: "method" }, 405);
   } catch (e) { return json({ error: String(e && e.message || e) }, 500); }
 };

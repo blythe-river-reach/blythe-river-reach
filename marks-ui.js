@@ -13,10 +13,18 @@
   function currentMarkId(){ return store.get(MARK_KEY)||null; }
   function currentMark(){ var id=currentMarkId(); if(!id) return null; for(var i=0;i<MARKS.length;i++) if(MARKS[i].id===id) return MARKS[i]; return null; }
   function setMark(id){ store.set(MARK_KEY, id||null); RD_CACHE={}; if(typeof rebuild==="function") setTimeout(rebuild,0); }
-  window.MarksUI={ marksFor:function(k){ return MARKS_BY_SPOT[k]||[]; }, myMarks:function(){ return MARKS.filter(function(m){ return m.mine; }); }, currentMarkId:currentMarkId, setMark:setMark, loaded:function(){ return loaded; } };
+  window.MarksUI={ enabled:function(){ return !!ENABLED; }, marksFor:function(k){ return MARKS_BY_SPOT[k]||[]; }, myMarks:function(){ return MARKS.filter(function(m){ return m.mine; }); }, currentMarkId:currentMarkId, setMark:setMark, loaded:function(){ return loaded; } };
 
   // ---- load marks + user places (once per page load, then on demand) ----
+  var ENABLED=null;
   function load(){
+    return api("GET","/api/marks/config").then(function(c){ ENABLED=!!c.marksEnabled; }).catch(function(){ ENABLED=false; }).then(function(){
+      if(!ENABLED){ MARKS=[]; MARKS_BY_SPOT={}; UPLACES=[]; loaded=true; document.body.classList.add("marks-off"); if(typeof rebuild==="function") setTimeout(rebuild,0); return; }
+      document.body.classList.remove("marks-off");
+      return loadLists();
+    });
+  }
+  function loadLists(){
     return Promise.all([api("GET","/api/places"), api("GET","/api/marks")]).then(function(rs){
       UPLACES=rs[0].places||[]; MARKS=rs[1].marks||[]; MARKS_BY_SPOT={};
       MARKS.forEach(function(m){ (MARKS_BY_SPOT[m.spot]=MARKS_BY_SPOT[m.spot]||[]).push(m); });
@@ -116,6 +124,7 @@
   }
   function renderStrip(){
     var el=$("mark-strip"); if(!el) return;
+    if(!ENABLED){ el.style.display="none"; el.innerHTML=""; return; }
     var pl=currentPlace(), m=currentMark();
     if(!m || m.spot!==pl.key){ if(m && m.spot!==pl.key){ /* moved spots: drop the mark quietly */ store.set(MARK_KEY,null); }
       var ms=MARKS_BY_SPOT[pl.key]||[];

@@ -141,10 +141,21 @@ async function photoFor(stores, device, admin, markId) {
   if (!buf) return { error: "no photo", status: 404 };
   return { ok: true, buf, photo: mark.photo, approved: mark.status === "approved" };
 }
+// ---- site settings: marksEnabled hides the whole feature from visitors ----
+const DEFAULT_FLAGS = { marksEnabled: false };
+async function getFlags(stores) { const f = await stores.settings.get("flags", { type: "json" }).catch(() => null); return Object.assign({}, DEFAULT_FLAGS, f || {}); }
+async function setFlags(stores, patchObj) {
+  const cur = await getFlags(stores), next = Object.assign({}, cur);
+  if (patchObj && typeof patchObj.marksEnabled === "boolean") next.marksEnabled = patchObj.marksEnabled;
+  next.updatedAt = new Date().toISOString();
+  await stores.settings.setJSON("flags", next); return next;
+}
 // ---- admin ----
 async function queue(stores) {
   const places = await listAll(stores.places, ""), marks = await listAll(stores.marks, ""), readings = await listAll(stores.readings, "");
-  return { places, marks, readings: readings.filter((r) => r.status === "flagged"), counts: { places: places.length, marks: marks.length, readings: readings.length } };
+  readings.sort((a, b) => b.t - a.t);
+  const flags = await getFlags(stores);
+  return { places, marks, readings: readings.slice(0, 600), flags, counts: { places: places.length, marks: marks.length, readings: readings.length, pendingPlaces: places.filter((p) => p.status === "pending").length, pendingMarks: marks.filter((m) => m.status === "pending").length, flagged: readings.filter((r) => r.status === "flagged").length } };
 }
 async function act(stores, body) {
   const type = String(body.type || ""), id = String(body.id || ""), action = String(body.action || "");
@@ -159,4 +170,4 @@ async function act(stores, body) {
   rec.status = allowed[action]; rec.reviewedAt = new Date().toISOString();
   await store.setJSON(key, rec); return { ok: true, record: rec };
 }
-module.exports = { listPlaces, createPlace, listMarks, createMark, getMark, listReadings, createReading, setPhoto, photoFor, setPins, queue, act, summarize, DEVICE_RE };
+module.exports = { listPlaces, createPlace, listMarks, createMark, getMark, listReadings, createReading, setPhoto, photoFor, setPins, getFlags, setFlags, queue, act, summarize, DEVICE_RE };

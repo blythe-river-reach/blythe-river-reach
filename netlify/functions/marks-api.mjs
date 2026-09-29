@@ -16,7 +16,7 @@ const C = require("../lib/marks-core.js");
 const E = require("../lib/engine-node.js");
 const REPO = "blythe-river-reach/blythe-river-reach";
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
-const stores = () => ({ places: getStore("marks-places"), marks: getStore("marks-marks"), readings: getStore("marks-readings"), ratelimit: getStore("marks-ratelimit"), photos: getStore("marks-photos") });
+const stores = () => ({ places: getStore("marks-places"), marks: getStore("marks-marks"), readings: getStore("marks-readings"), ratelimit: getStore("marks-ratelimit"), photos: getStore("marks-photos"), settings: getStore("marks-settings") });
 
 // Engine on the freshest data for this branch; cached per warm function instance.
 let cache = { branch: null, at: 0, ctx: null, data: null };
@@ -32,6 +32,7 @@ async function engineFor(branch) {
 export default async (req) => {
   const url = new URL(req.url), path = url.pathname.replace(/\/+$/, "");
   const S = stores();
+  if (path.endsWith("/marks/config")) { const f = await C.getFlags(S); return json({ ok: true, marksEnabled: !!f.marksEnabled }); }
   if (path.endsWith("/marks/photo")) {
     const id = String(url.searchParams.get("mark") || "");
     if (req.method === "GET") {
@@ -79,4 +80,4 @@ export default async (req) => {
   } catch (e) { return json({ error: String(e && e.message || e) }, 500); }
 };
 
-export const config = { path: ["/api/marks", "/api/marks/photo", "/api/marks/pins", "/api/places", "/api/readings"] };
+export const config = { path: ["/api/marks", "/api/marks/config", "/api/marks/photo", "/api/marks/pins", "/api/places", "/api/readings"] };
