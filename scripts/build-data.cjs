@@ -224,6 +224,31 @@ function xcorrPair(aPts, bPts, miles) {
   if (!(mph >= 1 && mph <= 12)) return null;
   return { lagHours: +lagH.toFixed(2), r: +best.r.toFixed(3), mph: +mph.toFixed(2) };
 }
+// Once the lag is known: how much does a pulse SPREAD over the stretch? The
+// gaussian width (hours) that best maps the upstream series onto the
+// downstream one. Smaller widths win ties so noise can't inflate it.
+function dispersionFit(aPts, bPts, lagH) {
+  const am = {}; for (const p of aPts) am[Math.round(p.t / 3600000)] = p.v;
+  const lag = Math.round(lagH); let best = null;
+  for (const sig of [0, 0.5, 1, 1.5, 2, 3, 4, 5, 6, 8, 10]) {
+    const w = Math.ceil(3 * sig); const xs = [], ys = [];
+    for (const q of bPts) {
+      const k = Math.round(q.t / 3600000) - lag;
+      if (am[k - w] == null || am[k + w] == null) continue; // whole kernel inside the data
+      let sv = 0, sw = 0;
+      for (let j = -w; j <= w; j++) { const v = am[k + j]; if (v == null) continue; const g = sig ? Math.exp(-j * j / (2 * sig * sig)) : (j === 0 ? 1 : 0); sv += v * g; sw += g; }
+      if (!sw) continue; xs.push(sv / sw); ys.push(q.v);
+    }
+    if (xs.length < 72) continue;
+    const n = xs.length, mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+    let sxy = 0, sxx = 0; for (let i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; }
+    if (!sxx) continue;
+    const b = sxy / sxx, a = my - b * mx; let se = 0; for (let i = 0; i < n; i++) se += (ys[i] - (a + b * xs[i])) ** 2;
+    const rmse = Math.sqrt(se / n);
+    if (!best || rmse < best.rmse * 0.98) best = { sigmaH: sig, gain: +b.toFixed(2), rmse: Math.round(rmse) };
+  }
+  return best;
+}
 function calibrate(stations) {
   const by = {}; for (const s of stations) by[s.key] = s;
   const PAIRS = [
@@ -234,17 +259,31 @@ function calibrate(stations) {
     ["i10", "taylor", 14.7], ["taylor", "cibola", 19.3],
     ["cibola", "picacho", 25.3], ["picacho", "martinez", 7.0]
   ];
+  // Alternates used only when a primary pair's gauge is dark (I-10 has been
+  // missing from the feed): they must not overlap a stretch already covered.
+  const ALT = [
+    ["waterwheel", "mcintyrepark", 38.25], ["mcintyrepark", "taylor", 7.15],
+    ["bigbend", "interstate", 21.7]
+  ];
+  const MILE = { davis: 276.0, belowdavis: 275.4, bigbend: 265.9, boyscout: 254.7, interstate: 244.2, topockg: 233.65, parkergage: 175.3, waterwheel: 152.0, i10: 121.3, mcintyrepark: 113.75, taylor: 106.6, oxbow: 93.6, cibola: 87.3, picacho: 62.0, martinez: 55.0 };
   const segments = [];
-  for (const [a, b, mi] of PAIRS) {
-    if (by[a] && by[b] && by[a].flow.length && by[b].flow.length) {
-      const x = xcorrPair(by[a].flow, by[b].flow, mi);
-      if (x) segments.push({ from: a, to: b, miles: mi, ...x });
-    }
-  }
+  const tryPair = (a, b, mi) => {
+    if (!(by[a] && by[b] && by[a].flow.length && by[b].flow.length)) return;
+    const x = xcorrPair(by[a].flow, by[b].flow, mi);
+    if (!x) return;
+    const df = dispersionFit(by[a].flow, by[b].flow, x.lagHours);
+    segments.push({ from: a, to: b, miles: mi, ...x, ...(df ? { sigmaH: df.sigmaH, gain: df.gain } : {}) });
+  };
+  for (const [a, b, mi] of PAIRS) tryPair(a, b, mi);
+  const covered = (a, b) => segments.some(s => { const lo = Math.min(MILE[s.from], MILE[s.to]), hi = Math.max(MILE[s.from], MILE[s.to]); const l2 = Math.min(MILE[a], MILE[b]), h2 = Math.max(MILE[a], MILE[b]); return Math.min(hi, h2) - Math.max(lo, l2) > 0.5; });
+  for (const [a, b, mi] of ALT) if (MILE[a] != null && MILE[b] != null && !covered(a, b)) tryPair(a, b, mi);
   if (!segments.length) return null;
   const mphs = segments.map(s => s.mph).sort((p, q) => p - q);
   const waveMph = +(mphs[Math.floor(mphs.length / 2)]).toFixed(1);
-  return { waveMph, segments };
+  // River-wide spread per mile (median over stretches long enough to measure it).
+  const rates = segments.filter(s => s.sigmaH != null && s.miles >= 8).map(s => s.sigmaH / s.miles).sort((p, q) => p - q);
+  const dispHPerMile = rates.length ? +(rates[Math.floor(rates.length / 2)]).toFixed(3) : null;
+  return { waveMph, dispHPerMile, segments };
 }
 
 // Fetch JSON with retries: Reclamation's generator sometimes serves a truncated

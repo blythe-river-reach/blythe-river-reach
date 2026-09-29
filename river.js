@@ -47,6 +47,11 @@ try{
 // How fast a release pulse travels downstream. Calibrate: watch one high pass a sensor,
 // note when it reaches your dock, adjust until the times match.
 var WAVE_MPH = 4;
+var DISP_H_PER_MILE = 0.12; // default pulse spread (gaussian sigma, hours) per river mile; the robot measures the real figure per stretch
+// Far gauges that may be chained as en-route water for a segment even though
+// they sit above a diversion (their level is trued to the nearest gauge).
+var CHAIN_EXTRA = { below:["waterwheel","parkergage"] };
+var PLUMBING = { critcanal:1, wasteway:1, pvcanal:1 }; // canal gauges: shown, never used as river references
 // Documented Reclamation river miles (from the official river mile index, Aug 2001).
 var PARKER_MILE = 192.2, HEADGATE_MILE = 177.7, PVDAM_MILE = 133.8;
 var SENSORS = [
@@ -162,6 +167,53 @@ function stretchHours(mA, mB){
   return hrs;
 }
 function lagMsFrom(refMile, p){ return (refMile>=p.mile?1:-1) * stretchHours(refMile, p.mile) * 3600 * 1000; }
+// Dispersion: a release pulse doesn't so much SHRINK on its way downstream as
+// SPREAD out in time (channel storage, mixed velocities). Each calibrated
+// stretch carries its own measured spread; variances add along the route, and
+// the river-wide per-mile figure covers stretches no gauge pair measures.
+function stretchSigmaH(mA, mB){
+  var lo=Math.min(mA,mB), hi=Math.max(mA,mB), rem=hi-lo, v=0;
+  var segs=(relayCal && relayCal.segments) || [];
+  for(var i=0;i<segs.length;i++){
+    var s=segs[i], a=sensorInfo(s.from), b=sensorInfo(s.to);
+    if(!a || !b || s.sigmaH==null || !(s.sigmaH>=0 && s.sigmaH<=24)) continue;
+    var sl=Math.min(a.mile,b.mile), sh=Math.max(a.mile,b.mile);
+    var ol=Math.max(lo,sl), oh=Math.min(hi,sh);
+    if(oh>ol && sh>sl){ var fr=(oh-ol)/(sh-sl); v += (s.sigmaH*fr)*(s.sigmaH*fr); rem -= (oh-ol); }
+  }
+  var k=(relayCal && relayCal.dispHPerMile>=0.02 && relayCal.dispHPerMile<=0.3) ? relayCal.dispHPerMile : DISP_H_PER_MILE;
+  var r=Math.max(0,rem)*k; v += r*r;
+  return Math.sqrt(v);
+}
+// Gaussian time-smoothing of a series (v, and lo/hi bands when present).
+function disperse(series, sigmaH){
+  if(!series || series.length<3 || !(sigmaH>0.25)) return series||[];
+  var sg=sigmaH*3600000, w=3*sg, n=series.length, out=new Array(n), j0=0;
+  for(var i=0;i<n;i++){
+    var p=series[i], t=p.t;
+    while(j0<n && series[j0].t<t-w) j0++;
+    var sv=0, sl=0, sh=0, sw=0, hasB=true;
+    for(var j=j0;j<n && series[j].t<=t+w;j++){
+      var d=(series[j].t-t)/sg, g=Math.exp(-0.5*d*d);
+      sv+=series[j].v*g; sw+=g;
+      if(series[j].lo!=null && series[j].hi!=null){ sl+=series[j].lo*g; sh+=series[j].hi*g; } else hasB=false;
+    }
+    var o={t:t, v:sw?sv/sw:p.v};
+    if(p.lo!=null && p.hi!=null){ o.lo=(hasB&&sw)?sl/sw:p.lo; o.hi=(hasB&&sw)?sh/sw:p.hi; }
+    if(p.est) o.est=true; if(p.past) o.past=true; if(p.src) o.src=p.src; if(p.src2) o.src2=p.src2;
+    out[i]=o;
+  }
+  return out;
+}
+// The dam's ACTUAL hourly release (7 days measured) replaces the plan for every
+// hour already elapsed: real overlap to calibrate every reach on, from day one.
+function withActualRelease(d, minus){
+  var st=STATIONS.find(function(s){ return s.key==="parker" && s.flow.length>=6; });
+  if(!st) return d;
+  var last=st.flow[st.flow.length-1].t;
+  var act=st.flow.map(function(p){ return {t:p.t, v:Math.max(0,p.v-minus), past:true}; });
+  return act.concat((d||[]).filter(function(p){ return p.t>last; }));
+}
 function lagLabel2(ms, label){
   var m = Math.round(ms/60000);
   if(Math.abs(m) < 3) return "right at "+label;
@@ -562,7 +614,7 @@ function rebuild(){
       }
     }
   });
-  var RIVER_ORDER={davis:-10, belowdavisusgs:-9, belowdavis:-8, bigbend:-7, boyscout:-6, interstate:-5, topockg:-4, parker:0, critcanal:1, parkergage:2, wasteway:3, waterwheel:4, pvcanal:5, belowpv:6, i10:7, mcintyrepark:8, taylor:9, oxbow:10, cibola:11, picacho:12, martinez:13};
+  var RIVER_ORDER={davis:-10, belowdavisusgs:-9, belowdavis:-8, bigbend:-7, boyscout:-6, interstate:-5, topockg:-4, parker:0, critcanal:51, parkergage:2, wasteway:52, waterwheel:4, pvcanal:53, belowpv:6, i10:7, mcintyrepark:8, taylor:9, oxbow:10, cibola:11, picacho:12, martinez:13};
   st.forEach(function(s){ if(RIVER_ORDER[s.key]!=null) s.order=RIVER_ORDER[s.key]; });
   st.sort(function(a,b){ return (a.order==null?99:a.order)-(b.order==null?99:b.order); });
   STATIONS=st;
@@ -583,7 +635,7 @@ function rebuild(){
 function getPrimary(){
   return STATIONS.find(function(s){ return s.primary && s.flow.length; })
       || STATIONS.find(function(s){ return s.key==="belowpv" && (s.flow.length||s.stage.length); })
-      || STATIONS.find(function(s){ return s.flow.length||s.stage.length; }) || null;
+      || STATIONS.find(function(s){ return !PLUMBING[s.key] && (s.flow.length||s.stage.length); }) || null;
 }
 function renderCal(){
   var lead=document.getElementById("cal-lead"), tbl=document.getElementById("cal-table");
@@ -617,7 +669,10 @@ function renderCards(){
     if(!loadingNow) grid.innerHTML='<div class="card" style="color:var(--muted)">No sensors reporting \u2014 try Refresh.</div>';
     return;
   }
+  var _plumbHead=false;
   grid.innerHTML = STATIONS.map(function(s){
+    var _head="";
+    if(PLUMBING[s.key] && !_plumbHead){ _plumbHead=true; _head='<div class="grid-head">Canals &amp; returns \u2014 plumbing gauges, shown for context; not river levels and never used as trend references</div>'; }
     var f=cur(s.flow), g=cur(s.stage), tr=trend(s.flow.length?s.flow:s.stage);
     var vals=s.flow.map(function(p){return p.v;});
     var lo=vals.length?Math.min.apply(null,vals):null, hi=vals.length?Math.max.apply(null,vals):null;
@@ -643,7 +698,7 @@ function renderCards(){
       if(_nv==null && cur(s[_hk])) _nv=cur(s[_hk]).v;
       if(_ys2 && _nv!=null) yrHtml='<div class="meta"><span>past year: above <span class="mono">'+Math.round(_ys2.pctOf(_nv)*100)+'%</span> of days</span><span class="adv-only">typical <span class="mono">'+histRange(_ys2.p25, _ys2.p75, _hk)+'</span></span></div>';
     }
-    return '<div class="card'+((_ref && s.key===_ref.key)?' primary':'')+'">'+
+    return _head+'<div class="card'+((_ref && s.key===_ref.key)?' primary':'')+'">'+
       '<div class="role"><span>'+((_ref && s.key===_ref.key)?('Reference for '+esc(_pl.name)):s.role)+'</span><span class="src">'+s.source+'</span></div>'+
       '<div class="name">'+s.name+'</div>'+
       '<div class="big"><span class="cfs mono">'+fmt(f?f.v:null)+'</span><span class="unit">cfs</span>'+
@@ -1304,25 +1359,52 @@ function forecastSeriesFor(pl){
   var seg=segFor(pl);
   var d=null, srcNote="", originMile=HEADGATE_MILE, originName="Headgate Rock Dam";
   var hg=(hgData && hgData.downstream && hgData.downstream.length) ? hgData : null;
+  var critV=(hg && hg.critAvg!=null) ? hg.critAvg : 1200;
   if(seg==="strip" || seg==="lake"){
     originMile=PARKER_MILE; originName="Parker Dam";
     if(psData && psData.length){ d=clean(withArchive(psData,"parker")); srcNote=" Parker Dam\u2019s own published schedule \u2014 full release, straight from the source."; }
     else if(hg && hg.parker && hg.parker.length){ d=clean(withArchive(hg.parker,"headgateParker")); srcNote=" Full Parker release \u2014 this stretch is above the CRIT canal turnout."; }
     else if(hg && hg.critAvg!=null){ d=clean(hg.downstream).map(function(p){ return mapV(p, function(v){ return v+hg.critAvg; }); }); srcNote=" Approximated by adding the CRIT diversion (~"+fmt(hg.critAvg)+" cfs) back in."; }
     else if(hg){ d=clean(hg.downstream); srcNote=" Note: this stretch actually carries ~1,200 cfs more (it\u2019s above the CRIT turnout)."; }
+    if(d && seg==="strip") d=withActualRelease(d, 0);
   } else if(seg==="upper"){
     originMile=DAVIS_MILE; originName="Davis Dam";
     if(dsData && dsData.length){ d=clean(withArchive(dsData,"davis")); srcNote=" Davis Dam\u2019s own published schedule \u2014 full release, straight from the source."; }
     else return null;
   } else {
-    if(!hg) return null;
-    d=clean(withArchive(hg.downstream,"headgate"));
+    // Below Headgate: drive from Parker Dam's own plan (refreshed hourly, exact
+    // for elapsed hours) minus the CRIT diversion. The Headgate report is the
+    // fallback: it is published once a day and can lag the plan by a day.
+    if(psData && psData.length){
+      d=clean(withArchive(psData,"parker")).map(function(p){ return mapV(p, function(v){ return Math.max(0, v-critV); }); });
+      srcNote=" Parker Dam\u2019s published plan minus the CRIT canal diversion (~"+fmt(critV)+" cfs pulled out at Headgate).";
+    } else if(hg){ d=clean(withArchive(hg.downstream,"headgate")); srcNote=" From the Headgate report (Parker inflow minus the CRIT diversion)."; }
+    else return null;
+    d=withActualRelease(d, critV);
+  }
+  if(!d || !d.length) return null;
+  // Dispersion: the run from the dam SPREADS each pulse in time rather than
+  // shrinking it. Smooth by the stretch's measured spread before anything else.
+  var sig=(seg==="lake") ? 0 : stretchSigmaH(originMile, pl.mile);
+  d=disperse(d, sig);
+  if(sig>=0.5) srcNote+=" Each pulse is spread ~"+(sig<1?sig.toFixed(1):Math.round(sig))+" h by the "+Math.round(Math.abs(originMile-pl.mile))+"-mile run from "+originName+" (the river smooths a release; it doesn\u2019t lose it).";
+  // Self-truing LEVEL: with the spread modelled, what's left is a level offset
+  // (diversions, drains, seepage, plan-vs-actual) learned from the hours the
+  // schedule and the local gauge have both already seen, on this spot's clock.
+  var tru=scheduleTrue(d, pl, seg==="lake"?null:originMile);
+  if(tru){
+    d=d.map(function(p){ return mapV(p, function(v){ return Math.max(0, tru.mMed+(v-tru.sMed)*tru.scale); }); });
+    var bits=[];
+    if(Math.abs(tru.sMed-tru.mMed)>=Math.max(120,0.04*tru.mMed)) bits.push('it runs ~'+fmt(Math.abs(tru.sMed-tru.mMed))+' cfs '+(tru.sMed>tru.mMed?'lower':'higher')+' here than the dam math says'+(seg==="below"&&tru.sMed>tru.mMed?' \u2014 mostly the Palo Verde diversion':''));
+    if(tru.scale<1) bits.push('the swing runs ~'+Math.round((1-tru.scale)*100)+'% smaller here');
+    if(tru.scale>1) bits.push('the swing runs ~'+Math.round((tru.scale-1)*100)+'% bigger here');
+    srcNote+=' Level trued to '+tru.label+(tru.overlap?' over the last '+tru.dbg.so+' h they overlap':'\u2019s last day')+(bits.length?' ('+bits.join('; ')+')':'')+'.';
+  } else if(seg!=="strip" && seg!=="lake" && seg!=="upper"){
+    // No overlap yet (a brand-new spot or a gauge outage): fall back to the
+    // flat plumbing arithmetic with the canal gauges' daily averages.
     if(pl.mile < WASTE_MILE){
       var ret=returnEst();
-      if(ret){
-        d=d.map(function(p){ return mapV(p, function(v){ return v+ret; }); });
-        srcNote+=" Plus the Poston Wasteway return (~"+fmt(ret)+" cfs \u00b7 USGS) that re-enters the river above Lost Lake.";
-      }
+      if(ret){ d=d.map(function(p){ return mapV(p, function(v){ return v+ret; }); }); srcNote+=" Plus the Poston Wasteway return (~"+fmt(ret)+" cfs \u00b7 USGS) that re-enters the river above Lost Lake."; }
     }
     if(seg==="below"){
       var dv=divEst();
@@ -1335,26 +1417,10 @@ function forecastSeriesFor(pl){
       else { srcNote+=" Levels here run lower than shown \u2014 Palo Verde diverts water above this point."; }
     }
   }
-  if(!d || !d.length) return null;
-  // Self-truing heights: the schedule predicts TIMING well, but by a distant
-  // reach both its absolute level (diversion estimates, drains, seepage) and
-  // its swing (an 80-mile run flattens the daily pulse) drift from what the
-  // local gauge actually reads. Match the forecast's typical level and swing
-  // width to the sensor's last daily cycle — never point-by-point, so a couple
-  // hours of travel-time error can't poison it.
-  var tru=scheduleTrue(d, pl, seg==="lake"?null:originMile);
-  if(tru){
-    d=d.map(function(p){ return mapV(p, function(v){ return Math.max(0, tru.mMed+(v-tru.sMed)*tru.scale); }); });
-    var bits=[];
-    if(Math.abs(tru.sMed-tru.mMed)>=Math.max(120,0.04*tru.mMed)) bits.push('the raw schedule math has run ~'+fmt(Math.abs(tru.sMed-tru.mMed))+' cfs '+(tru.sMed>tru.mMed?'high':'low')+' vs its readings lately');
-    if(tru.scale<1) bits.push('the daily swing flattens ~'+Math.round((1-tru.scale)*100)+'% over the long run to here');
-    if(tru.scale>1) bits.push('the daily swing runs ~'+Math.round((tru.scale-1)*100)+'% bigger here');
-    srcNote+=' Heights auto-trued to '+tru.label+(tru.overlap?' from the last day\u2019s overlap':'')+(bits.length?' ('+bits.join('; ')+')':'')+'.';
-  }
   var shift=(seg==="lake") ? 0 : lagMsFrom(originMile, pl);
-  var arrival=d.map(function(p){ var o=mapV(p, function(v){ return v; }); o.t=p.t+shift; return o; });
+  var arrival=d.map(function(p){ var o=mapV(p, function(v){ return v; }); o.t=p.t+shift; if(p.past) o.past=true; return o; });
   var schedEndAt=null; for(var si=0;si<arrival.length;si++){ if(arrival[si].est){ schedEndAt=si?arrival[si-1].t:arrival[si].t; break; } }
-  return { arrival:arrival, srcNote:srcNote, originMile:originMile, originName:originName, seg:seg, schedEndAt:schedEndAt };
+  return { arrival:arrival, srcNote:srcNote, originMile:originMile, originName:originName, seg:seg, schedEndAt:schedEndAt, sigmaH:sig };
 }
 function scheduleTrue(d, pl, originMile){
   var ref=refFor(pl);
@@ -1373,7 +1439,7 @@ function scheduleTrue(d, pl, originMile){
   d.forEach(function(p){ if(p.est) return; var tp=p.t+shift; if(tp>=w0 && tp<=now) sm[Math.round(tp/3600000)]=p.v; });
   var so=[], mo=[];
   ref.st.flow.forEach(function(p){ var tp=p.t+lagR; if(tp>=w0 && tp<=now){ var k=Math.round(tp/3600000); if(sm[k]!=null){ so.push(sm[k]); mo.push(p.v); } } });
-  var overlap=(so.length>=12), sv, mv;
+  var overlap=(so.length>=24), sv, mv;
   if(overlap){ sv=so; mv=mo; }
   else {
     // The strip/lake/upper forecasts ARE the dam's own plan and their reference
@@ -1393,9 +1459,16 @@ function scheduleTrue(d, pl, originMile){
   var sMed=q(sv,0.5), mMed=q(mv,0.5);
   var sSpan=q(sv,0.85)-q(sv,0.15), mSpan=q(mv,0.85)-q(mv,0.15);
   var scale=1;
-  if(sSpan>300 && mSpan>0){
-    scale=Math.max(0.2, Math.min(1.5, mSpan/sSpan));
-    if(scale>0.95 && scale<1.05) scale=1; // within noise
+  // The spread model already carries the reach's attenuation; only a gentle
+  // residual swing factor is allowed, and only from a day and a half of pairs.
+  if(overlap && so.length>=36 && sSpan>600 && mSpan>0){
+    scale=Math.max(0.7, Math.min(1.3, mSpan/sSpan));
+    if(scale>0.9 && scale<1.1) scale=1; // within noise
+  }
+  if(overlap && scale===1){
+    // Same hours on both sides: the level offset is the median paired difference.
+    var dif=[]; for(var di=0; di<so.length; di++) dif.push(mo[di]-so[di]);
+    sMed=0; mMed=q(dif,0.5);
   }
   if(scale===1 && Math.abs(sMed-mMed)<Math.max(80,0.03*mMed)) return null; // already true
   return {sMed:sMed, mMed:mMed, scale:scale, label:ref.label, overlap:overlap, dbg:{so:so.length, mo:mo.length, sSpan:Math.round(sSpan), mSpan:Math.round(mSpan), shiftH:+(shift/3600000).toFixed(1), lagRH:+(lagR/3600000).toFixed(1)}};
@@ -1406,7 +1479,7 @@ function scheduleTrue(d, pl, originMile){
 // level and swing over their overlap), shifted by the measured travel time.
 // The farther the chain reaches, the more hours of forecast are MEASUREMENT.
 function measuredArrival(pl){
-  var keys=SEG_REFS[segFor(pl)]||[], gs=[];
+  var keys=(SEG_REFS[segFor(pl)]||[]).concat(CHAIN_EXTRA[segFor(pl)]||[]), gs=[];
   keys.forEach(function(k){
     var sm=sensorInfo(k); if(!sm || sm.mile<pl.mile-0.5) return; // at-or-above only
     var st=STATIONS.find(function(s){ return s.key===k && s.flow.length>=6; }); if(!st) return;
@@ -1418,7 +1491,7 @@ function measuredArrival(pl){
   var base=null, out=[], coverEnd=0, srcs=[];
   gs.forEach(function(g){
     var lag=stretchHours(g.mile, pl.mile)*3600000;
-    var pts=g.flow.map(function(p){ return {t:p.t+lag, v:p.v, src:g.label}; });
+    var pts=disperse(g.flow.map(function(p){ return {t:p.t+lag, v:p.v, src:g.label}; }), stretchSigmaH(g.mile, pl.mile));
     if(!base){ base=pts; out=pts.slice(); coverEnd=pts[pts.length-1].t; srcs.push(g.label); return; }
     var tail=pts.filter(function(p){ return p.t>coverEnd+60000; });
     if(!tail.length) return;
@@ -1580,7 +1653,7 @@ function renderHeadgate(){
   lead.innerHTML='The dam\u2019s published release schedule, shifted to when that water reaches <b style="color:var(--text)">'+esc(pl.name)+'</b>. '+
     (ovPts ? '<b style="color:var(--text)">Solid = water already measured at the gauges upstream, en route here</b> (good through ~'+azClock(ol.horizon)+'); the dashed line beyond is the schedule.' : 'Dashed = forecast, not a reading.')+
     '<span class="adv-only"> From '+fc.originName+' ('+whereBit+'), assuming a ~'+WAVE_MPH+' mph pulse. Range ahead: <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b>\u2013<b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs'+((ftLo!=null&&ftHi!=null)?' (about <b class="mono" style="color:var(--text)">'+ftStr(ftLo)+'</b> to <b class="mono" style="color:var(--text)">'+ftStr(ftHi)+'</b> vs the weekly average)':'')+'.'+fc.srcNote+'</span>';
-  noteEl.textContent=(fc.seg==="strip"||fc.seg==="lake"||fc.seg==="upper") ? "" : ((hgData&&hgData.note)||"");
+  noteEl.textContent=(fc.srcNote.indexOf("Headgate report")>=0) ? ((hgData&&hgData.note)||"") : "";
 }
 
 // ---------- tide ----------
