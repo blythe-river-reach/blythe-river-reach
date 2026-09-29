@@ -87,7 +87,7 @@ async function createReading(stores, device, body, levelFn) {
   else if (kind === "rung" || kind === "between") {
     const ok = (id) => mark.ladder.some((r) => r.id === id);
     if (!ok(body.rung)) return { error: "pick a landmark", status: 400 }; rec.rung = body.rung;
-    if (kind === "between") { if (!ok(body.rung2) || body.rung2 === body.rung) return { error: "pick two landmarks", status: 400 }; rec.rung2 = body.rung2; }
+    if (kind === "between") { if (!ok(body.rung2) || body.rung2 === body.rung) return { error: "pick two landmarks", status: 400 }; rec.rung2 = body.rung2; if (body.frac != null && isFinite(+body.frac)) rec.frac = +Math.max(0, Math.min(1, +body.frac)).toFixed(3); }
   } else if (kind === "over" || kind === "under") { if (!mark.ladder.length) return { error: "this mark has no landmarks", status: 400 }; rec.rung = kind === "over" ? mark.ladder[mark.ladder.length - 1].id : mark.ladder[0].id; }
   else return { error: "kind must be depth, rung, between, over or under", status: 400 };
   const lv = await levelFn(mark, rec.t);
@@ -100,6 +100,24 @@ async function createReading(stores, device, body, levelFn) {
   await stores.readings.setJSON(mark.id + "/" + rec.t + "-" + rec.id, rec);
   const all = prior.concat([rec]);
   return { ok: true, reading: pub(rec, device), summary: summarize(mark, all, now) };
+}
+// ---- landmark positions on the photo (owner only): { rungId: {x, y} } in 0-1 ----
+async function setPins(stores, device, admin, markId, pins) {
+  const mark = await getMark(stores, markId); if (!mark) return { error: "no such mark", status: 404 };
+  if (!admin && mark.owner !== device) return { error: "only the mark's creator can place its landmarks", status: 403 };
+  if (!mark.photo) return { error: "add a photo first", status: 400 };
+  if (!pins || typeof pins !== "object") return { error: "pins required", status: 400 };
+  let n = 0;
+  for (const rg of mark.ladder) {
+    const p = pins[rg.id];
+    if (p === null) { delete rg.px; continue; }
+    if (!p) continue;
+    const x = +p.x, y = +p.y; if (!(x >= 0 && x <= 1 && y >= 0 && y <= 1)) return { error: "pin out of range", status: 400 };
+    rg.px = { x: +x.toFixed(4), y: +y.toFixed(4) }; n++;
+  }
+  const key = mark._key; delete mark._key; mark.pinsAt = new Date().toISOString();
+  await stores.marks.setJSON(key, mark);
+  return { ok: true, pinned: n, ladder: mark.ladder };
 }
 // ---- photos (one per mark; JPEG already shrunk by the page) ----
 const PHOTO_MAX = 800 * 1024;
@@ -141,4 +159,4 @@ async function act(stores, body) {
   rec.status = allowed[action]; rec.reviewedAt = new Date().toISOString();
   await store.setJSON(key, rec); return { ok: true, record: rec };
 }
-module.exports = { listPlaces, createPlace, listMarks, createMark, getMark, listReadings, createReading, setPhoto, photoFor, queue, act, summarize, DEVICE_RE };
+module.exports = { listPlaces, createPlace, listMarks, createMark, getMark, listReadings, createReading, setPhoto, photoFor, setPins, queue, act, summarize, DEVICE_RE };

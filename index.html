@@ -264,6 +264,14 @@
   .rd-photo-img{width:100%; height:180px; margin-top:8px}
   .linkbtn{background:none; border:0; color:var(--water); font:inherit; font-size:12.5px; cursor:pointer; padding:0; margin-left:6px; text-decoration:underline}
   #photo-lb{position:fixed; inset:0; background:rgba(0,0,0,.88); z-index:60; display:none; align-items:center; justify-content:center; cursor:zoom-out} #photo-lb.open{display:flex} #photo-lb img{max-width:96vw; max-height:92vh; border-radius:10px}
+  .ph-frame{position:relative; width:100%; overflow:hidden; border-radius:10px; border:1px solid var(--border); background:var(--panel2); margin-top:8px; user-select:none; -webkit-user-select:none}
+  .ph-frame img{display:block; width:100%; height:auto; pointer-events:none}
+  .ph-frame.tap{cursor:crosshair}
+  .ph-dot{position:absolute; transform:translate(-50%,-50%); width:14px; height:14px; border-radius:50%; background:#f2c94c; border:2px solid #111; box-shadow:0 0 0 2px rgba(255,255,255,.6)} .ph-dot.cur{background:var(--water); width:18px; height:18px}
+  .ph-dot .lbl{position:absolute; left:16px; top:-8px; white-space:nowrap; font-size:11.5px; font-weight:700; color:#fff; background:rgba(0,0,0,.6); padding:2px 6px; border-radius:6px}
+  .ph-line{position:absolute; left:0; right:0; height:0; border-top:2px solid var(--water); transform:translateY(-1px)} .ph-line.dash{border-top-style:dashed; opacity:.85} .ph-line.tapped{border-top:3px solid #fff}
+  .ph-line .lbl{position:absolute; right:6px; top:-20px; font-size:11.5px; font-weight:700; color:#fff; background:rgba(30,120,170,.85); padding:2px 7px; border-radius:6px; white-space:nowrap} .ph-line.dash .lbl{background:rgba(0,0,0,.6)}
+  .pin-chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px} .pin-chips .chip{cursor:pointer} .pin-chips .chip.cur{border-color:var(--water); color:var(--water)} .pin-chips .chip.done{opacity:.75}
   #mk-photo-prev{display:none; width:100%; max-height:220px; object-fit:cover; border-radius:10px; margin-top:8px; border:1px solid var(--border)}
   .tagp{font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:#f2b64a; border:1px solid #f2b64a; border-radius:999px; padding:1px 7px; margin-left:6px; font-weight:600}
   .row.sub{padding-left:26px; font-size:14px} .row.sub .rs{opacity:.6} .row .rl{color:var(--muted); font-size:12px}
@@ -457,7 +465,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29r</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29s</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -523,7 +531,8 @@ try{
   <div class="sheet-body" style="padding:0 16px 24px">
     <p class="note" id="rd-ref" style="margin:2px 0 0"></p>
     <div id="rd-photo"></div>
-    <div class="seg2"><button id="rd-kind-depth" class="on">Measured depth</button><button id="rd-kind-rung">Water is at a landmark</button></div>
+    <div class="seg2"><button id="rd-kind-depth" class="on">Measured depth</button><button id="rd-kind-rung">At a landmark</button><button id="rd-kind-tap">Tap the water line</button></div>
+    <div id="rd-tap-wrap" style="display:none"><div id="rd-frame"></div><p class="note" id="rd-tap-txt" style="margin-top:6px">Tap the photo where the water line is.</p></div>
     <div id="rd-depth-wrap"><div class="fld-row"><label class="fld">Feet<input id="rd-ft" type="number" inputmode="numeric" min="0" max="40" placeholder="0"></label><label class="fld">Inches<input id="rd-in" type="number" inputmode="numeric" min="0" max="11" placeholder="0"></label></div></div>
     <div id="rd-rung-wrap" style="display:none">
       <label class="fld">The water is<select id="rd-rmode"><option value="rung">right at</option><option value="between">between</option><option value="over">over the top of</option><option value="under">below the bottom of</option></select></label>
@@ -537,12 +546,22 @@ try{
     <p class="note">The time matters most: the river moves several feet a day, so the reading is matched to the level the sensors say this spot had at that moment.</p>
   </div>
 </div>
+<div class="sheet" id="pin-sheet" role="dialog" aria-modal="true" aria-label="Place landmarks on the photo">
+  <div class="sheet-hd"><h2>\u25ce Landmarks on the photo</h2><button class="x" id="pin-x" aria-label="Close">\u2715</button></div>
+  <div class="sheet-body" style="padding:0 16px 24px">
+    <p class="lead" id="pin-hint" style="margin:6px 0 2px"></p>
+    <div id="pin-frame"></div>
+    <div class="pin-chips" id="pin-chips"></div>
+    <p class="note">Tap where each landmark meets the water line, bottom of the ladder first. Tap a landmark\u2019s chip to move it. With two or more placed, anyone can report a reading by tapping the water line, and the page can draw where the water is on this photo.</p>
+    <button class="btn-water" id="pin-save">Save landmarks</button>
+  </div>
+</div>
 <input id="ms-photo-file" type="file" accept="image/*" capture="environment" style="display:none">
 <div id="photo-lb" role="dialog" aria-label="Photo"><img alt=""></div>
 <div class="toast" id="toast"></div>
 
 <script src="/river.js?v=2026-09-29g"></script>
-<script src="/marks-math.js?v=2026-09-29f"></script>
+<script src="/marks-math.js?v=2026-09-29m"></script>
 <script>
 // ============================================================
 // Simple-view UI, spot picker, and river ribbon — rendered on top of the
@@ -1017,6 +1036,6 @@ window.onRiverRender=function(){ renderSimple(); try{ renderOutlook14(heroModel(
 // First paint before any data: show the spot name right away.
 (function(){ try{ if(store.get(PLACE_KEY)) document.getElementById("spot-name").textContent=currentPlace().name; renderRibbon(currentPlace()); }catch(e){} })();
 </script>
-<script src="/marks-ui.js?v=2026-09-29l"></script>
+<script src="/marks-ui.js?v=2026-09-29m"></script>
 </body>
 </html>

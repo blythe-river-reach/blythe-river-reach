@@ -7,6 +7,7 @@
 //   POST /api/readings               { mark, kind, depth|rung|rung2, t, branch, note }
 //   POST /api/marks/photo?mark=<id>  JPEG bytes (shrunk by the page), owner only
 //   GET  /api/marks/photo?mark=<id>  the JPEG (public once the mark is approved; ?d=<device> for your own pending mark)
+//   POST /api/marks/pins             { mark, pins:{ rungId:{x,y} | null } } landmark positions on the photo, owner only
 // Every request carries x-device (a random id the page keeps in localStorage).
 import { getStore } from "@netlify/blobs";
 import { createRequire } from "node:module";
@@ -59,6 +60,8 @@ export default async (req) => {
     } else if (path.endsWith("/marks")) {
       if (req.method === "GET") return json({ ok: true, marks: await C.listMarks(S, device, false, url.searchParams.get("spot") || "") });
       if (req.method === "POST") return send(await C.createMark(S, device, body));
+    } else if (path.endsWith("/marks/pins")) {
+      if (req.method === "POST") return send(await C.setPins(S, device, false, String(body.mark || ""), body.pins));
     } else if (path.endsWith("/readings")) {
       if (req.method === "GET") return send(await C.listReadings(S, device, false, url.searchParams.get("mark") || ""));
       if (req.method === "POST") {
@@ -76,4 +79,4 @@ export default async (req) => {
   } catch (e) { return json({ error: String(e && e.message || e) }, 500); }
 };
 
-export const config = { path: ["/api/marks", "/api/marks/photo", "/api/places", "/api/readings"] };
+export const config = { path: ["/api/marks", "/api/marks/photo", "/api/marks/pins", "/api/places", "/api/readings"] };

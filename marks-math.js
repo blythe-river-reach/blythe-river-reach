@@ -46,8 +46,14 @@
     var u=usable(readings, now), out={}, anchor=null;
     ladder.forEach(function(rg, i){
       var st=u.filter(function(r){ return r.kind==="rung" && r.rung===rg.id; }).map(function(r){ return r.stage; });
-      // a "between A and B" reading pins the midpoint loosely to both
-      u.filter(function(r){ return r.kind==="between" && (r.rung===rg.id || r.rung2===rg.id); }).forEach(function(r){ st.push(r.stage + (r.rung===rg.id ? -0.25 : 0.25)); });
+      // a "between A and B" reading: with the owner's heights the fraction says
+      // exactly where each rung sits; otherwise it pins the midpoint loosely.
+      u.filter(function(r){ return r.kind==="between" && (r.rung===rg.id || r.rung2===rg.id); }).forEach(function(r){
+        var A=ladder.find(function(x){ return x.id===r.rung; }), B=ladder.find(function(x){ return x.id===r.rung2; });
+        var f=(r.frac!=null && isFinite(r.frac)) ? Math.max(0,Math.min(1,+r.frac)) : 0.5;
+        if(A && B && A.h!=null && B.h!=null && B.h>A.h){ var gap=B.h-A.h; st.push(r.rung===rg.id ? r.stage-f*gap : r.stage+(1-f)*gap); }
+        else st.push(r.stage + (r.rung===rg.id ? -0.25 : 0.25));
+      });
       out[rg.id]={ id:rg.id, label:rg.label, i:i, n:st.length, stage:st.length?med(st):null, spread:st.length>=3?+(med(st.map(function(v){ return Math.abs(v-med(st)); })) ).toFixed(2):null };
       if(st.length>=1 && !anchor) anchor={i:i, stage:out[rg.id].stage, h:rg.h};
     });
@@ -70,6 +76,19 @@
     for(var j=1;j<known.length;j++){ if(stage<known[j].stage) return {kind:"between", lo:known[j-1], hi:known[j], frac:(stage-known[j-1].stage)/((known[j].stage-known[j-1].stage)||1), text:"between "+known[j-1].label+" and "+known[j].label}; }
     return null;
   }
+  // Where the water sits on the photo (0 = top, 1 = bottom) for a stage, from
+  // rungs that have both a fitted stage and a tapped position. Two are enough;
+  // beyond the end rungs it extrapolates a little, then clamps.
+  function waterlineY(fit, ladder, stage){
+    if(!fit || !ladder || stage==null) return null;
+    var pts=ladder.map(function(rg){ var o=fit[rg.id]; return (o && o.stage!=null && rg.px && rg.px.y!=null) ? {s:o.stage, y:+rg.px.y} : null; }).filter(Boolean).sort(function(a,b){ return a.s-b.s; });
+    if(pts.length<2) return null;
+    var i=0; while(i<pts.length-2 && stage>pts[i+1].s) i++;
+    var a=pts[i], b=pts[i+1]; if(!(b.s>a.s)) return null;
+    var t=(stage-a.s)/(b.s-a.s), y=a.y+(b.y-a.y)*t;
+    var lo=Math.min(a.y,b.y), hi=Math.max(a.y,b.y), pad=0.35*(hi-lo);
+    return Math.max(0.02, Math.min(0.98, Math.max(lo-pad, Math.min(hi+pad, y))));
+  }
   // Does a new reading disagree with what the mark already knows?
   function flagReading(r, curve, ladderFit){
     if(!r || r.stage==null) return null;
@@ -79,5 +98,5 @@
     return null;
   }
   function fmtDepth(ft){ if(ft==null||!isFinite(ft)) return null; if(ft<0) ft=0; var f=Math.floor(ft), i=Math.round((ft-f)*12); if(i===12){ f++; i=0; } return f+"′"+(i?i+"″":"")+(f===0&&i===0?" (dry)":""); }
-  return { fitDepth:fitDepth, depthAt:depthAt, fitLadder:fitLadder, rungAt:rungAt, flagReading:flagReading, fmtDepth:fmtDepth, med:med, DEPTH_TOL:DEPTH_TOL };
+  return { fitDepth:fitDepth, depthAt:depthAt, fitLadder:fitLadder, rungAt:rungAt, waterlineY:waterlineY, flagReading:flagReading, fmtDepth:fmtDepth, med:med, DEPTH_TOL:DEPTH_TOL };
 });

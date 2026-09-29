@@ -59,6 +59,49 @@
   function photoUrl(m){ if(!m || !m.photo) return null; return "/api/marks/photo?mark="+encodeURIComponent(m.id)+"&v="+m.photo.at+(m.status!=="approved"&&m.mine?"&d="+encodeURIComponent(deviceId()):""); }
   function photoImg(m, cls){ var u=photoUrl(m); return u?'<img class="'+(cls||"ms-photo")+'" src="'+u+'" alt="Photo of the reference at '+esc(m.name)+'" data-lb="'+u+'">':""; }
   window.MarksUI.shrinkImage=shrinkImage; window.MarksUI.uploadPhoto=uploadPhoto; window.MarksUI.photoUrl=photoUrl;
+  // A photo with its landmarks (dots) and water lines drawn on it. Positions
+  // are fractions of the image, so it renders right at any width.
+  function frameHtml(m, opts){
+    opts=opts||{}; var u=photoUrl(m); if(!u) return "";
+    var pins=(opts.pins!=null)?opts.pins:{}; (m.ladder||[]).forEach(function(rg){ if(rg.px && pins[rg.id]===undefined) pins[rg.id]=rg.px; });
+    var dots=(m.ladder||[]).map(function(rg){ var p=pins[rg.id]; if(!p) return ""; return '<div class="ph-dot'+(opts.cur===rg.id?' cur':'')+'" style="left:'+(p.x*100).toFixed(2)+'%; top:'+(p.y*100).toFixed(2)+'%"><span class="lbl">'+esc(rg.label)+'</span></div>'; }).join("");
+    var lines=(opts.lines||[]).map(function(l){ return '<div class="ph-line'+(l.cls?' '+l.cls:'')+'" style="top:'+(l.y*100).toFixed(2)+'%"><span class="lbl">'+esc(l.label||"")+'</span></div>'; }).join("");
+    return '<div class="ph-frame'+(opts.tap?' tap':'')+'" id="'+(opts.id||'')+'"><img src="'+u+'" alt="Photo of the reference at '+esc(m.name)+'"'+(opts.lb?' data-lb="'+u+'"':'')+'>'+dots+lines+'</div>';
+  }
+  function fracAt(frame, ev){ var img=frame.querySelector("img"); var r=img.getBoundingClientRect(); var x=(ev.clientX-r.left)/r.width, y=(ev.clientY-r.top)/r.height; return {x:Math.max(0,Math.min(1,x)), y:Math.max(0,Math.min(1,y))}; }
+  function pinnedRungs(m){ return (m.ladder||[]).filter(function(rg){ return rg.px && rg.px.y!=null; }); }
+  // Which reading a tap at y means: right at a rung, between two, over the top, under the bottom.
+  function readingFromY(m, y){
+    var rs=pinnedRungs(m).slice().sort(function(a,b){ return b.px.y-a.px.y; }); // bottom (largest y) first
+    if(rs.length<2) return null;
+    for(var i=0;i<rs.length;i++){ if(Math.abs(y-rs[i].px.y)<=0.035) return {kind:"rung", rung:rs[i].id, text:"right at "+rs[i].label}; }
+    if(y>rs[0].px.y) return {kind:"under", rung:rs[0].id, text:"below "+rs[0].label};
+    var top=rs[rs.length-1]; if(y<top.px.y) return {kind:"over", rung:top.id, text:"over the top of "+top.label};
+    for(var j=1;j<rs.length;j++){ if(y>=rs[j].px.y){ var A=rs[j-1], B=rs[j], f=(A.px.y-y)/((A.px.y-B.px.y)||1); return {kind:"between", rung:A.id, rung2:B.id, frac:+f.toFixed(3), text:"between "+A.label+" and "+B.label+" ("+Math.round(f*100)+"% of the way up)"}; } }
+    return null;
+  }
+  // ---- pin sheet (owner places each landmark on the photo) ----
+  var PIN={m:null, pins:{}, cur:null};
+  function openPins(){
+    var m=currentMark(); if(!m || !m.photo || !(m.ladder&&m.ladder.length)) return;
+    PIN.m=m; PIN.pins={}; (m.ladder).forEach(function(rg){ if(rg.px) PIN.pins[rg.id]=rg.px; });
+    PIN.cur=(m.ladder.find(function(rg){ return !PIN.pins[rg.id]; })||m.ladder[0]).id;
+    renderPins(); openS("pin-sheet");
+  }
+  function renderPins(){
+    var m=PIN.m, cur=m.ladder.find(function(rg){ return rg.id===PIN.cur; });
+    $("pin-hint").innerHTML=cur ? 'Tap the photo where <b>'+esc(cur.label)+'</b> meets the water line.' : 'All landmarks placed \u2014 tap a chip to move one.';
+    $("pin-frame").innerHTML=frameHtml(m, {pins:PIN.pins, cur:PIN.cur, tap:true, id:"pin-ph"});
+    $("pin-chips").innerHTML=m.ladder.map(function(rg){ return '<button class="chip'+(rg.id===PIN.cur?' cur':'')+(PIN.pins[rg.id]?' done':'')+'" data-pin="'+rg.id+'">'+(PIN.pins[rg.id]?'\u25cf ':'\u25cb ')+esc(rg.label)+'</button>'; }).join("");
+  }
+  function savePins(){
+    var m=PIN.m, body={}; m.ladder.forEach(function(rg){ body[rg.id]=PIN.pins[rg.id]||null; });
+    var placed=m.ladder.filter(function(rg){ return PIN.pins[rg.id]; });
+    // sanity: the ladder runs bottom to top, so y should shrink up the list
+    for(var i=1;i<placed.length;i++){ if(PIN.pins[placed[i].id].y>PIN.pins[placed[i-1].id].y+0.02){ toast(placed[i].label+" is placed below "+placed[i-1].label+" \u2014 the ladder runs bottom to top. Tap a chip to move one.", 6000); return; } }
+    $("pin-save").disabled=true;
+    api("POST","/api/marks/pins",{mark:m.id, pins:body}).then(function(j){ $("pin-save").disabled=false; toast("Landmarks saved ("+j.pinned+" placed).", 3000); closeAll(); RD_CACHE={}; return load(); }).catch(function(e){ $("pin-save").disabled=false; toast(e.message, 5000); });
+  }
   function openLightbox(src){ var lb=$("photo-lb"); if(!lb) return; lb.querySelector("img").src=src; lb.classList.add("open"); }
   // ---- the strip under the tiles ----
   function stageForCfs(pl, v){ return (typeof stageAbsAt==="function") ? stageAbsAt(pl, v) : null; }
@@ -83,7 +126,8 @@
     el.style.display="block";
     var M=heroModel();
     el.innerHTML='<div class="ms-hd"><span>At <b>'+esc(m.name)+'</b>'+(m.status!=="approved"?' <span class="tagp">'+(m.status==="pending"?"awaiting approval · only you see it":m.status)+'</span>':'')+'</span><button class="tbtn" id="ms-report">✎ Report a reading</button></div>'+
-      '<div class="ms-ref">'+photoImg(m)+'<div class="ms-reftxt"><span class="muted-sm">Reference: </span>'+esc(m.ref)+(m.mine?' <button class="linkbtn" id="ms-photo-btn">'+(m.photo?"Replace photo":"Add a photo of the reference")+'</button>':'')+'</div></div>'+
+      '<div class="ms-ref">'+photoImg(m)+'<div class="ms-reftxt"><span class="muted-sm">Reference: </span>'+esc(m.ref)+(m.mine?' <button class="linkbtn" id="ms-photo-btn">'+(m.photo?"Replace photo":"Add a photo of the reference")+'</button>':'')+(m.mine&&m.photo&&m.ladder&&m.ladder.length?' <button class="linkbtn" id="ms-pins-btn">'+(pinnedRungs(m).length?"Move landmarks on the photo":"Place landmarks on the photo")+'</button>':'')+'</div></div>'+
+      '<div id="ms-frame"></div>'+
       '<div class="ms-body" id="ms-body">Loading readings…</div>';
     readingsFor(m.id, function(j){
       var body=$("ms-body"); if(!body) return;
@@ -95,6 +139,14 @@
         var now=Date.now(), nowP=M.f?phraseAt(m, sum, pl, M.f.v):null;
         html+='<div class="ms-line ms-now">'+(nowP?nowP+' <span class="muted-sm">now</span>':'<span class="muted-sm">no level yet</span>')+'</div>';
         (M.events||[]).slice(0,2).forEach(function(e){ var p=phraseAt(m, sum, pl, e.v); if(p) html+='<div class="ms-line">'+(e.type==="high"?"▲ high":"▼ low")+' '+p+' <span class="muted-sm">~'+azClock(e.t)+(dayKey(e.t)!==dayKey(now)?' '+azDay(e.t):'')+'</span></div>'; });
+        // the water drawn on the photo: now (solid) and the next high/low (dashed)
+        var fr=$("ms-frame");
+        if(fr && pinnedRungs(m).length>=2 && sum.ladder && M.f){
+          var lines=[], st0=stageForCfs(pl, M.f.v), y0=(st0!=null)?MarksMath.waterlineY(sum.ladder, m.ladder, st0):null;
+          if(y0!=null) lines.push({y:y0, label:"now"});
+          (M.events||[]).slice(0,2).forEach(function(e){ var st=stageForCfs(pl, e.v), y=(st!=null)?MarksMath.waterlineY(sum.ladder, m.ladder, st):null; if(y!=null) lines.push({y:y, label:(e.type==="high"?"high ":"low ")+azClock(e.t), cls:"dash"}); });
+          if(lines.length) fr.innerHTML=frameHtml(m, {lines:lines, lb:true})+'<p class="note" style="margin-top:4px">Water drawn from the sensors: solid = now, dashed = the next high and low. Landmarks need a reading or two before the lines settle.</p>';
+        }
         var q=[]; q.push(n+' reading'+(n===1?'':'s')); if(sum.lastT) q.push('last '+ago(sum.lastT)); if(sum.curve&&sum.curve.method==="fit") q.push('curve fitted'); else if(sum.curve) q.push('tracking the sensor 1:1 until 5+ readings span 1.5 ft'); if(sum.flagged) q.push(sum.flagged+' flagged for review');
         html+='<div class="muted-sm">'+q.join(' · ')+'</div>';
       }
@@ -102,10 +154,11 @@
     });
     el.querySelector("#ms-report").addEventListener("click", openReading);
     var pb=el.querySelector("#ms-photo-btn"); if(pb) pb.addEventListener("click", function(){ var f=$("ms-photo-file"); if(f){ f.value=""; f.click(); } });
+    var pn=el.querySelector("#ms-pins-btn"); if(pn) pn.addEventListener("click", openPins);
   }
   // ---- sheets ----
   function openS(id){ $(id).classList.add("open"); $("sheet-bg").classList.add("open"); }
-  function closeAll(){ ["mk-sheet","pl-sheet","rd-sheet"].forEach(function(id){ var e=$(id); if(e) e.classList.remove("open"); }); var sh=$("sheet"), al=$("al-sheet"); if(!(sh&&sh.classList.contains("open")) && !(al&&al.classList.contains("open"))) $("sheet-bg").classList.remove("open"); }
+  function closeAll(){ ["mk-sheet","pl-sheet","rd-sheet","pin-sheet"].forEach(function(id){ var e=$(id); if(e) e.classList.remove("open"); }); var sh=$("sheet"), al=$("al-sheet"); if(!(sh&&sh.classList.contains("open")) && !(al&&al.classList.contains("open"))) $("sheet-bg").classList.remove("open"); }
   window.MarksUI.closeAll=closeAll;
   function geo(cb){ if(!navigator.geolocation){ toast("Location isn’t available in this browser."); return; } toast("Getting your location…", 5000); navigator.geolocation.getCurrentPosition(function(pos){ cb(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy); }, function(err){ toast(err&&err.code===1?"Location permission was denied.":"Couldn’t get your location."); }, {enableHighAccuracy:true, timeout:12000, maximumAge:60000}); }
   // A pasted waypoint in any common form -> [lat, lon]. Accepts decimal pairs
@@ -202,13 +255,20 @@
     var m=currentMark(); if(!m) return;
     $("rd-mark").textContent=m.name; $("rd-ref").textContent=m.ref;
     var ph=$("rd-photo"); if(ph){ ph.innerHTML=photoImg(m, "rd-photo-img"); }
-    var hasL=!!(m.ladder&&m.ladder.length);
-    $("rd-kind-rung").style.display=hasL?"":"none"; $("rd-kind-rung").classList.toggle("on", false); $("rd-kind-depth").classList.add("on");
-    $("rd-depth-wrap").style.display=""; $("rd-rung-wrap").style.display="none";
+    var hasL=!!(m.ladder&&m.ladder.length), canTap=!!(m.photo && pinnedRungs(m).length>=2);
+    $("rd-kind-rung").style.display=hasL?"":"none"; $("rd-kind-tap").style.display=canTap?"":"none";
+    RD_TAP=null; $("rd-tap-wrap").style.display="none"; $("rd-tap-txt").textContent="Tap the photo where the water line is.";
+    setRdKind(canTap?"tap":"depth");
     $("rd-ft").value=""; $("rd-in").value=""; $("rd-note").value="";
     if(hasL){ var opts=m.ladder.map(function(r){ return '<option value="'+r.id+'">'+esc(r.label)+'</option>'; }).join(""); $("rd-rung").innerHTML=opts; $("rd-rung2").innerHTML=opts; }
     $("rd-when").value="now"; $("rd-time").style.display="none"; $("rd-time").value="";
     openS("rd-sheet");
+  }
+  var RD_TAP=null;
+  function setRdKind(k){
+    ["depth","rung","tap"].forEach(function(x){ $("rd-kind-"+x).classList.toggle("on", x===k); });
+    $("rd-depth-wrap").style.display=k==="depth"?"":"none"; $("rd-rung-wrap").style.display=k==="rung"?"":"none"; $("rd-tap-wrap").style.display=k==="tap"?"":"none";
+    if(k==="tap"){ var m=currentMark(); $("rd-frame").innerHTML=frameHtml(m, {tap:true, id:"rd-ph", lines:RD_TAP?[{y:RD_TAP.y, cls:"tapped", label:"water line"}]:[]}); }
   }
   function saveReading(){
     var m=currentMark(); if(!m) return;
@@ -216,6 +276,7 @@
     if(when==="1h") t-=3600000; else if(when==="2h") t-=7200000; else if(when==="custom"){ var tv=$("rd-time").value; if(!tv){ toast("Pick the time you measured."); return; } var hm=tv.split(":"); var now=new Date(); var az=new Date(now.toLocaleString("en-US",{timeZone:"America/Phoenix"})); var azDate=new Date(az.getFullYear(), az.getMonth(), az.getDate(), +hm[0], +hm[1]); t=Date.now()-(az.getTime()-azDate.getTime()); if(t>Date.now()+60000) t-=86400000; }
     var body={mark:m.id, t:t, branch:branch(), note:$("rd-note").value.trim()};
     if($("rd-kind-depth").classList.contains("on")){ var ft=parseFloat($("rd-ft").value||"0"), inch=parseFloat($("rd-in").value||"0"); if(isNaN(ft)||isNaN(inch)||ft<0||inch<0){ toast("Enter the depth in feet and inches."); return; } body.kind="depth"; body.depth=+(ft+inch/12).toFixed(2); }
+    else if($("rd-kind-tap").classList.contains("on")){ if(!RD_TAP){ toast("Tap the photo where the water line is."); return; } body.kind=RD_TAP.kind; body.rung=RD_TAP.rung; if(RD_TAP.rung2) body.rung2=RD_TAP.rung2; if(RD_TAP.frac!=null) body.frac=RD_TAP.frac; }
     else { var mode=$("rd-rmode").value; body.kind=mode; body.rung=$("rd-rung").value; if(mode==="between") body.rung2=$("rd-rung2").value; }
     var btn=$("rd-save"); btn.disabled=true;
     api("POST","/api/readings",body).then(function(j){
@@ -227,9 +288,10 @@
   }
   // ---- wiring ----
   document.addEventListener("click", function(ev){
-    var t=ev.target.closest && ev.target.closest("[data-pick-mark],#pick-add-mark,#pick-add-place,#mk-x,#pl-x,#rd-x,#mk-save,#pl-save,#rd-save,#mk-geo-btn,#pl-geo-btn,#mk-coords-btn,#pl-coords-btn,#pl-anchor-btn,#rd-kind-depth,#rd-kind-rung");
+    var t=ev.target.closest && ev.target.closest("[data-pick-mark],#pick-add-mark,#pick-add-place,#mk-x,#pl-x,#rd-x,#mk-save,#pl-save,#rd-save,#mk-geo-btn,#pl-geo-btn,#mk-coords-btn,#pl-coords-btn,#pl-anchor-btn,#rd-kind-depth,#rd-kind-rung,#rd-kind-tap,#pin-x,#pin-save,[data-pin],#pin-ph,#rd-ph");
     if(!t) return;
     if(t.hasAttribute("data-pick-mark")){ setMark(t.getAttribute("data-pick-mark")); return; }
+    if(t.hasAttribute("data-pin")){ PIN.cur=t.getAttribute("data-pin"); renderPins(); return; }
     switch(t.id){
       case "pick-add-mark": if(typeof closeSheet==="function") closeSheet(); if(!store.get(PLACE_KEY)){ toast("Pick your spot first."); return; } openMark(); break;
       case "pick-add-place": if(typeof closeSheet==="function") closeSheet(); openPlace(); break;
@@ -242,8 +304,13 @@
       case "pl-coords-btn": usePasted("pl-sheet","pl-coords","pl-geo",true); break;
       case "pl-anchor-btn": useAnchor(); break;
       case "mk-coords-btn": usePasted("mk-sheet","mk-coords","mk-geo",false); break;
-      case "rd-kind-depth": $("rd-kind-depth").classList.add("on"); $("rd-kind-rung").classList.remove("on"); $("rd-depth-wrap").style.display=""; $("rd-rung-wrap").style.display="none"; break;
-      case "rd-kind-rung": $("rd-kind-rung").classList.add("on"); $("rd-kind-depth").classList.remove("on"); $("rd-depth-wrap").style.display="none"; $("rd-rung-wrap").style.display=""; break;
+      case "rd-kind-depth": setRdKind("depth"); break;
+      case "rd-kind-rung": setRdKind("rung"); break;
+      case "rd-kind-tap": setRdKind("tap"); break;
+      case "pin-x": closeAll(); break;
+      case "pin-save": savePins(); break;
+      case "pin-ph": { var f1=fracAt(t, ev); if(PIN.cur){ PIN.pins[PIN.cur]=f1; var ids=PIN.m.ladder.map(function(r){ return r.id; }); var nx=ids.find(function(id){ return !PIN.pins[id]; }); PIN.cur=nx||null; renderPins(); } break; }
+      case "rd-ph": { var f2=fracAt(t, ev), m2=currentMark(), r2=readingFromY(m2, f2.y); if(!r2) break; RD_TAP={kind:r2.kind, rung:r2.rung, rung2:r2.rung2, frac:r2.frac, y:f2.y}; $("rd-tap-txt").innerHTML="Water line <b>"+esc(r2.text)+"</b>. Save to record it."; setRdKind("tap"); break; }
     }
   });
   document.addEventListener("change", function(ev){
