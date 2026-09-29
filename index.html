@@ -51,6 +51,8 @@
   .tools button:hover{border-color:var(--water)}
   .tools #refresh:disabled{opacity:.5}
   #mode-btn{color:var(--water); border-color:var(--water); background:transparent}
+  #tip-link{display:inline-flex; align-items:center; background:rgba(232,150,90,.16); color:var(--house); border:1px solid var(--house); border-radius:10px; padding:8px 11px; font-size:13px; font-weight:700; text-decoration:none; white-space:nowrap}
+  #tip-link:hover{background:rgba(232,150,90,.3)}
   .spot-btn{width:100%; margin-top:12px; display:flex; align-items:center; gap:10px; background:var(--panel); border:2px solid var(--water); border-radius:14px; padding:12px 14px; font-size:18px; font-weight:700; color:var(--text); cursor:pointer; box-shadow:0 0 0 4px rgba(56,189,224,.10); text-align:left}
   .spot-btn .pin{font-size:20px}
   .spot-btn .name{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
@@ -248,6 +250,7 @@ try{
 <header class="top">
   <div class="brand"><h1>Is The River Up?</h1><span class="reach">Colorado River · Davis Dam → Martinez Lake</span></div>
   <div class="tools">
+    <a href="https://ko-fi.com/IsTheRiverUp" target="_blank" rel="noopener" id="tip-link" title="This site is free — tips cover the domain and upkeep. Opens the Ko-fi tip jar in a new tab.">🛟 Tip jar</a>
     <button id="mode-btn" title="Show every sensor, chart and table">Advanced</button>
     <button id="theme-btn" title="Day / night colors">☀️</button>
     <button id="alerts-btn" title="Push alerts for this spot">🔔</button>
@@ -670,7 +673,7 @@ function statusGlyph(p){ // tiny live trend for the list — cheap: nearest sens
 }
 function rowHtml(p, on){
   var f=favs().indexOf(p.key)>=0, ps=pushState(), bell=(ps && ps.spot===p.key);
-  return '<button class="row'+(on?' on':'')+'" data-k="'+p.key+'"><span class="rs">'+statusGlyph(p)+'</span><span class="rn">'+esc(p.name)+(bell?' <span class="bell" title="Push alerts are on for this spot">🔔</span>':'')+'</span><span class="rm" title="Reclamation river mile '+p.mile.toFixed(1)+' — miles upstream from the Mexico border">RM '+p.mile.toFixed(0)+'</span><span class="star'+(f?' on':'')+'" data-fav="'+p.key+'" title="Favorite">'+(f?'★':'☆')+'</span></button>';
+  return '<button class="row'+(on?' on':'')+'" data-k="'+p.key+'"><span class="rs">'+statusGlyph(p)+'</span><span class="rn">'+esc(p.name)+(bell?' <span class="bell" title="Push alerts are on for this spot">🔔</span>':'')+'</span><span class="star'+(f?' on':'')+'" data-fav="'+p.key+'" title="Favorite">'+(f?'★':'☆')+'</span></button>';
 }
 function buildPicker(q){
   var list=document.getElementById("pick-list"), cur=currentPlace().key;
@@ -687,7 +690,7 @@ function buildPicker(q){
     html+='<div class="grp">'+SEG_LABEL[seg]+'</div>'+ps.map(function(p){ return rowHtml(p, p.key===cur); }).join("");
   });
   if(!html) html='<div class="grp">Nothing matches “'+esc(q)+'” — try a town, resort, bridge, or dam name.</div>';
-  html+='<p class="note" style="padding:0 8px">RM = Reclamation river mile, counted upstream from the Mexico border (Martinez Lake 55 → Davis Dam 276). The site uses the mile difference between your spot and each sensor to time the water’s arrival. ★ favorite · 🔔 alerts on.</p>';
+  html+='<p class="note" style="padding:0 8px">★ favorite · 🔔 alerts on · the arrow shows what the water is doing there right now.</p>';
   list.innerHTML=html;
 }
 function openSheet(){ document.getElementById("sheet").classList.add("open"); document.getElementById("sheet-bg").classList.add("open"); var q=document.getElementById("pick-q"); q.value=""; buildPicker(""); setTimeout(function(){ try{ if(window.matchMedia("(min-width:700px)").matches) q.focus(); }catch(e){} },50); }
