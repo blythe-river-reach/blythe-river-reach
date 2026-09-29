@@ -65,7 +65,8 @@
     opts=opts||{}; var u=photoUrl(m); if(!u) return "";
     var pins=(opts.pins!=null)?opts.pins:{}; (m.ladder||[]).forEach(function(rg){ if(rg.px && pins[rg.id]===undefined) pins[rg.id]=rg.px; });
     var dots=(m.ladder||[]).map(function(rg){ var p=pins[rg.id]; if(!p) return ""; return '<div class="ph-dot'+(opts.cur===rg.id?' cur':'')+'" style="left:'+(p.x*100).toFixed(2)+'%; top:'+(p.y*100).toFixed(2)+'%"><span class="lbl">'+esc(rg.label)+'</span></div>'; }).join("");
-    var lines=(opts.lines||[]).map(function(l){ return '<div class="ph-line'+(l.cls?' '+l.cls:'')+'" style="top:'+(l.y*100).toFixed(2)+'%"><span class="lbl">'+esc(l.label||"")+'</span></div>'; }).join("");
+    var ls=(opts.lines||[]).slice().sort(function(a,b){ return a.y-b.y; }), lastY=-1, side=0;
+    var lines=ls.map(function(l){ side=(lastY>=0 && Math.abs(l.y-lastY)<0.06) ? 1-side : 0; lastY=l.y; return '<div class="ph-line'+(l.cls?' '+l.cls:'')+(side?' left':'')+'" style="top:'+(l.y*100).toFixed(2)+'%"><span class="lbl">'+esc(l.label||"")+'</span></div>'; }).join("");
     return '<div class="ph-frame'+(opts.tap?' tap':'')+'" id="'+(opts.id||'')+'"><img src="'+u+'" alt="Photo of the reference at '+esc(m.name)+'"'+(opts.lb?' data-lb="'+u+'"':'')+'>'+dots+lines+'</div>';
   }
   function fracAt(frame, ev){ var img=frame.querySelector("img"); var r=img.getBoundingClientRect(); var x=(ev.clientX-r.left)/r.width, y=(ev.clientY-r.top)/r.height; return {x:Math.max(0,Math.min(1,x)), y:Math.max(0,Math.min(1,y))}; }
@@ -254,7 +255,7 @@
   function openReading(){
     var m=currentMark(); if(!m) return;
     $("rd-mark").textContent=m.name; $("rd-ref").textContent=m.ref;
-    var ph=$("rd-photo"); if(ph){ ph.innerHTML=photoImg(m, "rd-photo-img"); }
+    var ph=$("rd-photo"); if(ph){ ph.innerHTML=(m.photo && pinnedRungs(m).length>=2) ? "" : photoImg(m, "rd-photo-img"); }
     var hasL=!!(m.ladder&&m.ladder.length), canTap=!!(m.photo && pinnedRungs(m).length>=2);
     $("rd-kind-rung").style.display=hasL?"":"none"; $("rd-kind-tap").style.display=canTap?"":"none";
     RD_TAP=null; $("rd-tap-wrap").style.display="none"; $("rd-tap-txt").textContent="Tap the photo where the water line is.";
