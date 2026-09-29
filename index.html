@@ -242,7 +242,7 @@
   .rv:before{content:""; position:absolute; left:9px; top:14px; bottom:14px; width:3px; border-radius:2px; background:var(--water); opacity:.4}
   .rv .seghd{position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:8px; width:calc(100% + 22px); border:0; background:var(--panel); padding:10px 6px 6px; font:inherit; font-size:11.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-left:-22px; padding-left:24px; cursor:pointer; text-align:left}
   .rv .seghd .chev{width:10px; color:var(--muted)} .rv .seghd .gl{flex:1} .rv .seghd .gc{text-transform:none; letter-spacing:0; font-size:12px} .rv .seghd.open .gl{color:var(--text)}
-  .rv .seghd.fold{position:static; background:var(--panel2); border:1px solid var(--border); border-radius:12px; margin:6px 0 6px -22px; padding:12px 12px 12px 24px; color:var(--text); font-size:12px}
+  .rv .seghd.fold{position:relative; background:var(--panel2); border:1px solid var(--border); border-radius:12px; margin:6px 0 6px -22px; padding:12px 12px 12px 24px; color:var(--text); font-size:12px}
   .rv .seghd.fold .gc{color:var(--water); font-weight:600} .rv .seghd.fold .chev{display:none} .rv .seghd.fold:after{content:"\203a"; font-size:20px; line-height:1; color:var(--muted); margin-left:4px}
   .rv .seghd.fold:before{top:50%; margin-top:-6px}
   .rv .seghd.open{padding-top:12px}
@@ -488,7 +488,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29x</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29y</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -928,10 +928,9 @@ function rowHtml(p, on){
     '<span class="star'+(f?' on':'')+'" data-fav="'+p.key+'" title="Favorite">'+(f?'\u2605':'\u2606')+'</span></button>';
 }
 function chipRow(){
-  var cur=currentPlace().key, fk=favs(), rk=recents().filter(function(k){ return fk.indexOf(k)<0 && k!==cur; }), html="";
+  var cur=currentPlace().key, fk=favs(), html="";
   var mineP=PLACES.filter(function(p){ return p.user && p.user.mine; }), mineM=window.MarksUI?MarksUI.myMarks():[];
   fk.forEach(function(k){ var p=placeByKey(k); if(p) html+='<button class="chip'+(k===cur?' on':'')+'" data-k="'+k+'">\u2605 '+esc(p.name)+'</button>'; });
-  rk.forEach(function(k){ var p=placeByKey(k); if(p) html+='<button class="chip" data-k="'+k+'">'+esc(p.name)+'</button>'; });
   mineP.forEach(function(p){ if(fk.indexOf(p.key)<0) html+='<button class="chip'+(p.key===cur?' on':'')+'" data-k="'+p.key+'">\u2691 '+esc(p.name)+'</button>'; });
   mineM.forEach(function(m){ html+='<button class="chip'+(MarksUI.currentMarkId()===m.id?' on':'')+'" data-mark-chip="'+m.id+'" data-k="'+m.spot+'">\u2933 '+esc(m.name)+'</button>'; });
   return html ? '<div class="pick-chips">'+html+'</div>' : "";
