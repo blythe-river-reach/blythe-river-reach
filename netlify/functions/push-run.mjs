@@ -38,7 +38,7 @@ export default async (req) => {
     for (const m of messages) {
       try {
         await webpush.sendNotification(sub.subscription, JSON.stringify({ title: m.title, body: m.body, url: m.url, tag: m.tag }), { TTL: 6 * 3600 });
-        sub.sent = sub.sent || {}; sub.sent[m.key] = Date.now(); sent++;
+        sub.sent = sub.sent || {}; for (const k of (m.keys || [m.key])) sub.sent[k] = Date.now(); sent++;
       } catch (e) {
         failed++;
         if (e && (e.statusCode === 404 || e.statusCode === 410)) { await store.delete(sub._key).catch(() => {}); removed++; sub._gone = true; break; }

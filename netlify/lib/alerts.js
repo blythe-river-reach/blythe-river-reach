@@ -73,7 +73,15 @@ function evaluate(data, subs, now) {
     if (!cache[sub.spot]) { try { cache[sub.spot] = E.evalSpot(ctx, sub.spot); } catch (e) { cache[sub.spot] = null; } }
     const M = cache[sub.spot]; if (!M) continue;
     const sent = sub.sent || {};
-    const due = messagesFor(M, sub, now, dataAge).filter((m) => !sent[m.key]);
+    let due = messagesFor(M, sub, now, dataAge).filter((m) => !sent[m.key]);
+    // When the daily brief and a heads-up are due in the same run, send ONE
+    // notification: the brief, with the heads-up folded in as its last line.
+    const brief = due.find((m) => m.tag === "brief"), heads = due.find((m) => m.tag === "heads");
+    if (brief && heads) {
+      brief.body += " " + heads.body.replace(/^Tomorrow peaks at/, "Heads-up: tomorrow peaks at");
+      brief.keys = [brief.key, heads.key];
+      due = due.filter((m) => m !== heads);
+    }
     if (due.length) results.push({ sub, messages: due });
   }
   return results;
