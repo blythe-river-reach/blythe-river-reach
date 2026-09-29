@@ -36,6 +36,7 @@
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%}
   body{margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; line-height:1.45; padding:14px 16px 40px; max-width:760px; margin:0 auto}
+  @media (min-width:1100px){ body{max-width:1080px; padding:20px 28px 48px} .h2-title{font-size:30px} #today-svg{height:96px} #hg-chart,#fc-chart,#yr-chart{height:150px} }
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-variant-numeric:tabular-nums}
   h1{font-size:19px; font-weight:700; letter-spacing:-.02em; margin:0}
   h2{font-size:16px; font-weight:650; margin:0 0 4px}
@@ -117,6 +118,7 @@
   .lvlbar{margin-top:14px}
   .lvlbar .track{position:relative; height:10px; border-radius:6px; background:linear-gradient(90deg, rgba(242,165,58,.35), var(--panel2) 40%, rgba(61,219,168,.35)); border:1px solid var(--border)}
   .lvlbar .mark{position:absolute; top:-6px; width:6px; height:22px; border-radius:3px; background:var(--house); transform:translateX(-50%); box-shadow:0 0 0 2px var(--panel)}
+  .lvlbar .avg{position:absolute; top:-4px; width:2px; height:18px; background:var(--text); opacity:.55; transform:translateX(-50%)}
   .lvlbar .ev{position:absolute; top:-2px; width:2px; height:14px; background:var(--muted); opacity:.7; transform:translateX(-50%)}
   .lvlbar .lab{display:flex; justify-content:space-between; color:var(--muted); font-size:11.5px; margin-top:7px}
   .lvlbar .lab b{color:var(--text); font-weight:600}
@@ -419,7 +421,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29d</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29e</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -472,7 +474,7 @@ function relTime(t){ // "~2:15 PM" / "~9 AM tomorrow" / "~Thu 3 PM"
   if(d===1) return "~"+c+" tomorrow";
   return "~"+c+" "+azDay(t).split(" ")[0];
 }
-function lvlOf(M, v){ var ft=M.toFtH?M.toFtH(v):null; return ft!=null ? (ft<0.05?"0.0 ft":"+"+ft.toFixed(1)+" ft") : fmt(v)+" cfs"; }
+function lvlOf(M, v){ var ft=M.toFtH?M.toFtH(v):null; return ft!=null ? ftStr(ft) : fmt(v)+" cfs"; }
 function ftUnitFor(M){ return (M.toFtH||M.abl!=null) ? "ft" : "cfs"; }
 function extremesForDay(pts, k){ var hi=null, lo=null; pts.forEach(function(p){ if(dayKey(p.t)!==k) return; if(!hi||p.v>hi.v) hi=p; if(!lo||p.v<lo.v) lo=p; }); return {hi:hi, lo:lo}; }
 
@@ -542,7 +544,7 @@ function renderSimple(){
     var unitFt=(M.abl!=null);
     // NOW
     var nm=M.head.m||M.trend;
-    T.push({k:"Now", g:TMARK[nm], gc:TCOLOR[nm], n:(unitFt?(M.abl<0.05?'0.0 ft':'+'+M.abl.toFixed(1)+' ft'):fmt(M.f?M.f.v:null)+' cfs'), l:(unitFt?'above this week’s low · ':'')+'<b>'+TWORD[nm]+'</b>'});
+    T.push({k:"Now", g:TMARK[nm], gc:TCOLOR[nm], n:(unitFt?ftStr(M.abl):fmt(M.f?M.f.v:null)+' cfs'), l:(unitFt?(Math.abs(M.abl)<0.05?'right at ':(M.abl>0?'above ':'below '))+ftDatumWord()+' · ':'')+'<b>'+TWORD[nm]+'</b>'});
     // NEXT TURN
     var e0=M.events[0], e1=M.events[1];
     if(e0){
@@ -592,12 +594,13 @@ function renderSimple(){
   if(!M.lake && ser.length>=6){
     var vals=ser.map(function(p){ return p.v; }), lo=Math.min.apply(null,vals), hi=Math.max.apply(null,vals), span=(hi-lo)||1;
     var nowV=ser[ser.length-1].v, pct=Math.max(0,Math.min(1,(nowV-lo)/span));
-    var isFt=(ser===M.stageP);
-    var f2=function(v){ return isFt ? (v-lo).toFixed(1)+" ft" : fmt(v)+" cfs"; };
+    var isFt=(ser===M.stageP), datum=isFt?stageDatum(ser):0;
+    var f2=function(v){ return isFt ? ftStr(v-datum) : fmt(v)+" cfs"; };
     var evMarks="";
-    if(isFt && M.toFtH){ M.events.slice(0,2).forEach(function(e){ var ft=M.toFtH(e.v); if(ft!=null){ var p2=Math.max(0,Math.min(1,ft/span)); evMarks+='<span class="ev" style="left:'+(p2*100).toFixed(1)+'%" title="'+(e.type==="high"?"next high":"next low")+' '+relTime(e.t)+'"></span>'; } }); }
+    if(isFt && M.toFtH){ M.events.slice(0,2).forEach(function(e){ var ft=M.toFtH(e.v); if(ft!=null){ var p2=Math.max(0,Math.min(1,(ft+(M.toFtH.offset||0))/span)); evMarks+='<span class="ev" style="left:'+(p2*100).toFixed(1)+'%" title="'+(e.type==="high"?"next high":"next low")+' '+relTime(e.t)+'"></span>'; } }); }
+    if(isFt){ var pAvg=Math.max(0,Math.min(1,(datum-lo)/span)); evMarks+='<span class="avg" style="left:'+(pAvg*100).toFixed(1)+'%" title="this week’s average"></span>'; }
     bar.style.display="";
-    bar.innerHTML='<div class="track">'+evMarks+'<span class="mark" style="left:'+(pct*100).toFixed(1)+'%" title="now"></span></div><div class="lab"><span>week low <b>'+(isFt?'0.0 ft':fmt(lo)+' cfs')+'</b></span><span>now <b>'+f2(nowV)+'</b></span><span>week high <b>'+(isFt?'+'+(hi-lo).toFixed(1)+' ft':fmt(hi)+' cfs')+'</b></span></div>';
+    bar.innerHTML='<div class="track">'+evMarks+'<span class="mark" style="left:'+(pct*100).toFixed(1)+'%" title="now"></span></div><div class="lab"><span>week low <b>'+f2(lo)+'</b></span><span>now <b>'+f2(nowV)+'</b></span><span>week high <b>'+f2(hi)+'</b></span></div>';
   } else bar.style.display="none";
 
   // ---- foot: year check + upstream + freshness ----
@@ -637,6 +640,12 @@ function renderToday(M){
   var g="";
   [6,12,18].forEach(function(h){ var x=X(t0+h*3600000); g+='<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.25)" stroke-width="1"/>'; });
   var past=pts.filter(function(p){ return p.t<=now; }), fut=pts.filter(function(p){ return p.t>=now; });
+  // Join the measured and coming curves AT the now bar: interpolate the value
+  // at this instant and make it the last past point and the first future one.
+  if(past.length && fut.length && fut[0].t-past[past.length-1].t<=4*3600000){
+    var a=past[past.length-1], b=fut[0], w=(now-a.t)/((b.t-a.t)||1), vn={t:now, v:a.v+(b.v-a.v)*Math.max(0,Math.min(1,w)), k:"meas"};
+    past=past.concat([vn]); fut=[vn].concat(fut);
+  }
   var pastPts=past.map(function(p){ return {x:X(p.t), y:Y(p.v)}; }), futPts=fut.map(function(p){ return {x:X(p.t), y:Y(p.v)}; });
   var allPts=pts.map(function(p){ return {x:X(p.t), y:Y(p.v)}; });
   var area=yrSmoothPath(allPts)+" L"+allPts[allPts.length-1].x.toFixed(1)+" "+H+" L"+allPts[0].x.toFixed(1)+" "+H+" Z";
@@ -761,7 +770,7 @@ function statusGlyph(p){ // tiny live trend for the list — cheap: nearest sens
 function levelText(p){ // cheap live level for the list: nearest sensor, no travel-time shift
   try{ var r=refFor(p); if(!r||!r.st) return ""; var st=r.st;
     if(segFor(p)==="lake"){ return (havasuData&&havasuData.length)?havasuData[havasuData.length-1].v.toFixed(1)+" ft":""; }
-    if(st.stage.length>=4){ var a=stageAboveLow(st.stage); return a!=null?(a<0.05?"0.0 ft":"+"+a.toFixed(1)+" ft"):""; }
+    if(st.stage.length>=4){ var a=stageAboveLow(st.stage); return a!=null?ftStr(a):""; }
     var c=cur(st.flow); return c?fmt(c.v)+" cfs":""; }catch(e){ return ""; }
 }
 function rowHtml(p, on){
@@ -783,7 +792,7 @@ function buildPicker(q){
     html+='<div class="grp">'+SEG_LABEL[seg]+'</div>'+ps.map(function(p){ return rowHtml(p, p.key===cur); }).join("");
   });
   if(!html) html='<div class="grp">Nothing matches “'+esc(q)+'” — try a town, resort, bridge, or dam name.</div>';
-  html+='<p class="note" style="padding:0 8px">Each spot shows the water right now at its nearest sensor: the arrow is the trend, the number is feet above this week’s low (or flow where there’s no height gauge). ★ favorite · 🔔 alerts on.</p>';
+  html+='<p class="note" style="padding:0 8px">Each spot shows the water right now at its nearest sensor: the arrow is the trend, the number is feet above (+) or below (−) this week’s average there (or flow where there’s no height gauge). ★ favorite · 🔔 alerts on.</p>';
   list.innerHTML=html;
 }
 function openSheet(){ document.getElementById("sheet").classList.add("open"); document.getElementById("sheet-bg").classList.add("open"); var q=document.getElementById("pick-q"); q.value=""; buildPicker(""); setTimeout(function(){ try{ if(window.matchMedia("(min-width:700px)").matches) q.focus(); }catch(e){} },50); }

@@ -7,7 +7,8 @@ const dayKey = (t) => Math.floor((t - OFF) / DAY);
 const mstHour = (t) => new Date(t - OFF).getUTCHours();
 const clock = (t) => new Date(t).toLocaleTimeString("en-US", { timeZone: "America/Phoenix", hour: "numeric", minute: "2-digit" });
 const relTime = (t, now) => { const d = dayKey(t) - dayKey(now); return "~" + clock(t) + (d === 1 ? " tomorrow" : d > 1 ? " " + new Date(t).toLocaleDateString("en-US", { timeZone: "America/Phoenix", weekday: "short" }) : ""); };
-function lvl(M, v) { const ft = M.toFtH ? M.toFtH(v) : null; return ft != null ? (ft < 0.05 ? "0.0 ft" : "+" + ft.toFixed(1) + " ft") : Math.round(v).toLocaleString("en-US") + " cfs"; }
+function ftStr(v) { if (v == null || isNaN(v)) return "—"; if (Math.abs(v) < 0.05) return "0.0 ft"; return (v > 0 ? "+" : "−") + Math.abs(v).toFixed(1) + " ft"; }
+function lvl(M, v) { const ft = M.toFtH ? M.toFtH(v) : null; return ft != null ? ftStr(ft) : Math.round(v).toLocaleString("en-US") + " cfs"; }
 function extremes(pts, k) { let hi = null, lo = null; for (const p of pts) { if (dayKey(p.t) !== k) continue; if (!hi || p.v > hi.v) hi = p; if (!lo || p.v < lo.v) lo = p; } return { hi, lo }; }
 function dayPeaks(M, now) {
   const tk = dayKey(now), flowP = M.flowP || [];
@@ -36,7 +37,7 @@ function messagesFor(M, sub, now, dataAgeMs) {
       let body = "";
       if (M.lake && M.lakeInfo) body = "Lake at " + M.lakeInfo.elev.toFixed(2) + " ft, " + M.lakeInfo.word + ".";
       else {
-        body = (M.abl != null ? "Now " + lvl(M, M.f ? M.f.v : 0) + " above the week's low" : "Now " + (M.f ? Math.round(M.f.v).toLocaleString("en-US") + " cfs" : "")) + ".";
+        body = (M.abl != null ? "Now " + ftStr(M.abl) + (Math.abs(M.abl) < 0.05 ? " — right at" : (M.abl > 0 ? " above" : " below")) + " the week's average" : "Now " + (M.f ? Math.round(M.f.v).toLocaleString("en-US") + " cfs" : "")) + ".";
         if (e0) body += " Next " + e0.type + " " + lvl(M, e0.v) + " " + relTime(e0.t, now) + (e1 ? ", then " + e1.type + " " + lvl(M, e1.v) + " " + relTime(e1.t, now) : "") + ".";
         if (M.yc) body += " " + M.yc.phrase.charAt(0).toUpperCase() + M.yc.phrase.slice(1) + ".";
       }

@@ -218,10 +218,26 @@ function levelInfo(series){
   return {pct:pct, word:(pct<0.34?"low":(pct>0.66?"high":"average"))};
 }
 var LEVELWORD = {low:"running low", average:"about average", high:"running high"};
-function stageAboveLow(stageSeries){
+// Datum for every feet reading on the page. "avg": relative to THIS WEEK's
+// average level (+ above, − below, 0.0 = a normal moment this week).
+// "low": feet above the week's lowest water (the original scale). Percentile
+// math stays on the low-based 0..swing scale via stageOffset().
+var FT_DATUM="avg";
+function stageDatum(stageSeries){
   if(!stageSeries || !stageSeries.length) return null;
-  var c=stageSeries[stageSeries.length-1].v, min=Math.min.apply(null, stageSeries.map(function(p){return p.v;}));
-  return c-min;
+  var vals=stageSeries.map(function(p){return p.v;}), min=Math.min.apply(null,vals);
+  if(FT_DATUM!=="avg") return min;
+  return vals.reduce(function(a,v){ return a+v; },0)/vals.length;
+}
+function stageOffset(stageSeries){ // datum minus the week's low
+  if(!stageSeries || !stageSeries.length) return 0;
+  return stageDatum(stageSeries)-Math.min.apply(null, stageSeries.map(function(p){return p.v;}));
+}
+function ftStr(v){ if(v==null||isNaN(v)) return "\u2014"; if(Math.abs(v)<0.05) return "0.0 ft"; return (v>0?"+":"\u2212")+Math.abs(v).toFixed(1)+" ft"; }
+function ftDatumWord(){ return FT_DATUM==="avg" ? "this week\u2019s average" : "this week\u2019s low"; }
+function stageAboveLow(stageSeries){ // name kept for callers; value is relative to the datum
+  if(!stageSeries || !stageSeries.length) return null;
+  return stageSeries[stageSeries.length-1].v - stageDatum(stageSeries);
 }
 function stageSwing(stageSeries){
   if(!stageSeries || stageSeries.length<2) return null;
@@ -617,7 +633,7 @@ function renderCards(){
     }
     var abl=stageAboveLow(s.stage), sw=stageSwing(s.stage);
     var metaHtml;
-    if(abl!=null){ metaHtml='<span>water <span class="mono">+'+abl.toFixed(1)+'</span> ft above wk low</span><span>swings <span class="mono">~'+(sw!=null?sw.toFixed(1):'\u2014')+'</span> ft/wk</span>'; }
+    if(abl!=null){ metaHtml='<span>water <span class="mono">'+ftStr(abl)+'</span> vs wk avg</span><span>swings <span class="mono">~'+(sw!=null?sw.toFixed(1):'\u2014')+'</span> ft/wk</span>'; }
     else { metaHtml='<span>release flow</span><span>7-day <span class="mono">'+fmt(lo)+'\u2013'+fmt(hi)+'</span> cfs</span>'; }
     // Year line for any site that keeps (or has grown) a year of history
     var yrHtml="", _hk="flow", _hs=histSeries(s.key, "flow", 300);
@@ -645,13 +661,15 @@ function buildRating(key){
   var pairs=[]; ww.flow.forEach(function(p){ if(sm[p.t]!=null) pairs.push({q:p.v, h:sm[p.t]}); });
   if(pairs.length<10) return null;
   pairs.sort(function(a,b){ return a.q-b.q; });
-  var wkLow=Math.min.apply(null, ww.stage.map(function(p){return p.v;}));
-  return function(q){
-    if(q<=pairs[0].q) return pairs[0].h-wkLow;
-    if(q>=pairs[pairs.length-1].q) return pairs[pairs.length-1].h-wkLow;
-    for(var i=1;i<pairs.length;i++){ if(pairs[i].q>=q){ var a=pairs[i-1], b=pairs[i]; var f=(q-a.q)/((b.q-a.q)||1); return a.h+f*(b.h-a.h)-wkLow; } }
+  var wkDat=stageDatum(ww.stage), wkMin=Math.min.apply(null, ww.stage.map(function(p){return p.v;}));
+  var fn=function(q){
+    if(q<=pairs[0].q) return pairs[0].h-wkDat;
+    if(q>=pairs[pairs.length-1].q) return pairs[pairs.length-1].h-wkDat;
+    for(var i=1;i<pairs.length;i++){ if(pairs[i].q>=q){ var a=pairs[i-1], b=pairs[i]; var f=(q-a.q)/((b.q-a.q)||1); return a.h+f*(b.h-a.h)-wkDat; } }
     return null;
   };
+  fn.offset=wkDat-wkMin; // add to a datum-relative value to get feet above the week's low
+  return fn;
 }
 // ONE 5-bucket level scale for the whole page: the eyebrow pill AND every
 // destination the hero names use it, so "low water" can only ever mean water
@@ -667,9 +685,9 @@ function bucketOf(pct){
 // Words-only level badge: where the water sits vs THIS WEEK's range at the
 // spot. Prefers the physical stage (ft above weekly low / weekly swing);
 // falls back to flow percentile. Null when there's no meaningful range.
-function levelWord(abl, sw, flowP){
+function levelWord(abl, sw, flowP, off){
   var pct=null;
-  if(abl!=null && sw!=null && sw>0.3) pct=abl/sw;
+  if(abl!=null && sw!=null && sw>0.3) pct=(abl+(off||0))/sw;
   else if(flowP && flowP.length>=8){
     var vals=flowP.map(function(p){ return p.v; });
     var lo=Math.min.apply(null,vals), hi=Math.max.apply(null,vals);
@@ -1044,11 +1062,11 @@ function heroModel(){
   // Level bucket for ANY value, on the same weekly scale as the eyebrow pill —
   // so a cycle bottom that lands at an average level is called "about
   // average", never "low water".
-  var _toFtH=tideRating(pl);
-  M.toFtH=_toFtH;
+  var _toFtH=tideRating(pl), _ftOff=stageOffset(stageP);
+  M.toFtH=_toFtH; M.ftOffset=_ftOff;
   function bucketPhrase(v){
     var pct=null, ftv=_toFtH?_toFtH(v):null;
-    if(ftv!=null && sw!=null && sw>0.3) pct=ftv/sw;
+    if(ftv!=null && sw!=null && sw>0.3) pct=(ftv+(_toFtH.offset||0))/sw;
     else if(flowP.length>=8){
       var _vals=flowP.map(function(p3){ return p3.v; });
       var _lo=Math.min.apply(null,_vals), _hi=Math.max.apply(null,_vals);
@@ -1073,7 +1091,7 @@ function heroModel(){
     var e0=_ol.events[0], e1=_ol.events[1]||null;
     var _up=(e0.type==="high");
     var ftM=_toFtH?_toFtH(e0.v):null;
-    var lvlM=(ftM!=null?'~+'+ftM.toFixed(1)+' ft':'~'+fmt(Math.round(e0.v))+' cfs');
+    var lvlM=(ftM!=null?'~'+ftStr(ftM):'~'+fmt(Math.round(e0.v))+' cfs');
     var _bk=bucketPhrase(e0.v);
     var _dst=_bk?_bk.phrase:null;                                  // headline destination, e.g. "about average"
     var _dstFull=(_dst?_dst+' ('+lvlM+')':'about '+lvlM);          // sentence destination with the number
@@ -1178,7 +1196,7 @@ function heroModel(){
   // The badge states the CURRENT level. It grades against the PAST YEAR when
   // a year of history exists (so "AVG" means average for the year), else this
   // week's range.
-  var _lw=levelWord(abl, sw, flowP);
+  var _lw=levelWord(abl, sw, flowP, _ftOff);
   var _yc=yearContext(pl, ref);
   var _pillB=_yc ? bucketOf(_yc.pct) : _lw;
   M.lw=_lw; M.yc=_yc;
@@ -1205,7 +1223,7 @@ function heroModel(){
   }
   M.yrTxt=yrTxt; M.yrVs=vs;
   var _lead=weekCtx?weekCtx+' ':'';
-  if(abl!=null){ M.sub=_lead+'The water is about <b style="color:var(--text)" class="mono">+'+abl.toFixed(1)+' ft</b> above this week’s low'+(sw!=null?' (it rises and falls ~'+sw.toFixed(1)+' ft over the week)':'')+' — '+detail+timing+'.'+turn+yrTxt; }
+  if(abl!=null){ M.sub=_lead+'The water is <b style="color:var(--text)" class="mono">'+ftStr(abl)+'</b> '+(Math.abs(abl)<0.05?'— right at':(abl>0?'above':'below'))+' '+ftDatumWord()+(sw!=null?' (it rises and falls ~'+sw.toFixed(1)+' ft over the week)':'')+' — '+detail+timing+'.'+turn+yrTxt; }
   else { M.sub=_lead+'Closest live source reads '+detail+timing+'.'+turn+yrTxt; }
   var curMph=Math.max(0.5, Math.min(8, WAVE_MPH*0.6));
   M.curMph=curMph;
@@ -1537,7 +1555,7 @@ function renderHeadgate(){
   var toFt=tideRating(pl);
   function lvlTxt(v){
     var ft=toFt?toFt(v):null;
-    return (ft!=null ? '~<b class="mono">+'+ft.toFixed(1)+' ft</b> ('+fmt(v)+' cfs)' : '~<b class="mono">'+fmt(v)+'</b> cfs');
+    return (ft!=null ? '~<b class="mono">'+ftStr(ft)+'</b> ('+fmt(v)+' cfs)' : '~<b class="mono">'+fmt(v)+'</b> cfs');
   }
   var ex=(ol && ol.events.length) ? ol.events : findTides(_blend).filter(function(e2){ return e2.t>now; });
   var nh=ex.find(function(e2){return e2.type==="high";}), nl=ex.find(function(e2){return e2.type==="low";}), bits=[];
@@ -1549,7 +1567,7 @@ function renderHeadgate(){
   var whereBit=(fc.seg==="lake")?'released into the river just below the lake':(milesUp<1?'right here at the dam':milesUp+' river miles upstream');
   lead.innerHTML='The dam\u2019s published release schedule, shifted to when that water reaches <b style="color:var(--text)">'+esc(pl.name)+'</b>. '+
     (ovPts ? '<b style="color:var(--text)">Solid = water already measured at the gauges upstream, en route here</b> (good through ~'+azClock(ol.horizon)+'); the dashed line beyond is the schedule.' : 'Dashed = forecast, not a reading.')+
-    '<span class="adv-only"> From '+fc.originName+' ('+whereBit+'), assuming a ~'+WAVE_MPH+' mph pulse. Range ahead: <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b>\u2013<b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs'+((ftLo!=null&&ftHi!=null)?' (about <b class="mono" style="color:var(--text)">+'+ftLo.toFixed(1)+'</b> to <b class="mono" style="color:var(--text)">+'+ftHi.toFixed(1)+' ft</b> above the weekly low)':'')+'.'+fc.srcNote+'</span>';
+    '<span class="adv-only"> From '+fc.originName+' ('+whereBit+'), assuming a ~'+WAVE_MPH+' mph pulse. Range ahead: <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b>\u2013<b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs'+((ftLo!=null&&ftHi!=null)?' (about <b class="mono" style="color:var(--text)">'+ftStr(ftLo)+'</b> to <b class="mono" style="color:var(--text)">'+ftStr(ftHi)+'</b> vs the weekly average)':'')+'.'+fc.srcNote+'</span>';
   noteEl.textContent=(fc.seg==="strip"||fc.seg==="lake"||fc.seg==="upper") ? "" : ((hgData&&hgData.note)||"");
 }
 
@@ -1576,7 +1594,8 @@ function medianPeriod(ex, type){
   return gaps[Math.floor(gaps.length/2)];
 }
 function ftLbl(v){
-  return (v<0.05) ? '0.0 ft <span class="muted-sm">\u00b7 the weekly low</span>' : '+'+v.toFixed(1)+' ft';
+  if(Math.abs(v)<0.05) return '0.0 ft <span class="muted-sm">\u00b7 '+(FT_DATUM==="avg"?"the weekly average":"the weekly low")+'</span>';
+  return ftStr(v);
 }
 function countdown(t){
   var m=Math.round((t-Date.now())/60000);
@@ -1590,7 +1609,7 @@ function renderTide(){
   if(!body||!lead) return;
   var pl=currentPlace(), seg=segFor(pl), ref=refFor(pl);
   var lvlTh=document.getElementById("tide-lvl-th");
-  if(lvlTh) lvlTh.textContent = (seg==="strip") ? "Flow (cfs)" : "Above weekly low";
+  if(lvlTh) lvlTh.textContent = (seg==="strip") ? "Flow (cfs)" : "vs weekly average";
   if(seg==="lake"){
     lead.textContent="Lake Havasu is a reservoir \u2014 no daily tide up there. Pick a river spot to see highs and lows.";
     body.innerHTML='<tr><td colspan="3" style="color:var(--muted)">The river tide starts below Parker Dam.</td></tr>';
@@ -1598,9 +1617,9 @@ function renderTide(){
   }
   if(!ref || !ref.st){ body.innerHTML = loadingNow ? '<tr><td colspan="3"><div class="skel skel-row"></div><div class="skel skel-row" style="width:70%"></div></td></tr>' : '<tr><td colspan="3" style="color:var(--muted)">Waiting for data\u2026</td></tr>'; return; }
   var p=ref.st, useStage=p.stage.length>=6, series=useStage?p.stage:p.flow;
-  if(lvlTh) lvlTh.textContent = useStage ? "Above weekly low" : "Flow (cfs)"; // header must match what the rows actually print
+  if(lvlTh) lvlTh.textContent = useStage ? "vs weekly average" : "Flow (cfs)"; // header must match what the rows actually print
   var shift=lagMsFrom(ref.mile, pl);
-  var wkLow=useStage ? Math.min.apply(null, series.map(function(x){return x.v;})) : null;
+  var wkLow=useStage ? stageDatum(series) : null; // the feet datum (weekly average)
   var toFt=tideRating(pl);
   var now=Date.now(), rows=[];
   // recent actual highs & lows, from the sensor, shifted to this place
@@ -1625,7 +1644,7 @@ function renderTide(){
     });
   }
   if(!rows.length){ body.innerHTML='<tr><td colspan="3" style="color:var(--muted)">Not enough variation to detect a clear tide right now.</td></tr>'; return; }
-  lead.innerHTML=(segFor(pl)==="strip") ? ("At "+esc(pl.name)+" \u2014 levels shown as flow (cfs): the Strip rides the Lake Moovalya pool, which holds a near-steady height while release pulses pass through \u2014 no public height gauge up here. Times are Arizona (MST).") : ("At "+esc(pl.name)+" \u2014 heights are above this week\u2019s low \u2014 so \u201c0.0 ft\u201d means the week\u2019s lowest water, not a dry river; "+(enrouteN?"\u201cen route\u201d rows are already measured at the gauges upstream \u2014 that water is on its way"+(fromSchedule?"; \u201cscheduled\u201d rows come from the dam schedule":""):(fromSchedule?"upcoming rows come straight from the dam schedule":"upcoming rows are projected from the recent rhythm"))+".<span class=\"adv-only\"> Recent rows from "+ref.label+(Math.abs(shift)>=3*60000?", times shifted "+lagLabel2(shift, ref.label):"")+".</span> Times are Arizona (MST).");
+  lead.innerHTML=(segFor(pl)==="strip") ? ("At "+esc(pl.name)+" \u2014 levels shown as flow (cfs): the Strip rides the Lake Moovalya pool, which holds a near-steady height while release pulses pass through \u2014 no public height gauge up here. Times are Arizona (MST).") : ("At "+esc(pl.name)+" \u2014 heights are relative to this week\u2019s average level: \u201c0.0 ft\u201d is a normal moment this week, + is higher water, \u2212 is lower; "+(enrouteN?"\u201cen route\u201d rows are already measured at the gauges upstream \u2014 that water is on its way"+(fromSchedule?"; \u201cscheduled\u201d rows come from the dam schedule":""):(fromSchedule?"upcoming rows come straight from the dam schedule":"upcoming rows are projected from the recent rhythm"))+".<span class=\"adv-only\"> Recent rows from "+ref.label+(Math.abs(shift)>=3*60000?", times shifted "+lagLabel2(shift, ref.label):"")+".</span> Times are Arizona (MST).");
   rows.sort(function(a,b){ return a.t-b.t; });
   var list=rows.slice(0,9), now2=Date.now(), nextIdx=-1;
   for(var ni=0;ni<list.length;ni++){ if(list[ni].t>now2){ nextIdx=ni; break; } }
