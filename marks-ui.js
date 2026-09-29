@@ -80,6 +80,35 @@
   function closeAll(){ ["mk-sheet","pl-sheet","rd-sheet"].forEach(function(id){ var e=$(id); if(e) e.classList.remove("open"); }); var sh=$("sheet"), al=$("al-sheet"); if(!(sh&&sh.classList.contains("open")) && !(al&&al.classList.contains("open"))) $("sheet-bg").classList.remove("open"); }
   window.MarksUI.closeAll=closeAll;
   function geo(cb){ if(!navigator.geolocation){ toast("Location isn’t available in this browser."); return; } toast("Getting your location…", 5000); navigator.geolocation.getCurrentPosition(function(pos){ cb(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy); }, function(err){ toast(err&&err.code===1?"Location permission was denied.":"Couldn’t get your location."); }, {enableHighAccuracy:true, timeout:12000, maximumAge:60000}); }
+  // A pasted waypoint in any common form -> [lat, lon]. Accepts decimal pairs
+  // ("33.7123, -114.5012"), degrees-minutes-seconds with N/S/E/W, and Google /
+  // Apple Maps links (@lat,lon · q=lat,lon · ll=lat,lon · !3d..!4d..).
+  function parseCoords(str){
+    var s=String(str||"").trim(); if(!s) return null;
+    var m, lat=null, lon=null;
+    if((m=s.match(/[@!]3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/))){ lat=+m[1]; lon=+m[2]; }
+    else if((m=s.match(/[@?&](?:q|ll|query|center|destination|daddr|saddr)?=?(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)/))){ lat=+m[1]; lon=+m[2]; }
+    else {
+      // DMS: 33°42'44.5"N 114°30'04"W  (also 33 42 44.5 N, 114 30 4 W)
+      var dms=/(-?\d{1,3})[°\s]+(\d{1,2})['\u2032\s]+(\d{1,2}(?:\.\d+)?)?["\u2033\s]*([NSEW])?/gi, parts=[], q;
+      while((q=dms.exec(s)) && parts.length<2){ var v=Math.abs(+q[1])+(+q[2])/60+(+(q[3]||0))/3600; var h=(q[4]||"").toUpperCase(); if(h==="S"||h==="W"||q[1].charAt(0)==="-") v=-v; parts.push({v:v, h:h}); }
+      if(parts.length===2){ var a=parts[0], b=parts[1]; if(a.h==="E"||a.h==="W"||b.h==="N"||b.h==="S"){ lat=b.v; lon=a.v; } else { lat=a.v; lon=b.v; } }
+      else if((m=s.match(/(-?\d{1,2}\.\d+)\s*°?\s*([NS])?\s*[, ]\s*(-?\d{1,3}\.\d+)\s*°?\s*([EW])?/i))){ lat=+m[1]*(/s/i.test(m[2]||"")?-1:1); lon=+m[3]*(/w/i.test(m[4]||"")?-1:1); }
+    }
+    if(lat==null || lon==null || !isFinite(lat) || !isFinite(lon)) return null;
+    if(lon>0 && lon>100) lon=-lon; // a west longitude typed without the minus
+    if(!(lat>=31.5 && lat<=36.5 && lon>=-116 && lon<=-113)) return {err:"That point isn\u2019t on this stretch of the Colorado (lat "+lat.toFixed(4)+", lon "+lon.toFixed(4)+")."};
+    return [lat, lon];
+  }
+  window.MarksUI.parseCoords=parseCoords;
+  function usePasted(sheetId, inputId, noteId, withMile){
+    var r=parseCoords($(inputId).value);
+    if(!r){ toast("Couldn\u2019t read a waypoint there \u2014 try \u201c33.7123, -114.5012\u201d or paste a Maps link."); return; }
+    if(r.err){ toast(r.err, 5000); return; }
+    $(sheetId)._pin=r;
+    if(withMile){ var mi=mileFromPin(r[0], r[1]); if(mi){ $("pl-mile").value=mi.mile; $(noteId).textContent="Waypoint "+r[0].toFixed(4)+", "+r[1].toFixed(4)+" \u2014 about river mile "+mi.mile+", between "+mi.near.name+" and "+mi.near2.name+(mi.dist>3?" ("+mi.dist.toFixed(0)+" mi from the nearest known spot \u2014 check the mile)":""); } else $(noteId).textContent="Waypoint set, but couldn\u2019t work out the river mile \u2014 type it."; }
+    else $(noteId).textContent="Pinned at "+r[0].toFixed(4)+", "+r[1].toFixed(4);
+  }
   // River mile from a pin: interpolate between the two nearest known places by
   // distance (good to about a mile on this straight-ish river).
   function mileFromPin(lat, lon){
@@ -90,7 +119,7 @@
     return { mile:+mile.toFixed(1), near:a.p, near2:b.p, dist:a.d };
   }
   // add a place
-  function openPlace(){ $("pl-name").value=""; $("pl-mile").value=""; $("pl-geo").textContent=""; $("pl-sheet")._pin=null; openS("pl-sheet"); }
+  function openPlace(){ $("pl-name").value=""; $("pl-mile").value=""; $("pl-geo").textContent=""; $("pl-coords").value=""; $("pl-sheet")._pin=null; openS("pl-sheet"); }
   function savePlace(){
     var name=$("pl-name").value.trim(), mile=parseFloat($("pl-mile").value), pin=$("pl-sheet")._pin;
     if(name.length<2){ toast("Give the place a name."); return; }
@@ -101,7 +130,7 @@
     }).catch(function(e){ toast(e.message, 4000); });
   }
   // add a mark
-  function openMark(){ var pl=currentPlace(); $("mk-spot").textContent=pl.name; $("mk-name").value=""; $("mk-ref").value=""; $("mk-ladder").value=""; $("mk-geo").textContent=""; $("mk-sheet")._pin=null; openS("mk-sheet"); }
+  function openMark(){ var pl=currentPlace(); $("mk-spot").textContent=pl.name; $("mk-name").value=""; $("mk-ref").value=""; $("mk-ladder").value=""; $("mk-geo").textContent=""; $("mk-coords").value=""; $("mk-sheet")._pin=null; openS("mk-sheet"); }
   function saveMark(){
     var pl=currentPlace(), name=$("mk-name").value.trim(), ref=$("mk-ref").value.trim(), pin=$("mk-sheet")._pin;
     if(name.length<2){ toast("Give the mark a name."); return; }
@@ -142,7 +171,7 @@
   }
   // ---- wiring ----
   document.addEventListener("click", function(ev){
-    var t=ev.target.closest && ev.target.closest("[data-pick-mark],#pick-add-mark,#pick-add-place,#mk-x,#pl-x,#rd-x,#mk-save,#pl-save,#rd-save,#mk-geo-btn,#pl-geo-btn,#rd-kind-depth,#rd-kind-rung");
+    var t=ev.target.closest && ev.target.closest("[data-pick-mark],#pick-add-mark,#pick-add-place,#mk-x,#pl-x,#rd-x,#mk-save,#pl-save,#rd-save,#mk-geo-btn,#pl-geo-btn,#mk-coords-btn,#pl-coords-btn,#rd-kind-depth,#rd-kind-rung");
     if(!t) return;
     if(t.hasAttribute("data-pick-mark")){ setMark(t.getAttribute("data-pick-mark")); return; }
     switch(t.id){
@@ -154,6 +183,8 @@
       case "rd-save": saveReading(); break;
       case "mk-geo-btn": geo(function(lat,lon,acc){ $("mk-sheet")._pin=[lat,lon]; $("mk-geo").textContent="Pinned ("+(acc?"±"+Math.round(acc)+" m":"")+")"; }); break;
       case "pl-geo-btn": geo(function(lat,lon,acc){ var r=mileFromPin(lat,lon); $("pl-sheet")._pin=[lat,lon]; if(r){ $("pl-mile").value=r.mile; $("pl-geo").textContent="Pinned — about river mile "+r.mile+", between "+r.near.name+" and "+r.near2.name+(r.dist>3?" ("+r.dist.toFixed(0)+" mi from the nearest known spot — check the mile)":""); } else $("pl-geo").textContent="Pinned, but couldn’t work out the river mile — type it."; }); break;
+      case "pl-coords-btn": usePasted("pl-sheet","pl-coords","pl-geo",true); break;
+      case "mk-coords-btn": usePasted("mk-sheet","mk-coords","mk-geo",false); break;
       case "rd-kind-depth": $("rd-kind-depth").classList.add("on"); $("rd-kind-rung").classList.remove("on"); $("rd-depth-wrap").style.display=""; $("rd-rung-wrap").style.display="none"; break;
       case "rd-kind-rung": $("rd-kind-rung").classList.add("on"); $("rd-kind-depth").classList.remove("on"); $("rd-depth-wrap").style.display="none"; $("rd-rung-wrap").style.display=""; break;
     }
