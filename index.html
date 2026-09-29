@@ -451,7 +451,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29o</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29p</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -867,6 +867,28 @@ function buildPicker(q){
     if(fk.length){ html+='<div class="grp">\u2605 Favorites</div>'+fk.map(function(k){ var p=placeByKey(k); return p?rowHtml(p, p.key===cur):""; }).join(""); }
     if(rk.length){ html+='<div class="grp">Recent</div>'+rk.map(function(k){ var p=placeByKey(k); return p?rowHtml(p, false):""; }).join(""); }
   }
+  // Yours: places and marks you added (pending or approved). Community: places
+  // other people added that have been approved. Both also sit in river order below.
+  var mineP=PLACES.filter(function(p){ return p.user && p.user.mine; }), mineM=window.MarksUI?MarksUI.myMarks():[];
+  var commP=PLACES.filter(function(p){ return p.user && !p.user.mine && p.user.status==="approved"; });
+  function accHead(seg, label, count, isOpen){ return '<button class="grp acc'+(isOpen?' open':'')+'" data-seg="'+seg+'" aria-expanded="'+(isOpen?'true':'false')+'"><span class="chev">'+(isOpen?'\u25be':'\u25b8')+'</span><span class="gl">'+label+'</span><span class="gc">'+count+'</span></button>'; }
+  var match=function(p){ return !q || p.name.toLowerCase().indexOf(q)>=0; };
+  if(mineP.length || mineM.length){
+    var mp=mineP.filter(match), mm=mineM.filter(function(m){ return !q || m.name.toLowerCase().indexOf(q)>=0; });
+    if(mp.length || mm.length){
+      var oY=!!q || (open ? open.indexOf("yours")>=0 : true);
+      html+=accHead("yours", "\u2605 Yours", mineP.length+' place'+(mineP.length===1?'':'s')+(mineM.length?' \u00b7 '+mineM.length+' mark'+(mineM.length===1?'':'s'):''), oY);
+      if(oY) html+='<div class="acc-body">'+mp.sort(function(a,b){ return b.mile-a.mile; }).map(function(p){ return rowHtml(p, p.key===cur); }).join("")+mm.map(function(m){ return MarksUI.markRowAt(m); }).join("")+'</div>';
+    }
+  }
+  if(commP.length){
+    var cp=commP.filter(match);
+    if(cp.length){
+      var oC=!!q || (open ? open.indexOf("community")>=0 : false);
+      html+=accHead("community", "From the community", commP.length+' place'+(commP.length===1?'':'s'), oC);
+      if(oC) html+='<div class="acc-body">'+cp.sort(function(a,b){ return b.mile-a.mile; }).map(function(p){ return rowHtml(p, p.key===cur)+((p.key===cur || PICK_MARKS_OPEN[p.key])?MarksUI.markRows(p):""); }).join("")+'</div>';
+    }
+  }
   ["upper","lake","strip","mid","below"].forEach(function(seg){
     var all=PLACES.filter(function(p){ return segFor(p)===seg; }).sort(function(a,b){ return b.mile-a.mile; });
     var ps=all.filter(function(p){ return !q || p.name.toLowerCase().indexOf(q)>=0 || SEG_LABEL[seg].toLowerCase().indexOf(q)>=0; });
@@ -892,7 +914,7 @@ document.addEventListener("keydown", function(e){ if(e.key==="Escape"){ closeShe
 document.getElementById("pick-q").addEventListener("input", function(){ buildPicker(this.value); });
 document.getElementById("pick-list").addEventListener("click", function(ev){
   var acc=ev.target.closest && ev.target.closest(".grp.acc");
-  if(acc){ var seg=acc.getAttribute("data-seg"), o=pickOpen(); if(!o){ o=[segFor(currentPlace())]; } var i=o.indexOf(seg); if(i>=0) o.splice(i,1); else o.push(seg); store.set(PICK_OPEN_KEY, o); buildPicker(document.getElementById("pick-q").value); return; }
+  if(acc){ var seg=acc.getAttribute("data-seg"), o=pickOpen(); if(!o){ o=[segFor(currentPlace()), "yours"]; } var i=o.indexOf(seg); if(i>=0) o.splice(i,1); else o.push(seg); store.set(PICK_OPEN_KEY, o); buildPicker(document.getElementById("pick-q").value); return; }
   var mkb=ev.target.closest && ev.target.closest(".mk-badge");
   if(mkb){ ev.stopPropagation(); var k2=mkb.getAttribute("data-mk"); PICK_MARKS_OPEN[k2]=!PICK_MARKS_OPEN[k2]; buildPicker(document.getElementById("pick-q").value); return; }
   var star=ev.target.closest && ev.target.closest(".star");
@@ -983,6 +1005,6 @@ window.onRiverRender=function(){ renderSimple(); try{ renderOutlook14(heroModel(
 // First paint before any data: show the spot name right away.
 (function(){ try{ if(store.get(PLACE_KEY)) document.getElementById("spot-name").textContent=currentPlace().name; renderRibbon(currentPlace()); }catch(e){} })();
 </script>
-<script src="/marks-ui.js?v=2026-09-29j"></script>
+<script src="/marks-ui.js?v=2026-09-29k"></script>
 </body>
 </html>

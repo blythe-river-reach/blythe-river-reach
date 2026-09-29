@@ -13,7 +13,7 @@
   function currentMarkId(){ return store.get(MARK_KEY)||null; }
   function currentMark(){ var id=currentMarkId(); if(!id) return null; for(var i=0;i<MARKS.length;i++) if(MARKS[i].id===id) return MARKS[i]; return null; }
   function setMark(id){ store.set(MARK_KEY, id||null); RD_CACHE={}; if(typeof rebuild==="function") setTimeout(rebuild,0); }
-  window.MarksUI={ marksFor:function(k){ return MARKS_BY_SPOT[k]||[]; }, currentMarkId:currentMarkId, setMark:setMark, loaded:function(){ return loaded; } };
+  window.MarksUI={ marksFor:function(k){ return MARKS_BY_SPOT[k]||[]; }, myMarks:function(){ return MARKS.filter(function(m){ return m.mine; }); }, currentMarkId:currentMarkId, setMark:setMark, loaded:function(){ return loaded; } };
 
   // ---- load marks + user places (once per page load, then on demand) ----
   function load(){
@@ -33,7 +33,9 @@
     return ms.map(function(m){ return '<button class="row sub'+(m.id===cur?' on':'')+'" data-mark="'+m.id+'" data-k="'+p.key+'"><span class="rs">⤳</span><span class="rn">'+esc(m.name)+(m.status!=="approved"?' <span class="tagp">'+(m.status==="pending"?"pending":m.status)+'</span>':'')+'</span><span class="rl">mark</span></button>'; }).join("");
   }
   function addButtons(){ return loadErr?'<p class="note" style="padding:0 8px">Marks couldn\u2019t load ('+esc(loadErr)+').</p>':''; }
-  window.MarksUI.markRows=markRows; window.MarksUI.addButtons=addButtons;
+  // one mark row that also names its spot (for the "Yours" section)
+  function markRowAt(m){ var p=PLACES.find(function(x){ return x.key===m.spot; }); if(!p) return ""; var cur=currentMarkId(); return '<button class="row sub'+(m.id===cur?' on':'')+'" data-mark="'+m.id+'" data-k="'+p.key+'"><span class="rs">\u2933</span><span class="rn">'+esc(m.name)+' <span class="muted-sm">\u00b7 at '+esc(p.name)+'</span>'+(m.status!=="approved"?' <span class="tagp">'+(m.status==="pending"?"pending":m.status)+'</span>':'')+'</span><span class="rl">mark</span></button>'; }
+  window.MarksUI.markRows=markRows; window.MarksUI.markRowAt=markRowAt; window.MarksUI.addButtons=addButtons;
 
   // ---- the strip under the tiles ----
   function stageForCfs(pl, v){ return (typeof stageAbsAt==="function") ? stageAbsAt(pl, v) : null; }
