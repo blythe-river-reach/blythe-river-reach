@@ -236,6 +236,12 @@
   .sheet-search button{background:var(--panel2); border:1px solid var(--border); color:var(--text); border-radius:12px; padding:0 13px; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap}
   .sheet-body{overflow-y:auto; padding:4px 10px 24px; -webkit-overflow-scrolling:touch}
   .grp{color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; padding:12px 8px 4px}
+  .grp.acc{display:flex; align-items:center; gap:8px; width:100%; background:var(--panel2); border:1px solid var(--border); border-radius:12px; padding:11px 12px; margin:8px 0 2px; cursor:pointer; text-align:left; color:var(--text); font-size:12px; letter-spacing:.06em}
+  .grp.acc .chev{width:12px; color:var(--muted)} .grp.acc .gl{flex:1} .grp.acc .gc{color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0}
+  .grp.acc.open{border-color:var(--water)}
+  .acc-body{padding:2px 0 4px}
+  .mk-badge{font-size:12px; color:var(--water); border:1px solid var(--water); border-radius:999px; padding:1px 8px; white-space:nowrap; cursor:pointer}
+  .pick-foot{display:flex; gap:8px; padding:10px 12px calc(12px + env(safe-area-inset-bottom)); border-top:1px solid var(--border); background:var(--panel)} .pick-foot .tbtn{flex:1; min-width:0; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
   .row{display:flex; align-items:center; gap:10px; width:100%; background:none; border:0; border-radius:12px; padding:10px 8px; color:var(--text); font-size:15px; cursor:pointer; text-align:left}
   .row:hover{background:var(--panel2)}
   .row.on{background:rgba(56,189,224,.12); outline:1px solid var(--water)}
@@ -445,7 +451,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29n</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29o</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -460,6 +466,7 @@ try{
     <button id="pick-near" title="Find the nearest spot to you">🧭 Near me</button>
   </div>
   <div class="sheet-body" id="pick-list"></div>
+  <div class="pick-foot"><button class="tbtn" id="pick-add-place">✚ Add a place</button><button class="tbtn" id="pick-add-mark">✚ Depth mark here</button></div>
 </div>
 <div class="sheet" id="al-sheet" role="dialog" aria-modal="true" aria-label="Alerts">
   <div class="sheet-hd"><h2>🔔 Alerts for <span id="al-spot">your spot</span></h2><button class="x" id="al-x" aria-label="Close">✕</button></div>
@@ -522,7 +529,7 @@ try{
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="/river.js?v=2026-09-29f"></script>
+<script src="/river.js?v=2026-09-29g"></script>
 <script src="/marks-math.js?v=2026-09-29f"></script>
 <script>
 // ============================================================
@@ -847,26 +854,34 @@ function levelText(p){ // cheap live level for the list: nearest sensor, no trav
 }
 function rowHtml(p, on){
   var f=favs().indexOf(p.key)>=0, ps=pushState(), bell=(ps && ps.spot===p.key), lt=levelText(p);
-  return '<button class="row'+(on?' on':'')+'" data-k="'+p.key+'"><span class="rs">'+statusGlyph(p)+'</span><span class="rn">'+esc(p.name)+(p.user?' <span class="tagp">'+(p.user.status==="approved"?"added by a user":"yours \u00b7 pending")+'</span>':'')+(bell?' <span class="bell" title="Push alerts are on for this spot">🔔</span>':'')+'</span>'+(lt?'<span class="rm mono" title="Right now at the nearest sensor">'+lt+'</span>':'')+'<span class="star'+(f?' on':'')+'" data-fav="'+p.key+'" title="Favorite">'+(f?'★':'☆')+'</span></button>';
+  return '<button class="row'+(on?' on':'')+'" data-k="'+p.key+'"><span class="rs">'+statusGlyph(p)+'</span><span class="rn">'+esc(p.name)+(p.user?' <span class="tagp">'+(p.user.status==="approved"?"added by a user":"yours \u00b7 pending")+'</span>':'')+(bell?' <span class="bell" title="Push alerts are on for this spot">🔔</span>':'')+'</span>'+((window.MarksUI && MarksUI.marksFor(p.key).length)?'<span class="mk-badge" data-mk="'+p.key+'" title="Depth marks here">\u2933 '+MarksUI.marksFor(p.key).length+'</span>':'')+(lt?'<span class="rm mono" title="Right now at the nearest sensor">'+lt+'</span>':'')+'<span class="star'+(f?' on':'')+'" data-fav="'+p.key+'" title="Favorite">'+(f?'★':'☆')+'</span></button>';
 }
+var PICK_OPEN_KEY="blythe_pickopen_v1", PICK_MARKS_OPEN={};
+function pickOpen(){ return store.get(PICK_OPEN_KEY)||null; }
 function buildPicker(q){
-  var list=document.getElementById("pick-list"), cur=currentPlace().key;
+  var list=document.getElementById("pick-list"), cur=currentPlace().key, curSeg=segFor(currentPlace());
   q=(q||"").trim().toLowerCase();
-  var html="";
+  var html="", open=pickOpen();
   if(!q){
     var fk=favs(), rk=recents().filter(function(k){ return fk.indexOf(k)<0 && k!==cur; });
-    if(fk.length){ html+='<div class="grp">★ Favorites</div>'+fk.map(function(k){ var p=placeByKey(k); return p?rowHtml(p, p.key===cur):""; }).join(""); }
+    if(fk.length){ html+='<div class="grp">\u2605 Favorites</div>'+fk.map(function(k){ var p=placeByKey(k); return p?rowHtml(p, p.key===cur):""; }).join(""); }
     if(rk.length){ html+='<div class="grp">Recent</div>'+rk.map(function(k){ var p=placeByKey(k); return p?rowHtml(p, false):""; }).join(""); }
   }
   ["upper","lake","strip","mid","below"].forEach(function(seg){
-    var ps=PLACES.filter(function(p){ return segFor(p)===seg && (!q || p.name.toLowerCase().indexOf(q)>=0 || SEG_LABEL[seg].toLowerCase().indexOf(q)>=0); });
+    var all=PLACES.filter(function(p){ return segFor(p)===seg; }).sort(function(a,b){ return b.mile-a.mile; });
+    var ps=all.filter(function(p){ return !q || p.name.toLowerCase().indexOf(q)>=0 || SEG_LABEL[seg].toLowerCase().indexOf(q)>=0; });
     if(!ps.length) return;
-    html+='<div class="grp">'+SEG_LABEL[seg]+'</div>'+ps.map(function(p){ return rowHtml(p, p.key===cur)+(window.MarksUI?MarksUI.markRows(p):""); }).join("");
+    // open when searching, when it holds the current spot, or when the person opened it
+    var isOpen = !!q || (open ? open.indexOf(seg)>=0 : seg===curSeg);
+    var nMarks=0; all.forEach(function(p){ nMarks+=(window.MarksUI?MarksUI.marksFor(p.key).length:0); });
+    html+='<button class="grp acc'+(isOpen?' open':'')+'" data-seg="'+seg+'" aria-expanded="'+(isOpen?'true':'false')+'"><span class="chev">'+(isOpen?'\u25be':'\u25b8')+'</span><span class="gl">'+SEG_LABEL[seg]+'</span><span class="gc">'+all.length+(nMarks?' \u00b7 '+nMarks+' mark'+(nMarks===1?'':'s'):'')+'</span></button>';
+    if(isOpen) html+='<div class="acc-body">'+ps.map(function(p){ return rowHtml(p, p.key===cur)+((window.MarksUI && (p.key===cur || PICK_MARKS_OPEN[p.key]))?MarksUI.markRows(p):""); }).join("")+'</div>';
   });
-  if(!html) html='<div class="grp">Nothing matches “'+esc(q)+'” — try a town, resort, bridge, or dam name.</div>';
+  if(!html) html='<div class="grp">Nothing matches \u201c'+esc(q)+'\u201d \u2014 try a town, resort, bridge, or dam name.</div>';
   if(window.MarksUI) html+=MarksUI.addButtons();
-  html+='<p class="note" style="padding:0 8px">Each spot shows the water right now at its nearest sensor: the arrow is the trend, the number is feet above (+) or below (−) this week’s average there (or flow where there’s no height gauge). ★ favorite · 🔔 alerts on.</p>';
+  html+='<p class="note" style="padding:0 8px">Arrow = trend at the nearest sensor; the number is feet above (+) or below (\u2212) this week\u2019s average there, or flow where there\u2019s no height gauge. \u2933 = depth marks people have added at a spot.</p>';
   list.innerHTML=html;
+  var am=document.getElementById("pick-add-mark"); if(am) am.textContent="\u271a Depth mark at "+currentPlace().name;
 }
 function openSheet(){ document.getElementById("sheet").classList.add("open"); document.getElementById("sheet-bg").classList.add("open"); var q=document.getElementById("pick-q"); q.value=""; buildPicker(""); setTimeout(function(){ try{ if(window.matchMedia("(min-width:700px)").matches) q.focus(); }catch(e){} },50); }
 function closeSheet(){ document.getElementById("sheet").classList.remove("open"); document.getElementById("sheet-bg").classList.remove("open"); }
@@ -876,6 +891,10 @@ document.getElementById("sheet-bg").addEventListener("click", function(){ closeS
 document.addEventListener("keydown", function(e){ if(e.key==="Escape"){ closeSheet(); closeAlerts(); } });
 document.getElementById("pick-q").addEventListener("input", function(){ buildPicker(this.value); });
 document.getElementById("pick-list").addEventListener("click", function(ev){
+  var acc=ev.target.closest && ev.target.closest(".grp.acc");
+  if(acc){ var seg=acc.getAttribute("data-seg"), o=pickOpen(); if(!o){ o=[segFor(currentPlace())]; } var i=o.indexOf(seg); if(i>=0) o.splice(i,1); else o.push(seg); store.set(PICK_OPEN_KEY, o); buildPicker(document.getElementById("pick-q").value); return; }
+  var mkb=ev.target.closest && ev.target.closest(".mk-badge");
+  if(mkb){ ev.stopPropagation(); var k2=mkb.getAttribute("data-mk"); PICK_MARKS_OPEN[k2]=!PICK_MARKS_OPEN[k2]; buildPicker(document.getElementById("pick-q").value); return; }
   var star=ev.target.closest && ev.target.closest(".star");
   if(star){ ev.stopPropagation(); toggleFav(star.getAttribute("data-fav")); buildPicker(document.getElementById("pick-q").value); return; }
   var row=ev.target.closest && ev.target.closest(".row"); if(!row) return;
@@ -964,6 +983,6 @@ window.onRiverRender=function(){ renderSimple(); try{ renderOutlook14(heroModel(
 // First paint before any data: show the spot name right away.
 (function(){ try{ if(store.get(PLACE_KEY)) document.getElementById("spot-name").textContent=currentPlace().name; renderRibbon(currentPlace()); }catch(e){} })();
 </script>
-<script src="/marks-ui.js?v=2026-09-29i"></script>
+<script src="/marks-ui.js?v=2026-09-29j"></script>
 </body>
 </html>

@@ -30,9 +30,9 @@
   // ---- picker additions: mark rows under a spot, and the add buttons ----
   function markRows(p){
     var ms=MARKS_BY_SPOT[p.key]||[], cur=currentMarkId();
-    return ms.map(function(m){ return '<button class="row sub'+(m.id===cur?' on':'')+'" data-mark="'+m.id+'" data-k="'+p.key+'"><span class="rs">⤳</span><span class="rn">'+esc(m.name)+(m.status!=="approved"?' <span class="tagp">'+(m.status==="pending"?"awaiting approval":m.status)+'</span>':'')+'</span><span class="rl">mark</span></button>'; }).join("");
+    return ms.map(function(m){ return '<button class="row sub'+(m.id===cur?' on':'')+'" data-mark="'+m.id+'" data-k="'+p.key+'"><span class="rs">⤳</span><span class="rn">'+esc(m.name)+(m.status!=="approved"?' <span class="tagp">'+(m.status==="pending"?"pending":m.status)+'</span>':'')+'</span><span class="rl">mark</span></button>'; }).join("");
   }
-  function addButtons(){ return '<div class="pick-add"><button class="tbtn" id="pick-add-mark">✚ Add a depth mark here</button><button class="tbtn" id="pick-add-place">✚ Add a place</button></div>'+(loadErr?'<p class="note">Marks couldn’t load ('+esc(loadErr)+').</p>':''); }
+  function addButtons(){ return loadErr?'<p class="note" style="padding:0 8px">Marks couldn\u2019t load ('+esc(loadErr)+').</p>':''; }
   window.MarksUI.markRows=markRows; window.MarksUI.addButtons=addButtons;
 
   // ---- the strip under the tiles ----

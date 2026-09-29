@@ -1780,7 +1780,9 @@ function addUserPlaces(list){
     if(!u || !u.id || !(u.mile>0)) return;
     var key="u:"+u.id, ex=PLACES.find(function(p){ return p.key===key; });
     if(ex){ ex.name=u.name; ex.mile=u.mile; ex.user=u; return; }
-    PLACES.push({key:key, name:u.name, mile:u.mile, user:u});
+    var np={key:key, name:u.name, mile:u.mile, user:u}, at=PLACES.length;
+    for(var i=0;i<PLACES.length;i++){ if(PLACES[i].mile<u.mile){ at=i; break; } } // list runs upstream -> downstream
+    PLACES.splice(at, 0, np);
   });
 }
 // ---------- forecast replay (hindcast) ----------
