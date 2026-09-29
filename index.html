@@ -222,6 +222,11 @@
   .row .rs{width:26px; text-align:center; font-size:14px}
   .row .star{background:none; border:0; color:var(--muted); font-size:18px; cursor:pointer; padding:2px 6px; line-height:1}
   .row .star.on{color:#f2c94c}
+  .al-row{display:flex; align-items:flex-start; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); font-size:15px; cursor:pointer}
+  .al-row:last-of-type{border-bottom:0}
+  .al-row input{width:20px; height:20px; margin-top:2px; flex-shrink:0; accent-color:var(--water)}
+  .al-row span{flex:1}
+  .al-sel{background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:7px 9px; font-size:14px}
   .toast{position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:var(--text); color:var(--bg); padding:10px 16px; border-radius:12px; font-size:14px; font-weight:600; z-index:50; display:none; max-width:92vw}
 </style>
 </head>
@@ -243,6 +248,7 @@ try{
   <div class="tools">
     <button id="mode-btn" title="Show every sensor, chart and table">Advanced</button>
     <button id="theme-btn" title="Day / night colors">☀️</button>
+    <button id="alerts-btn" title="Push alerts for this spot">🔔</button>
     <button id="share-btn" title="Share a link that opens on this spot">📤</button>
     <button id="refresh" title="Check for newer data">↻</button>
   </div>
@@ -383,7 +389,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29b</span> — redesign preview · 14-day outlook · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29c</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -398,6 +404,20 @@ try{
     <button id="pick-near" title="Find the nearest spot to you">🧭 Near me</button>
   </div>
   <div class="sheet-body" id="pick-list"></div>
+</div>
+<div class="sheet" id="al-sheet" role="dialog" aria-modal="true" aria-label="Alerts">
+  <div class="sheet-hd"><h2>🔔 Alerts for <span id="al-spot">your spot</span></h2><button class="x" id="al-x" aria-label="Close">✕</button></div>
+  <div class="sheet-body" style="padding:0 16px 24px">
+    <p class="lead" id="al-status" style="margin:6px 0 12px"></p>
+    <label class="al-row"><input type="checkbox" id="al-brief"><span><b>Daily brief</b><br><span class="muted-sm">One notification each morning: where the water sits, the next high and low, and the year context.</span></span><select id="al-hour" class="al-sel"><option value="5">5 AM</option><option value="6">6 AM</option><option value="7" selected>7 AM</option><option value="8">8 AM</option><option value="9">9 AM</option></select></label>
+    <label class="al-row"><input type="checkbox" id="al-heads"><span><b>Heads-up on changes</b><br><span class="muted-sm">When tomorrow’s peak will be noticeably bigger or smaller than today’s.</span></span></label>
+    <label class="al-row"><input type="checkbox" id="al-stale"><span><b>Data outages</b><br><span class="muted-sm">If Reclamation’s feed stops for more than 8 hours.</span></span></label>
+    <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap">
+      <button class="btn-water" id="al-save" style="margin:0; flex:1">Turn on alerts</button>
+      <button class="tbtn" id="al-off" style="display:none">Turn off</button>
+    </div>
+    <p class="note" id="al-note">Alerts arrive as normal phone/desktop notifications, checked every 10 minutes as new sensor data lands. On iPhone, first add this site to your Home Screen (Share → Add to Home Screen), then open it from there.</p>
+  </div>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -617,7 +637,7 @@ function renderOutlook14(M){
   var lvl=function(v){ return lvlOf(M, v); };
   var lead='Each bar is one day’s low-to-high swing at '+esc(pl.name)+' (tick = daily average). '+(schedEnd?'Solid bars follow Reclamation’s published schedule through <b>'+azDay(schedEnd)+'</b>; ':'')+(firstProj>=0?'lighter dashed bars from <b>'+dayName(days[firstProj])+'</b> on are projected from the dams’ weekly release rhythm, with the band showing where 8 days in 10 should land. ':'')+'Biggest day ahead: <b>'+dayName(peakDay)+'</b> (up to '+lvl(peakDay.hi)+'); lowest water: <b>'+dayName(lowDay)+'</b> (down to '+lvl(lowDay.lo)+').';
   document.getElementById("ol14-lead").innerHTML=lead;
-  document.getElementById("ol14-now").innerHTML=(outlookData&&outlookData.dams&&outlookData.dams[dam])?('rhythm learned from <b>'+(Math.round(outlookData.dams[dam].weeksLearned*10)/10)+' wk</b> of releases so far'):'';
+  document.getElementById("ol14-now").innerHTML=(outlookData&&outlookData.dams&&outlookData.dams[dam])?('rhythm from <b>'+(Math.round(outlookData.dams[dam].weeksLearned*10)/10)+' wk</b> hourly · <b>'+(outlookData.dams[dam].weeksDaily||0)+' wk</b> daily'):'';
   var parts=[]; ["1-2","3-5","6-9","10-14"].forEach(function(b){ var v=sk[b]; if(v && v.n>=5) parts.push(b+' days out: within ±'+Math.round(v.medPct)+'% on a typical day (±'+Math.round(v.p90Pct)+'% on 9 of 10, n='+v.n+')'); });
   document.getElementById("ol14-note").innerHTML=parts.length ? '<b>Scorecard</b> — the robot checks every daily forecast against what actually happened at the dam: '+parts.join(' · ')+'.' : '<b>Scorecard:</b> the robot logs each day’s forecast and scores it against what actually happens at the dam; real accuracy numbers per lead time appear here after a few days of scoring.';
 }
@@ -671,8 +691,8 @@ function openSheet(){ document.getElementById("sheet").classList.add("open"); do
 function closeSheet(){ document.getElementById("sheet").classList.remove("open"); document.getElementById("sheet-bg").classList.remove("open"); }
 document.getElementById("spot-btn").addEventListener("click", openSheet);
 document.getElementById("sheet-x").addEventListener("click", closeSheet);
-document.getElementById("sheet-bg").addEventListener("click", closeSheet);
-document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeSheet(); });
+document.getElementById("sheet-bg").addEventListener("click", function(){ closeSheet(); closeAlerts(); });
+document.addEventListener("keydown", function(e){ if(e.key==="Escape"){ closeSheet(); closeAlerts(); } });
 document.getElementById("pick-q").addEventListener("input", function(){ buildPicker(this.value); });
 document.getElementById("pick-list").addEventListener("click", function(ev){
   var star=ev.target.closest && ev.target.closest(".star");
@@ -696,6 +716,63 @@ function nearMe(){
 document.getElementById("pick-near").addEventListener("click", nearMe);
 document.getElementById("welcome-near").addEventListener("click", nearMe);
 
+// ---------- push alerts ----------
+var PUSH_KEY="blythe_push_v1";
+function pushState(){ return store.get(PUSH_KEY)||null; }
+function pushSupported(){ return !!(window.isSecureContext && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window); }
+function isIOS(){ return /iP(hone|ad|od)/.test(navigator.userAgent) && !window.MSStream; }
+function isStandalone(){ return window.matchMedia("(display-mode: standalone)").matches || navigator.standalone===true; }
+function b64ToU8(b64){ var pad="=".repeat((4-b64.length%4)%4), s=(b64+pad).replace(/-/g,"+").replace(/_/g,"/"), raw=atob(s), a=new Uint8Array(raw.length); for(var i=0;i<raw.length;i++) a[i]=raw.charCodeAt(i); return a; }
+function alPrefs(){ return { brief:document.getElementById("al-brief").checked, briefHour:parseInt(document.getElementById("al-hour").value,10), heads:document.getElementById("al-heads").checked, stale:document.getElementById("al-stale").checked }; }
+function openAlerts(){
+  var st=pushState(), pl=currentPlace();
+  document.getElementById("al-spot").textContent=pl.name;
+  var status=document.getElementById("al-status"), save=document.getElementById("al-save"), off=document.getElementById("al-off");
+  if(st && st.prefs){ document.getElementById("al-brief").checked=!!st.prefs.brief; document.getElementById("al-hour").value=String(st.prefs.briefHour||7); document.getElementById("al-heads").checked=!!st.prefs.heads; document.getElementById("al-stale").checked=!!st.prefs.stale; }
+  else { document.getElementById("al-brief").checked=true; document.getElementById("al-heads").checked=true; document.getElementById("al-stale").checked=false; }
+  save.disabled=false; off.style.display=st?"":"none"; save.textContent=st?"Save changes":"Turn on alerts";
+  if(!pushSupported()){
+    status.innerHTML= (isIOS() && !isStandalone()) ? "<b>iPhone:</b> add this site to your Home Screen first (Share → Add to Home Screen), then open it from there to turn on alerts." : "This browser can’t receive push notifications.";
+    save.disabled=true;
+  } else if(Notification.permission==="denied"){ status.innerHTML="Notifications are <b>blocked</b> for this site in your browser settings — allow them there, then come back."; save.disabled=true; }
+  else if(st){ status.innerHTML="Alerts are <b>on</b> for <b>"+esc(placeByKey(st.spot)?placeByKey(st.spot).name:st.spot)+"</b>. They follow the spot you have picked."; }
+  else status.innerHTML="Get a notification instead of checking the page.";
+  document.getElementById("al-sheet").classList.add("open"); document.getElementById("sheet-bg").classList.add("open"); document.getElementById("sheet-bg")._al=true;
+  fetch("/api/push/config",{cache:"no-store"}).then(function(r){ return r.json(); }).then(function(c){ if(!c.enabled){ status.innerHTML="Alerts aren’t switched on for this site yet (server keys not set)."; save.disabled=true; } window._pushCfg=c; }).catch(function(){ status.innerHTML="Couldn’t reach the alert service — try again in a minute."; save.disabled=true; });
+}
+function closeAlerts(){ document.getElementById("al-sheet").classList.remove("open"); document.getElementById("sheet-bg").classList.remove("open"); }
+function subscribePush(){
+  var save=document.getElementById("al-save"); save.disabled=true; save.textContent="Working…";
+  var cfg=window._pushCfg;
+  if(!cfg || !cfg.publicKey){ toast("Alert service isn’t configured yet."); save.disabled=false; save.textContent="Turn on alerts"; return; }
+  navigator.serviceWorker.register("/sw.js").then(function(reg){ return navigator.serviceWorker.ready; })
+  .then(function(reg){ return Notification.requestPermission().then(function(p){ if(p!=="granted") throw new Error("Permission not granted"); return reg.pushManager.getSubscription().then(function(s){ return s || reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64ToU8(cfg.publicKey)}); }); }); })
+  .then(function(sub){ return postSubscription(sub.toJSON()); })
+  .then(function(){ toast("Alerts are on for "+currentPlace().name+" ✓"); closeAlerts(); })
+  .catch(function(e){ toast(/Permission/.test(String(e))?"Notifications weren’t allowed.":"Couldn’t turn on alerts: "+(e&&e.message||e), 3500); })
+  .then(function(){ save.disabled=false; save.textContent=pushState()?"Save changes":"Turn on alerts"; });
+}
+function postSubscription(subJson){
+  var spot=currentPlace().key, prefs=alPrefs();
+  return fetch("/api/push/subscribe",{method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({subscription:subJson, spot:spot, prefs:prefs})})
+    .then(function(r){ if(!r.ok) throw new Error("server "+r.status); return r.json(); })
+    .then(function(){ store.set(PUSH_KEY, {endpoint:subJson.endpoint, spot:spot, prefs:prefs, sub:subJson, at:Date.now()}); });
+}
+function unsubscribePush(){
+  var st=pushState();
+  var done=function(){ store.set(PUSH_KEY, null); toast("Alerts are off."); closeAlerts(); };
+  if(!st){ done(); return; }
+  fetch("/api/push/subscribe",{method:"DELETE", headers:{"content-type":"application/json"}, body:JSON.stringify({endpoint:st.endpoint})}).catch(function(){})
+    .then(function(){ return navigator.serviceWorker.getRegistration().then(function(reg){ return reg && reg.pushManager.getSubscription().then(function(s){ return s && s.unsubscribe(); }); }); }).catch(function(){})
+    .then(done);
+}
+document.getElementById("alerts-btn").addEventListener("click", openAlerts);
+document.getElementById("al-x").addEventListener("click", closeAlerts);
+document.getElementById("al-save").addEventListener("click", subscribePush);
+document.getElementById("al-off").addEventListener("click", unsubscribePush);
+// Keep the server in step when a subscribed visitor changes spot.
+var _onPlaceChangePrev=window.onPlaceChange;
+window.onPlaceChange=function(k){ if(_onPlaceChangePrev) _onPlaceChangePrev(k); var st=pushState(); if(st && st.sub && st.spot!==k){ postSubscription(st.sub).catch(function(){}); } };
 // Links that point into the advanced view switch to it first.
 document.addEventListener("click", function(ev){
   var a=ev.target.closest && ev.target.closest('a[data-adv]'); if(!a) return;

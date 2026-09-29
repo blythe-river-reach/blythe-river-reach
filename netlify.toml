@@ -1,6 +1,12 @@
 [build]
   publish = "."
 
+# Push-notification functions (/api/push/*). The alert evaluator runs the
+# page's own river.js under Node, so it is shipped inside the bundle.
+[functions]
+  node_bundler = "esbuild"
+  included_files = ["river.js"]
+
 # Pretty per-spot URLs (/s/<key>) all serve the one page. Cloudflare Web
 # Analytics groups by path (it drops query strings), so this is what makes
 # per-spot page views visible in the dashboard.

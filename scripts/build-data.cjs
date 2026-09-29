@@ -749,9 +749,39 @@ function seasonalAnchor(dailyLastYear, fromT, toT) {
   for (const p of dailyLastYear) { if (p[0] >= a && p[0] <= b && p[1] != null) vals.push(p[1]); }
   return vals.length >= 5 ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
 }
+// Day-of-week factor and day-to-day spread from the DAILY archive (a year of
+// it exists), so the model isn't limited to however many hourly weeks have
+// accumulated. Uses the last 8 weeks: recent enough to reflect this season.
+function dailyPattern(dailyArchive) {
+  if (!dailyArchive || dailyArchive.length < 21) return null;
+  const cutoff = Date.now() - 56 * DAY;
+  const rows = dailyArchive.filter((p) => p[0] >= cutoff && p[1] != null && p[1] > 0);
+  if (rows.length < 21) return null;
+  const mean = rows.reduce((a, p) => a + p[1], 0) / rows.length;
+  const byDow = Array.from({ length: 7 }, () => []);
+  for (const p of rows) byDow[new Date(p[0] - OFF + 12 * 3600000).getUTCDay()].push(p[1] / mean);
+  const dow = byDow.map((b) => (b.length ? b.reduce((a, v) => a + v, 0) / b.length : 1));
+  // spread of daily means around their own weekday level
+  const res = [];
+  rows.forEach((p) => { const d = new Date(p[0] - OFF + 12 * 3600000).getUTCDay(); res.push(p[1] / mean / dow[d] - 1); });
+  const sd = Math.sqrt(res.reduce((a, x) => a + x * x, 0) / Math.max(1, res.length - 1));
+  return { dow, sdRel: Math.min(0.35, Math.max(0.06, sd)), weeks: +(rows.length / 7).toFixed(1), mean };
+}
 function buildDamOutlook(hourly, sched, dailyArchive) {
   const pat = weeklyPattern(hourly);
   if (!pat) return null;
+  const dp = dailyPattern(dailyArchive);
+  // Until 3+ hourly weeks exist, the 168-slot shape is really one week's
+  // noise: use hour-of-day shape (from the hourly week) x day-of-week factor
+  // (from the daily archive) instead.
+  let shape = pat.shape;
+  if (pat.weeks < 3 && dp) {
+    const hod = Array.from({ length: 24 }, () => []);
+    for (let k = 0; k < 168; k++) hod[k % 24].push(pat.shape[k] / (dp.dow[Math.floor(k / 24)] || 1));
+    const h24 = hod.map((b) => b.reduce((a, v) => a + v, 0) / b.length);
+    const hm = h24.reduce((a, v) => a + v, 0) / 24;
+    shape = Array.from({ length: 168 }, (_, k) => (h24[k % 24] / hm) * dp.dow[Math.floor(k / 24)]);
+  }
   const now = Date.now();
   const schedEnd = sched && sched.length ? sched[sched.length - 1].t : now;
   const start = Math.max(now, schedEnd) + 3600000;
@@ -767,16 +797,15 @@ function buildDamOutlook(hourly, sched, dailyArchive) {
     const w = seasonal != null ? Math.min(0.5, Math.max(0, (dAhead - 5) / 18)) : 0;
     const anchor = recentMean * (1 - w) + (seasonal != null ? seasonal : recentMean) * w;
     const k = mstSlot(t);
-    const v = anchor * pat.shape[k];
-    // Per-slot spread once 3+ weeks are in the archive; until then a fixed
-    // 20% (one or two samples per slot cannot measure spread). Clamped so a
-    // single odd week can neither flatten nor blow up the band.
-    const sdRel = pat.weeks >= 3 && pat.sd[k] != null && pat.n[k] >= 3 ? Math.min(0.35, Math.max(0.06, pat.sd[k])) : 0.2;
+    const v = anchor * shape[k];
+    // Spread: per-slot once 3+ hourly weeks exist; before that the day-to-day
+    // spread measured from the daily archive; last resort a fixed 20%.
+    const sdRel = pat.weeks >= 3 && pat.sd[k] != null && pat.n[k] >= 3 ? Math.min(0.35, Math.max(0.06, pat.sd[k])) : (dp ? dp.sdRel : 0.2);
     const grow = 1 + 0.12 * Math.max(0, dAhead - 5);   // uncertainty widens past the schedule
     const half = 1.28 * sdRel * anchor * grow;           // ~80% band
     points.push([t, Math.round(v), Math.round(Math.max(0, v - half)), Math.round(v + half), dAhead <= 10 ? "pattern" : "seasonal"]);
   }
-  return { schedEnd, hourly: points, recentMean: Math.round(recentMean), seasonalMean: seasonal != null ? Math.round(seasonal) : null, weeksLearned: pat.weeks, sdPooled: +pat.sdPooled.toFixed(3) };
+  return { schedEnd, hourly: points, recentMean: Math.round(recentMean), seasonalMean: seasonal != null ? Math.round(seasonal) : null, weeksLearned: pat.weeks, weeksDaily: dp ? dp.weeks : 0, sdRelDaily: dp ? dp.sdRel : null, sdPooled: +pat.sdPooled.toFixed(3) };
 }
 function leadBucket(lead) { return lead <= 2 ? "1-2" : lead <= 5 ? "3-5" : lead <= 9 ? "6-9" : "10-14"; }
 function scoreOutlook(prevOut, damKey, sched, damOut, accumDaily) {

@@ -1,0 +1,81 @@
+// Alert rules — pure logic, no I/O, so it can be tested with plain data.
+// Each subscription: { subscription, spot, prefs:{brief, briefHour, heads, stale}, sent:{key:ts} }
+"use strict";
+const E = require("./engine-node.js");
+const DAY = 86400000, OFF = 7 * 3600 * 1000;
+const dayKey = (t) => Math.floor((t - OFF) / DAY);
+const mstHour = (t) => new Date(t - OFF).getUTCHours();
+const clock = (t) => new Date(t).toLocaleTimeString("en-US", { timeZone: "America/Phoenix", hour: "numeric", minute: "2-digit" });
+const relTime = (t, now) => { const d = dayKey(t) - dayKey(now); return "~" + clock(t) + (d === 1 ? " tomorrow" : d > 1 ? " " + new Date(t).toLocaleDateString("en-US", { timeZone: "America/Phoenix", weekday: "short" }) : ""); };
+function lvl(M, v) { const ft = M.toFtH ? M.toFtH(v) : null; return ft != null ? (ft < 0.05 ? "0.0 ft" : "+" + ft.toFixed(1) + " ft") : Math.round(v).toLocaleString("en-US") + " cfs"; }
+function extremes(pts, k) { let hi = null, lo = null; for (const p of pts) { if (dayKey(p.t) !== k) continue; if (!hi || p.v > hi.v) hi = p; if (!lo || p.v < lo.v) lo = p; } return { hi, lo }; }
+function dayPeaks(M, now) {
+  const tk = dayKey(now), flowP = M.flowP || [];
+  const today = flowP.filter((p) => dayKey(p.t) === tk).map((p) => ({ t: p.t, v: p.v }));
+  const horizon = flowP.length ? flowP[flowP.length - 1].t : 0;
+  const fut = (M.outlook && M.outlook.blend) || [];
+  for (const p of fut) if (p.t > horizon && dayKey(p.t) === tk) today.push({ t: p.t, v: p.v });
+  return { yest: extremes(flowP, tk - 1), today: extremes(today, tk), tomorrow: extremes(fut, tk + 1) };
+}
+function cmp(M, a, b) {
+  if (a == null || b == null) return null;
+  if (M.toFtH) { const fa = M.toFtH(a), fb = M.toFtH(b); if (fa != null && fb != null) { const d = fa - fb; return d > 0.25 ? "bigger" : d < -0.25 ? "smaller" : "similar"; } }
+  const r = a / (b || 1); return r > 1.08 ? "bigger" : r < 0.92 ? "smaller" : "similar";
+}
+const plain = (s) => String(s || "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+
+// Messages a subscription is due for right now (keys let the caller dedupe).
+function messagesFor(M, sub, now, dataAgeMs) {
+  const out = [], prefs = sub.prefs || {}, name = M.pl.name, url = "/s/" + M.pl.key;
+  if (!M.ok) return out;
+  const tk = dayKey(now);
+  if (prefs.brief) {
+    const hr = Number.isFinite(+prefs.briefHour) ? +prefs.briefHour : 7;
+    if (mstHour(now) >= hr && mstHour(now) < hr + 6) { // send in the first run after the chosen hour; give up 6 h later
+      const e0 = M.events[0], e1 = M.events[1];
+      let body = "";
+      if (M.lake && M.lakeInfo) body = "Lake at " + M.lakeInfo.elev.toFixed(2) + " ft, " + M.lakeInfo.word + ".";
+      else {
+        body = (M.abl != null ? "Now " + lvl(M, M.f ? M.f.v : 0) + " above the week's low" : "Now " + (M.f ? Math.round(M.f.v).toLocaleString("en-US") + " cfs" : "")) + ".";
+        if (e0) body += " Next " + e0.type + " " + lvl(M, e0.v) + " " + relTime(e0.t, now) + (e1 ? ", then " + e1.type + " " + lvl(M, e1.v) + " " + relTime(e1.t, now) : "") + ".";
+        if (M.yc) body += " " + M.yc.phrase.charAt(0).toUpperCase() + M.yc.phrase.slice(1) + ".";
+      }
+      out.push({ key: "brief:" + tk, title: name + ": " + plain(M.head.t), body, url, tag: "brief" });
+    }
+  }
+  if (prefs.heads && !M.lake) {
+    const P = dayPeaks(M, now);
+    if (P.tomorrow.hi && P.today.hi) {
+      const rel = cmp(M, P.tomorrow.hi.v, P.today.hi.v);
+      if (rel && rel !== "similar") {
+        out.push({ key: "heads:" + tk + ":" + rel, title: name + ": tomorrow's peak " + rel, body: "Tomorrow peaks at " + lvl(M, P.tomorrow.hi.v) + " " + relTime(P.tomorrow.hi.t, now) + " vs today's " + lvl(M, P.today.hi.v) + (P.tomorrow.lo ? ". Low " + lvl(M, P.tomorrow.lo.v) + " " + relTime(P.tomorrow.lo.t, now) : "") + ".", url, tag: "heads" });
+      }
+    }
+  }
+  if (prefs.stale && dataAgeMs > 8 * 3600 * 1000) {
+    out.push({ key: "stale:" + tk, title: "River data is running behind", body: "The newest sensor reading is " + Math.round(dataAgeMs / 3600000) + " h old — Reclamation's feed has paused. The page will catch up on its own.", url, tag: "stale" });
+  }
+  return out;
+}
+
+// Evaluate all subscriptions against one riverdata.json. Returns per-sub
+// messages not yet sent (by key), with the engine result cached per spot.
+function evaluate(data, subs, now) {
+  now = now || Date.now();
+  const ctx = E.makeContext();
+  E.loadData(ctx, data);
+  let newest = 0;
+  for (const s of data.stations || []) for (const p of (s.flow || []).concat(s.stage || [])) if (p.t > newest) newest = p.t;
+  const dataAge = newest ? now - newest : 0;
+  const cache = {}, results = [];
+  for (const sub of subs) {
+    if (!sub || !sub.spot) continue;
+    if (!cache[sub.spot]) { try { cache[sub.spot] = E.evalSpot(ctx, sub.spot); } catch (e) { cache[sub.spot] = null; } }
+    const M = cache[sub.spot]; if (!M) continue;
+    const sent = sub.sent || {};
+    const due = messagesFor(M, sub, now, dataAge).filter((m) => !sent[m.key]);
+    if (due.length) results.push({ sub, messages: due });
+  }
+  return results;
+}
+module.exports = { evaluate, messagesFor, dayPeaks };
