@@ -141,6 +141,18 @@ async function photoFor(stores, device, admin, markId) {
   if (!buf) return { error: "no photo", status: 404 };
   return { ok: true, buf, photo: mark.photo, approved: mark.status === "approved" };
 }
+// ---- feedback from visitors: what they like, what's wrong, what to add ----
+const FB_KINDS = { like: 1, dislike: 1, idea: 1, bug: 1 };
+async function createFeedback(stores, device, body) {
+  if (!DEVICE_RE.test(device || "")) return { error: "device id required", status: 400 };
+  const kind = FB_KINDS[body.kind] ? body.kind : "idea", text = clean(body.text, 2000);
+  if (text.length < 5) return { error: "say a little more", status: 400 };
+  if (!(await rateOk(stores, device))) return { error: "too many submissions this hour", status: 429 };
+  const rec = { id: ID(), kind, text, contact: clean(body.contact, 120), spot: /^(u:)?[a-z0-9-]{1,48}$/.test(String(body.spot || "")) ? body.spot : null, build: clean(body.build, 40), page: clean(body.page, 80), owner: device, ua: clean(body.ua, 160), status: "new", createdAt: new Date().toISOString() };
+  await stores.feedback.setJSON(rec.createdAt.replace(/[-:.TZ]/g, "").slice(0, 14) + "-" + rec.id, rec);
+  return { ok: true, id: rec.id };
+}
+async function listFeedback(stores) { return (await listAll(stores.feedback, "")).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)); }
 // ---- site settings: marksEnabled hides the whole feature from visitors ----
 const DEFAULT_FLAGS = { marksEnabled: false };
 async function getFlags(stores) { const f = await stores.settings.get("flags", { type: "json" }).catch(() => null); return Object.assign({}, DEFAULT_FLAGS, f || {}); }
@@ -164,20 +176,20 @@ async function setFlags(stores, patchObj) {
 async function queue(stores) {
   const places = await listAll(stores.places, ""), marks = await listAll(stores.marks, ""), readings = await listAll(stores.readings, "");
   readings.sort((a, b) => b.t - a.t);
-  const flags = await getFlags(stores);
-  return { places, marks, readings: readings.slice(0, 600), flags, counts: { places: places.length, marks: marks.length, readings: readings.length, pendingPlaces: places.filter((p) => p.status === "pending").length, pendingMarks: marks.filter((m) => m.status === "pending").length, flagged: readings.filter((r) => r.status === "flagged").length } };
+  const flags = await getFlags(stores), feedback = await listFeedback(stores);
+  return { places, marks, readings: readings.slice(0, 600), feedback: feedback.slice(0, 300), flags, counts: { places: places.length, marks: marks.length, readings: readings.length, pendingPlaces: places.filter((p) => p.status === "pending").length, pendingMarks: marks.filter((m) => m.status === "pending").length, flagged: readings.filter((r) => r.status === "flagged").length, feedback: feedback.length, newFeedback: feedback.filter((f) => f.status === "new").length } };
 }
 async function act(stores, body) {
   const type = String(body.type || ""), id = String(body.id || ""), action = String(body.action || "");
-  const store = { place: stores.places, mark: stores.marks, reading: stores.readings }[type]; if (!store) return { error: "type", status: 400 };
+  const store = { place: stores.places, mark: stores.marks, reading: stores.readings, feedback: stores.feedback }[type]; if (!store) return { error: "type", status: 400 };
   const all = await listAll(store, ""); const rec = all.find((r) => r.id === id); if (!rec) return { error: "not found", status: 404 };
   const key = rec._key; delete rec._key;
   if (action === "delete") { await store.delete(key); if (type === "mark") await stores.photos.delete(id).catch(() => {}); return { ok: true, deleted: id }; }
   if (action === "unphoto") { if (type !== "mark") return { error: "photos belong to marks", status: 400 }; await stores.photos.delete(id).catch(() => {}); delete rec.photo; await store.setJSON(key, rec); return { ok: true, record: rec }; }
   if (action === "setmile") { if (type !== "place") return { error: "mile only applies to places", status: 400 }; const mile = +body.mile; if (!(mile >= 40 && mile <= 280)) return { error: "mile out of range", status: 400 }; rec.mile = +mile.toFixed(2); rec.mileEditedAt = new Date().toISOString(); await store.setJSON(key, rec); return { ok: true, record: rec }; }
-  const allowed = type === "reading" ? { ok: "ok", hide: "hidden" } : { approve: "approved", hide: "hidden", pending: "pending" };
+  const allowed = type === "reading" ? { ok: "ok", hide: "hidden" } : type === "feedback" ? { new: "new", read: "read", done: "done" } : { approve: "approved", hide: "hidden", pending: "pending" };
   if (!allowed[action]) return { error: "action", status: 400 };
   rec.status = allowed[action]; rec.reviewedAt = new Date().toISOString();
   await store.setJSON(key, rec); return { ok: true, record: rec };
 }
-module.exports = { listPlaces, createPlace, listMarks, createMark, getMark, listReadings, createReading, setPhoto, photoFor, setPins, getFlags, setFlags, queue, act, summarize, DEVICE_RE };
+module.exports = { listPlaces, createPlace, listMarks, createMark, getMark, listReadings, createReading, setPhoto, photoFor, setPins, getFlags, setFlags, createFeedback, listFeedback, queue, act, summarize, DEVICE_RE };

@@ -65,6 +65,12 @@ function pushHtml(){
   return '<div class="tiles"><div class="tile"><b>'+p.total+'</b><span class="muted">push subscribers</span></div></div><div class="card"><div class="row"><div class="grow"><b>Run alerts now</b><div class="muted">Evaluates every subscriber against the newest data for this branch and sends whatever is due, exactly as the robot does after each run. Nothing is sent twice.</div></div><button id="runalerts">Run now</button></div><div class="muted" id="runalerts-out" style="margin-top:6px"></div></div>'+(rows?'<div class="card"><b>By spot</b><table><tr><th>Spot</th><th>Subscribers</th></tr>'+rows+'</table></div>':'');
 }
 function localInput(iso){ if(!iso) return ""; var d=new Date(iso); var p=function(n){ return (n<10?"0":"")+n; }; return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes()); }
+var FB_LABEL={like:"\u{1F44D} Like", dislike:"\u{1F44E} Not for me", idea:"\u{1F4A1} Idea", bug:"\u{1F41B} Broken"};
+function feedbackHtml(){
+  var fb=Q.feedback||[]; if(!fb.length) return '<p class="empty">No feedback yet.</p>';
+  var order={new:0, read:1, done:2};
+  return fb.slice().sort(function(a,b){ return (order[a.status]||0)-(order[b.status]||0) || (a.createdAt<b.createdAt?1:-1); }).map(function(f){ return '<div class="card'+(f.status==="new"?' pending':'')+'"><div class="row"><div class="grow"><b>'+(FB_LABEL[f.kind]||esc(f.kind))+'</b> <span class="tag '+(f.status==="new"?'pending':f.status==="done"?'approved':'')+'">'+f.status+'</span><div style="white-space:pre-wrap; margin:6px 0">'+esc(f.text)+'</div><div class="muted">'+(f.contact?'from <b>'+esc(f.contact)+'</b> \u00b7 ':'')+(f.spot?'looking at '+esc(spotName(f.spot))+' \u00b7 ':'')+(f.build?esc(f.build)+' \u00b7 ':'')+(f.page?esc(f.page)+' \u00b7 ':'')+when(f.createdAt)+' ('+ago(f.createdAt)+') \u00b7 device '+dev(f)+(f.ua?'<br><span title="'+esc(f.ua)+'">'+esc(f.ua.slice(0,90))+'</span>':'')+'</div></div></div><div class="acts" data-type="feedback" data-id="'+f.id+'">'+(f.status!=="read"&&f.status!=="done"?'<button data-a="read">Mark read</button>':'')+(f.status!=="done"?'<button class="ok" data-a="done">Done</button>':'<button data-a="new">Reopen</button>')+'<button class="bad" data-a="delete">Delete</button></div></div>'; }).join("");
+}
 function noticeHtml(){
   var n=Q.flags&&Q.flags.notice, now=Date.now();
   var state=!n?"":(n.from&&new Date(n.from).getTime()>now)?'<span style="color:var(--water)">scheduled</span>':(n.until&&new Date(n.until).getTime()<=now)?'<span style="color:var(--warn)">expired</span>':'<span style="color:var(--ok)">showing now</span>';
@@ -96,8 +102,8 @@ function markCard(m){
 function render(){
   var q=Q, c=q.counts||{}, on=!!(q.flags&&q.flags.marksEnabled), h="";
   h+='<div class="switch"><div class="grow"><b>Landmarks &amp; depth marks on the site</b><div class="muted">Off hides the whole feature from visitors (picker rows, panel, add buttons). Everything stays stored; switch it back on any time.'+(q.flags&&q.flags.updatedAt?' Changed '+when(q.flags.updatedAt)+'.':'')+'</div></div><span class="st '+(on?'on':'off')+'">'+(on?'ON':'OFF')+'</span><button class="primary" id="toggle">'+(on?'Turn off':'Turn on')+'</button></div>';
-  h+='<div class="tiles"><div class="tile'+(c.pendingPlaces?' warn':'')+'"><b>'+(c.pendingPlaces||0)+'</b><span class="muted">places to review</span></div><div class="tile'+(c.pendingMarks?' warn':'')+'"><b>'+(c.pendingMarks||0)+'</b><span class="muted">marks to review</span></div><div class="tile'+(c.flagged?' bad':'')+'"><b>'+(c.flagged||0)+'</b><span class="muted">flagged readings</span></div><div class="tile"><b>'+(c.readings||0)+'</b><span class="muted">readings in all \u00b7 '+(c.marks||0)+' marks \u00b7 '+(c.places||0)+' places</span></div></div>';
-  var tabs=[["review","Needs review"],["all","All"],["places","Places"],["marks","Marks"],["readings","Readings"],["health","Data health"],["push","Notifications"],["notice","Site notice"]];
+  h+='<div class="tiles"><div class="tile'+(c.pendingPlaces?' warn':'')+'"><b>'+(c.pendingPlaces||0)+'</b><span class="muted">places to review</span></div><div class="tile'+(c.pendingMarks?' warn':'')+'"><b>'+(c.pendingMarks||0)+'</b><span class="muted">marks to review</span></div><div class="tile'+(c.flagged?' bad':'')+'"><b>'+(c.flagged||0)+'</b><span class="muted">flagged readings</span></div><div class="tile'+(c.newFeedback?' warn':'')+'"><b>'+(c.newFeedback||0)+'</b><span class="muted">new feedback \u00b7 '+(c.feedback||0)+' in all</span></div><div class="tile"><b>'+(c.readings||0)+'</b><span class="muted">readings in all \u00b7 '+(c.marks||0)+' marks \u00b7 '+(c.places||0)+' places</span></div></div>';
+  var tabs=[["review","Needs review"],["all","All"],["places","Places"],["marks","Marks"],["readings","Readings"],["feedback","Feedback"],["health","Data health"],["push","Notifications"],["notice","Site notice"]];
   h+='<div class="tabs">'+tabs.map(function(t){ return '<button data-tab="'+t[0]+'"'+(TAB===t[0]?' class="on"':'')+'>'+t[1]+'</button>'; }).join("")+'</div>';
   var order={pending:0, approved:1, hidden:2}, srt=function(a,b){ return (order[a.status]||0)-(order[b.status]||0) || (a.createdAt<b.createdAt?1:-1); };
   if(TAB==="all"){ /* handled below */ }
@@ -106,10 +112,12 @@ function render(){
     h+='<h2>Places waiting ('+pp.length+')</h2>'+(pp.length?pp.map(placeCard).join(""):'<p class="empty">Nothing waiting.</p>');
     h+='<h2>Marks waiting ('+pm.length+')</h2>'+(pm.length?pm.map(markCard).join(""):'<p class="empty">Nothing waiting.</p>');
     h+='<h2>Flagged readings ('+fr.length+')</h2>'+(fr.length?'<div class="card flagged">'+readingsTable(fr)+'</div>':'<p class="empty">Nothing flagged.</p>');
+    var nf=(q.feedback||[]).filter(function(f){ return f.status==="new"; }); h+='<h2>New feedback ('+nf.length+')</h2>'+(nf.length?'<p class="muted">See the Feedback tab to read and file it.</p>':'<p class="empty">Nothing new.</p>');
   } else if(TAB==="places"){ h+=q.places.length?q.places.slice().sort(srt).map(placeCard).join(""):'<p class="empty">No user places yet.</p>'; }
   else if(TAB==="marks"){ h+=q.marks.length?q.marks.slice().sort(srt).map(markCard).join(""):'<p class="empty">No marks yet.</p>'; }
   else if(TAB==="readings"){ h+=q.marks.length?q.marks.slice().sort(srt).map(markCard).join(""):'<p class="empty">No marks, so no readings.</p>'; }
   else if(TAB==="all"){ h+='<h2>Places ('+q.places.length+')</h2>'+(q.places.length?q.places.slice().sort(srt).map(placeCard).join(""):'<p class="empty">None.</p>')+'<h2>Marks ('+q.marks.length+') and their readings</h2>'+(q.marks.length?q.marks.slice().sort(srt).map(markCard).join(""):'<p class="empty">None.</p>'); }
+  else if(TAB==="feedback"){ h+=feedbackHtml(); }
   else if(TAB==="health"){ h+=healthHtml(); }
   else if(TAB==="push"){ h+=pushHtml(); }
   else if(TAB==="notice"){ h+=noticeHtml(); }

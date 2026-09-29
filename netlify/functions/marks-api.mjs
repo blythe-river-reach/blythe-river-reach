@@ -16,7 +16,7 @@ const C = require("../lib/marks-core.js");
 const E = require("../lib/engine-node.js");
 const REPO = "blythe-river-reach/blythe-river-reach";
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
-const stores = () => ({ places: getStore({ name: "marks-places", consistency: "strong" }), marks: getStore({ name: "marks-marks", consistency: "strong" }), readings: getStore({ name: "marks-readings", consistency: "strong" }), ratelimit: getStore({ name: "marks-ratelimit", consistency: "strong" }), photos: getStore({ name: "marks-photos", consistency: "strong" }), settings: getStore({ name: "marks-settings", consistency: "strong" }) });
+const stores = () => ({ places: getStore({ name: "marks-places", consistency: "strong" }), marks: getStore({ name: "marks-marks", consistency: "strong" }), readings: getStore({ name: "marks-readings", consistency: "strong" }), ratelimit: getStore({ name: "marks-ratelimit", consistency: "strong" }), photos: getStore({ name: "marks-photos", consistency: "strong" }), settings: getStore({ name: "marks-settings", consistency: "strong" }), feedback: getStore({ name: "marks-feedback", consistency: "strong" }) });
 
 // Engine on the freshest data for this branch; cached per warm function instance.
 let cache = { branch: null, at: 0, ctx: null, data: null };
@@ -61,6 +61,8 @@ export default async (req) => {
     } else if (path.endsWith("/marks")) {
       if (req.method === "GET") return json({ ok: true, marks: await C.listMarks(S, device, false, url.searchParams.get("spot") || "") });
       if (req.method === "POST") return send(await C.createMark(S, device, body));
+    } else if (path.endsWith("/feedback")) {
+      if (req.method === "POST") return send(await C.createFeedback(S, device, Object.assign({}, body, { ua: req.headers.get("user-agent") || "" })));
     } else if (path.endsWith("/marks/pins")) {
       if (req.method === "POST") return send(await C.setPins(S, device, false, String(body.mark || ""), body.pins));
     } else if (path.endsWith("/readings")) {
@@ -80,4 +82,4 @@ export default async (req) => {
   } catch (e) { return json({ error: String(e && e.message || e) }, 500); }
 };
 
-export const config = { path: ["/api/marks", "/api/marks/config", "/api/marks/photo", "/api/marks/pins", "/api/places", "/api/readings"] };
+export const config = { path: ["/api/marks", "/api/marks/config", "/api/marks/photo", "/api/marks/pins", "/api/places", "/api/readings", "/api/feedback"] };

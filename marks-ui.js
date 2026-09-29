@@ -169,7 +169,7 @@
   }
   // ---- sheets ----
   function openS(id){ $(id).classList.add("open"); $("sheet-bg").classList.add("open"); }
-  function closeAll(){ ["mk-sheet","pl-sheet","rd-sheet","pin-sheet"].forEach(function(id){ var e=$(id); if(e) e.classList.remove("open"); }); var sh=$("sheet"), al=$("al-sheet"); if(!(sh&&sh.classList.contains("open")) && !(al&&al.classList.contains("open"))) $("sheet-bg").classList.remove("open"); }
+  function closeAll(){ ["mk-sheet","pl-sheet","rd-sheet","pin-sheet","fb-sheet"].forEach(function(id){ var e=$(id); if(e) e.classList.remove("open"); }); var sh=$("sheet"), al=$("al-sheet"); if(!(sh&&sh.classList.contains("open")) && !(al&&al.classList.contains("open"))) $("sheet-bg").classList.remove("open"); }
   window.MarksUI.closeAll=closeAll;
   function geo(cb){ if(!navigator.geolocation){ toast("Location isn’t available in this browser."); return; } toast("Getting your location…", 5000); navigator.geolocation.getCurrentPosition(function(pos){ cb(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy); }, function(err){ toast(err&&err.code===1?"Location permission was denied.":"Couldn’t get your location."); }, {enableHighAccuracy:true, timeout:12000, maximumAge:60000}); }
   // A pasted waypoint in any common form -> [lat, lon]. Accepts decimal pairs
@@ -297,12 +297,23 @@
       if(typeof rebuild==="function") setTimeout(rebuild,0);
     }).catch(function(e){ btn.disabled=false; toast(e.message, 5000); });
   }
+  // ---- feedback sheet (independent of the marks switch) ----
+  var FB_KIND="like";
+  function openFeedback(){ FB_KIND="like"; $("fb-text").value=""; $("fb-contact").value=""; setFbKind("like"); openS("fb-sheet"); setTimeout(function(){ try{ $("fb-text").focus(); }catch(e){} }, 80); }
+  function setFbKind(k){ FB_KIND=k; Array.prototype.forEach.call(document.querySelectorAll("#fb-sheet [data-fb]"), function(b){ b.classList.toggle("on", b.getAttribute("data-fb")===k); }); }
+  function sendFeedback(){
+    var text=$("fb-text").value.trim(); if(text.length<5){ toast("Say a little more first."); return; }
+    var build=(document.querySelector("footer .adv-only span")||{}).textContent||"";
+    var btn=$("fb-send"); btn.disabled=true;
+    api("POST","/api/feedback",{kind:FB_KIND, text:text, contact:$("fb-contact").value.trim(), spot:store.get(PLACE_KEY)||null, build:build.slice(0,40), page:location.pathname+(typeof currentMode==="function"?" "+currentMode():"")}).then(function(){ btn.disabled=false; closeAll(); toast("Thank you \u2014 sent.", 3000); }).catch(function(e){ btn.disabled=false; toast(e.message, 5000); });
+  }
   // ---- wiring ----
   document.addEventListener("click", function(ev){
-    var t=ev.target.closest && ev.target.closest("[data-pick-mark],#pick-add-mark,#pick-add-place,#mk-x,#pl-x,#rd-x,#mk-save,#pl-save,#rd-save,#mk-geo-btn,#pl-geo-btn,#mk-coords-btn,#pl-coords-btn,#pl-anchor-btn,#rd-kind-depth,#rd-kind-rung,#rd-kind-tap,#pin-x,#pin-save,[data-pin],#pin-ph,#rd-ph");
+    var t=ev.target.closest && ev.target.closest("[data-pick-mark],#pick-add-mark,#pick-add-place,#mk-x,#pl-x,#rd-x,#mk-save,#pl-save,#rd-save,#mk-geo-btn,#pl-geo-btn,#mk-coords-btn,#pl-coords-btn,#pl-anchor-btn,#rd-kind-depth,#rd-kind-rung,#rd-kind-tap,#pin-x,#pin-save,[data-pin],#pin-ph,#rd-ph,#fb-btn,#fb-link,#fb-x,#fb-send,[data-fb]");
     if(!t) return;
     if(t.hasAttribute("data-pick-mark")){ setMark(t.getAttribute("data-pick-mark")); return; }
     if(t.hasAttribute("data-pin")){ PIN.cur=t.getAttribute("data-pin"); renderPins(); return; }
+    if(t.hasAttribute("data-fb")){ setFbKind(t.getAttribute("data-fb")); return; }
     switch(t.id){
       case "pick-add-mark": if(typeof closeSheet==="function") closeSheet(); if(!store.get(PLACE_KEY)){ toast("Pick your spot first."); return; } openMark(); break;
       case "pick-add-place": if(typeof closeSheet==="function") closeSheet(); openPlace(); break;
@@ -319,6 +330,9 @@
       case "rd-kind-rung": setRdKind("rung"); break;
       case "rd-kind-tap": setRdKind("tap"); break;
       case "pin-x": closeAll(); break;
+      case "fb-btn": case "fb-link": ev.preventDefault(); if(typeof closeSheet==="function") closeSheet(); openFeedback(); break;
+      case "fb-x": closeAll(); break;
+      case "fb-send": sendFeedback(); break;
       case "pin-save": savePins(); break;
       case "pin-ph": { var f1=fracAt(t, ev); if(PIN.cur){ PIN.pins[PIN.cur]=f1; var ids=PIN.m.ladder.map(function(r){ return r.id; }); var nx=ids.find(function(id){ return !PIN.pins[id]; }); PIN.cur=nx||null; renderPins(); } break; }
       case "rd-ph": { var f2=fracAt(t, ev), m2=currentMark(), r2=readingFromY(m2, f2.y); if(!r2) break; RD_TAP={kind:r2.kind, rung:r2.rung, rung2:r2.rung2, frac:r2.frac, y:f2.y}; $("rd-tap-txt").innerHTML="Water line <b>"+esc(r2.text)+"</b>. Save to record it."; setRdKind("tap"); break; }

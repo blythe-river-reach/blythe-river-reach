@@ -14,7 +14,7 @@ export default async (req) => {
   const want = process.env.ADMIN_KEY || process.env.PUSH_RUN_KEY;
   if (!want) return json({ error: "ADMIN_KEY not configured" }, 503);
   if (req.headers.get("x-admin-key") !== want) return json({ error: "unauthorized" }, 401);
-  const S = { places: getStore({ name: "marks-places", consistency: "strong" }), marks: getStore({ name: "marks-marks", consistency: "strong" }), readings: getStore({ name: "marks-readings", consistency: "strong" }), ratelimit: getStore({ name: "marks-ratelimit", consistency: "strong" }), photos: getStore({ name: "marks-photos", consistency: "strong" }), settings: getStore({ name: "marks-settings", consistency: "strong" }) };
+  const S = { places: getStore({ name: "marks-places", consistency: "strong" }), marks: getStore({ name: "marks-marks", consistency: "strong" }), readings: getStore({ name: "marks-readings", consistency: "strong" }), ratelimit: getStore({ name: "marks-ratelimit", consistency: "strong" }), photos: getStore({ name: "marks-photos", consistency: "strong" }), settings: getStore({ name: "marks-settings", consistency: "strong" }), feedback: getStore({ name: "marks-feedback", consistency: "strong" }) };
   try {
     const url = new URL(req.url), pid = url.searchParams.get("photo");
     if (req.method === "GET" && pid) { const r = await C.photoFor(S, "", true, pid); if (r.error) return json(r, r.status || 404); return new Response(r.buf, { status: 200, headers: { "content-type": "image/jpeg", "cache-control": "private, no-store" } }); }

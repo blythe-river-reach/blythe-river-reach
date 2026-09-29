@@ -326,6 +326,7 @@ try{
     <button id="theme-btn" title="Day / night colors">☀️</button>
     <button id="alerts-btn" title="Push alerts for this spot">🔔</button>
     <button id="share-btn" title="Share a link that opens on this spot">📤</button>
+    <button id="fb-btn" title="Tell us what you think">💬</button>
     <button id="refresh" title="Check for newer data">↻</button>
   </div>
   <button class="spot-btn" id="spot-btn" aria-haspopup="dialog"><span class="pin">📍</span><span class="name" id="spot-name">Pick your spot</span><span class="chev">change ▾</span></button>
@@ -488,7 +489,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29y</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29z</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -577,6 +578,17 @@ try{
     <div class="pin-chips" id="pin-chips"></div>
     <p class="note">Tap where each landmark meets the water line, bottom of the ladder first. Tap a landmark’s chip to move it. With two or more placed, anyone can report a reading by tapping the water line, and the page can draw where the water is on this photo.</p>
     <button class="btn-water" id="pin-save">Save landmarks</button>
+  </div>
+</div>
+<div class="sheet" id="fb-sheet" role="dialog" aria-modal="true" aria-label="Feedback">
+  <div class="sheet-hd"><h2>💬 What do you think?</h2><button class="x" id="fb-x" aria-label="Close">✕</button></div>
+  <div class="sheet-body" style="padding:0 16px 24px">
+    <p class="lead" style="margin:6px 0 4px">What works, what doesn’t, what you wish it did. Every note goes straight to the person who runs the site.</p>
+    <div class="seg2"><button data-fb="like" class="on">👍 Like it</button><button data-fb="dislike">👎 Not for me</button><button data-fb="idea">💡 Idea</button><button data-fb="bug">🐛 Broken</button></div>
+    <label class="fld">Your note<textarea id="fb-text" maxlength="2000" placeholder="e.g. The forecast at Aha Quin runs a couple of hours early on weekends…" style="min-height:110px"></textarea></label>
+    <label class="fld">How to reach you (optional)<input id="fb-contact" maxlength="120" placeholder="email or name, if you’d like a reply"></label>
+    <button class="btn-water" id="fb-send">Send</button>
+    <p class="note">Sent with the spot you’re looking at and the page version, nothing else.</p>
   </div>
 </div>
 <input id="ms-photo-file" type="file" accept="image/*" capture="environment" style="display:none">
@@ -1060,6 +1072,6 @@ window.onRiverRender=function(){ renderSimple(); try{ renderOutlook14(heroModel(
 // First paint before any data: show the spot name right away.
 (function(){ try{ if(store.get(PLACE_KEY)) document.getElementById("spot-name").textContent=currentPlace().name; renderRibbon(currentPlace()); }catch(e){} })();
 </script>
-<script src="/marks-ui.js?v=2026-09-29p"></script>
+<script src="/marks-ui.js?v=2026-09-29q"></script>
 </body>
 </html>
