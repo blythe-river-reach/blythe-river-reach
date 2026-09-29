@@ -2068,10 +2068,17 @@ function loadAll(){
   prevRelayT = relayInfo ? relayInfo.t : null;
   var _u=document.getElementById("updated"); if(_u) _u._relayLabeled=false;
   setLoading(true);
-  var pU=loadUsgs().then(rebuild);
+  var usgsFromRelay=false;
   var pR=loadRelay().then(function(j){
     if(j){
       relayInfo={t:new Date(j.generatedAt).getTime(), branch:j._branch};
+      // USGS readings ride along in the relay (hourly, gathered by the robot);
+      // the direct call to waterservices.usgs.gov is only a fallback now.
+      if(j.usgs && j.usgs.sites && j.usgs.fetchedAt && Date.now()-new Date(j.usgs.fetchedAt).getTime()<4*3600000){
+        usgsData=j.usgs.sites; usgsErr=null; usgsFromRelay=true;
+        var bn=document.getElementById("banner"); if(bn && /USGS/.test(bn.textContent||"")) bn.style.display="none";
+        setUpdated("Checked "+new Date().toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}));
+      }
       if(j.calibration) relayCal=j.calibration;
       if(j.calibration && j.calibration.waveMph>=1 && j.calibration.waveMph<=12){
         WAVE_MPH=j.calibration.waveMph;
@@ -2089,6 +2096,7 @@ function loadAll(){
     }
     rebuild(); // paint whatever we have right now
     var tasks=[];
+    if(!usgsFromRelay) tasks.push(loadUsgs().then(rebuild));
     if(!borData) tasks.push(loadBor().then(rebuild));
     if(!hgData) tasks.push(loadHeadgate().then(rebuild));
     return Promise.all(tasks);
@@ -2113,7 +2121,7 @@ function loadAll(){
       }
     }
   }
-  Promise.all([pU,pR]).then(done, done);
+  pR.then(done, done);
 }
 (function initPlaces(){
   // The body ships as .nochoice (nothing but the welcome panel can paint), and

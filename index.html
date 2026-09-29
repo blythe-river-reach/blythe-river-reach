@@ -239,9 +239,10 @@
   .pick-chips{display:flex; gap:6px; overflow-x:auto; padding:2px 8px 10px; -webkit-overflow-scrolling:touch; scrollbar-width:none} .pick-chips::-webkit-scrollbar{display:none} .pick-chips .chip{flex:0 0 auto; padding:6px 11px; font-size:13px; cursor:pointer} .pick-chips .chip.on{border-color:var(--water); color:var(--water)}
   .rv{position:relative; padding-left:22px; margin:0 4px 6px 8px}
   .rv:before{content:""; position:absolute; left:9px; top:14px; bottom:14px; width:3px; border-radius:2px; background:var(--water); opacity:.4}
-  .rv .seghd{position:sticky; top:0; z-index:2; background:var(--panel); padding:10px 6px 4px; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-left:-22px; padding-left:24px}
+  .rv .seghd{position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:8px; width:calc(100% + 22px); border:0; background:var(--panel); padding:10px 6px 6px; font:inherit; font-size:11.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-left:-22px; padding-left:24px; cursor:pointer; text-align:left}
+  .rv .seghd .chev{width:10px; color:var(--muted)} .rv .seghd .gl{flex:1} .rv .seghd .gc{text-transform:none; letter-spacing:0; font-size:12px} .rv .seghd.open .gl{color:var(--text)}
   .rv .seghd:before{content:""; position:absolute; left:6px; top:12px; width:9px; height:9px; border-radius:50%; background:var(--panel); border:2px solid var(--water)}
-  .row.stop{position:relative; padding:9px 6px 9px 10px; gap:8px}
+  .row.stop{position:relative; padding:7px 6px 7px 10px; gap:8px; font-size:14.5px}
   .row.stop .dot{position:absolute; left:-17px; top:50%; width:9px; height:9px; margin-top:-5px; border-radius:50%; background:var(--panel); border:2px solid var(--water); box-sizing:border-box}
   .row.stop.on .dot{background:var(--water); width:13px; height:13px; margin-top:-7px; left:-19px; box-shadow:0 0 0 3px rgba(56,189,224,.25)}
   .row.stop.fav .dot{border-color:#f2c94c} .row.stop.user .dot{border-radius:1px; transform:rotate(45deg); border-color:#f2b64a}
@@ -480,7 +481,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29u</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29v</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -575,7 +576,7 @@ try{
 <div id="photo-lb" role="dialog" aria-label="Photo"><img alt=""></div>
 <div class="toast" id="toast"></div>
 
-<script src="/river.js?v=2026-09-29g"></script>
+<script src="/river.js?v=2026-09-29h"></script>
 <script src="/marks-math.js?v=2026-09-29m"></script>
 <script>
 // ============================================================
@@ -902,7 +903,7 @@ function levelText(p){ // cheap live level for the list: nearest sensor, no trav
 // One line from Davis Dam to Martinez Lake; spots are stops, dams are bars,
 // short stretch labels stick as you scroll. Levels show where there is a
 // sensor and at your spot; other stops just carry their trend arrow.
-var PICK_MARKS_OPEN={};
+var PICK_MARKS_OPEN={}, PICK_SEG=null; // which stretch is unfolded (null = the one holding your spot)
 var SEG_SHORT={upper:"Davis Dam to Topock", lake:"Lake Havasu", strip:"Parker Strip", mid:"Headgate to Palo Verde Dam", below:"Palo Verde Dam to Martinez Lake"};
 var DAM_KEYS={davisdam:1, parkerdam:1, headgate:1, pvdam:1};
 // Search words people use that aren't in a spot's name.
@@ -931,15 +932,16 @@ function chipRow(){
 function buildPicker(q){
   var list=document.getElementById("pick-list"), cur=currentPlace().key;
   q=(q||"").trim().toLowerCase();
-  var html=q ? "" : chipRow(), any=false;
+  var html=q ? "" : chipRow(), any=false, openSeg=PICK_SEG||segFor(currentPlace());
   html+='<div class="rv">';
   ["upper","lake","strip","mid","below"].forEach(function(seg){
     var all=PLACES.filter(function(p){ return segFor(p)===seg; }).sort(function(a,b){ return b.mile-a.mile; });
     var ps=all.filter(function(p){ return !q || placeMatch(p, q) || SEG_SHORT[seg].toLowerCase().indexOf(q)>=0; });
     if(!ps.length) return;
     any=true;
-    html+='<div class="seghd"><span>'+SEG_SHORT[seg]+'</span></div>';
-    html+=ps.map(function(p){ return rowHtml(p, p.key===cur)+((window.MarksUI && (p.key===cur || PICK_MARKS_OPEN[p.key]))?MarksUI.markRows(p):""); }).join("");
+    var isOpen=!!q || seg===openSeg, hasCur=all.some(function(p){ return p.key===cur; });
+    html+='<button class="seghd'+(isOpen?' open':'')+'" data-seg="'+seg+'"><span class="chev">'+(isOpen?'\u25be':'\u25b8')+'</span><span class="gl">'+SEG_SHORT[seg]+'</span><span class="gc">'+(isOpen?'':(all.length+' spots'+(hasCur?' \u00b7 yours':'')))+'</span></button>';
+    if(isOpen) html+=ps.map(function(p){ return rowHtml(p, p.key===cur)+((window.MarksUI && (p.key===cur || PICK_MARKS_OPEN[p.key]))?MarksUI.markRows(p):""); }).join("");
   });
   html+='</div>';
   if(!any) html='<div class="grp">Nothing matches \u201c'+esc(q)+'\u201d \u2014 try a town, resort, bridge, or dam name.</div>';
@@ -956,6 +958,8 @@ document.getElementById("sheet-bg").addEventListener("click", function(){ closeS
 document.addEventListener("keydown", function(e){ if(e.key==="Escape"){ closeSheet(); closeAlerts(); } });
 document.getElementById("pick-q").addEventListener("input", function(){ buildPicker(this.value); });
 document.getElementById("pick-list").addEventListener("click", function(ev){
+  var sh=ev.target.closest && ev.target.closest(".seghd[data-seg]");
+  if(sh){ var sg=sh.getAttribute("data-seg"); PICK_SEG=sh.classList.contains("open") ? "" : sg; buildPicker(document.getElementById("pick-q").value); try{ var h2=document.querySelector(".seghd[data-seg=\""+sg+"\"]"); if(h2) h2.scrollIntoView({block:"start"}); }catch(e){} return; }
   var mchip=ev.target.closest && ev.target.closest("[data-mark-chip]");
   if(mchip){ store.set("blythe_mark_v1", mchip.getAttribute("data-mark-chip")); noteRecent(mchip.getAttribute("data-k")); closeSheet(); setPlace(mchip.getAttribute("data-k")); return; }
   var chip=ev.target.closest && ev.target.closest(".pick-chips .chip[data-k]");

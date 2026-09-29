@@ -939,6 +939,35 @@ function buildOutlook(out, prev) {
   return { hourly, outlook: { generatedAt: new Date().toISOString(), days: OUTLOOK_DAYS, dams, skill, scoring } };
 }
 
+// Live USGS instantaneous values for the gauges the page reads directly
+// (below Palo Verde Dam, the two canals, the wasteway, below Davis Dam),
+// thinned to one point an hour so the file stays small. Shipping them in the
+// relay means the page no longer has to reach waterservices.usgs.gov itself.
+const LIVE_USGS = ["09429100", "09429000", "09428510", "09428500", "09423000"];
+async function fetchUsgsLive(prev) {
+  const url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=" + LIVE_USGS.join(",") + "&parameterCd=00060,00065&period=P7D&siteStatus=all";
+  try {
+    const json = (await fetchJsonRetry(url, 2)).json;
+    const sites = {};
+    for (const ts of (json.value && json.value.timeSeries) || []) {
+      const site = ts.sourceInfo.siteCode[0].value, param = ts.variable.variableCode[0].value;
+      const raw = (ts.values[0] && ts.values[0].value) || [], best = {};
+      for (const p of raw) {
+        const v = parseFloat(p.value); if (!isFinite(v) || v <= -9999) continue;
+        const t = new Date(p.dateTime).getTime(), hk = Math.round(t / 3600000), off = Math.abs(t - hk * 3600000);
+        if (!best[hk] || off < best[hk].off) best[hk] = { t, v, off }; // the reading nearest each top of the hour
+      }
+      const pts = Object.keys(best).map((k) => ({ t: best[k].t, v: best[k].v })).sort((a, b) => a.t - b.t);
+      if (pts.length) { (sites[site] = sites[site] || {})[param] = pts; }
+    }
+    if (!Object.keys(sites).length) throw new Error("no series");
+    return { fetchedAt: new Date().toISOString(), sites };
+  } catch (e) {
+    const old = prev && prev.usgs;
+    if (old && old.fetchedAt && Date.now() - new Date(old.fetchedAt).getTime() < 6 * 3600000) return Object.assign({}, old, { carried: String(e && e.message || e).slice(0, 80) });
+    return null;
+  }
+}
 async function main() {
   const prev = loadPrevious();
   const out = { generatedAt: new Date().toISOString(), stations: [], headgate: null, errors: [] };
@@ -1070,6 +1099,8 @@ async function main() {
       const cutoff = Date.now() - 6 * 86400000;
       return Object.keys(m).map((t) => ({ t: +t, v: m[t] })).filter((p) => p.t >= cutoff).sort((a, b) => a.t - b.t);
     };
+    out.usgs = await fetchUsgsLive(prev);
+    if (!out.usgs) out.errors.push("usgs live: unavailable this run");
     out.schedArchive = {
       parker: mergeArc(arc.parker, out.parkerSchedule && out.parkerSchedule.points),
       davis: mergeArc(arc.davis, out.davisSchedule && out.davisSchedule.points),
@@ -1103,4 +1134,4 @@ async function main() {
 }
 
 if (require.main === module) main();
-module.exports = { buildOutlook, weeklyPattern, parseHeadgate, buildStations, calibrate, xcorrPair, parseDavisParker, parseHourly7, newestReading, accumulateDaily, fetchUsgsHistory };
+module.exports = { fetchUsgsLive, buildOutlook, weeklyPattern, parseHeadgate, buildStations, calibrate, xcorrPair, parseDavisParker, parseHourly7, newestReading, accumulateDaily, fetchUsgsHistory };

@@ -44,7 +44,7 @@ function loadData(ctx, j) {
   ctx.dsData = j.davisSchedule && j.davisSchedule.points ? j.davisSchedule.points.slice() : null;
   ctx.havasuData = j.havasu && j.havasu.elev ? j.havasu.elev : null;
   ctx.histData = j.history || null;
-  ctx.usgsData = null;
+  ctx.usgsData = (j.usgs && j.usgs.sites) ? j.usgs.sites : null;
   if (j.outlook && j.outlook.dams) { ctx.outlookData = j.outlook; ctx.applyOutlook(); }
   ctx.rebuild();
 }
