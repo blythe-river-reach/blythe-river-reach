@@ -182,6 +182,17 @@
   footer{color:var(--muted); font-size:12px; margin-top:26px; border-top:1px solid var(--border); padding-top:14px}
   footer a{color:var(--water)}
 
+  /* ---------- 14-day outlook ---------- */
+  .ol14-wrap{position:relative; padding-left:38px}
+  .ol14-wrap .ylab span{position:absolute; left:0; width:32px; text-align:right; font-size:11px; font-weight:600; color:var(--muted)}
+  #ol14-chart{width:100%; height:150px; display:block}
+  .ol14-days{display:grid; grid-template-columns:repeat(14,1fr); margin-left:38px; font-size:10.5px; color:var(--muted); text-align:center; margin-top:4px}
+  .ol14-days span{white-space:nowrap; overflow:visible}
+  .ol14-days span.today{color:var(--water); font-weight:700}
+  @media (max-width:520px){ .ol14-days span:nth-child(even){visibility:hidden} }
+  .ol14-legend{display:flex; gap:14px; flex-wrap:wrap; color:var(--muted); font-size:11.5px; margin-top:8px}
+  .ol14-legend .sw{display:inline-block; width:12px; height:12px; border-radius:3px; vertical-align:-2px; margin-right:5px}
+  .ol14-legend .meas{background:var(--water)} .ol14-legend .proj{background:var(--water); opacity:.45; outline:1px dashed var(--water)} .ol14-legend .band{background:var(--water); opacity:.18}
   /* ---------- welcome ---------- */
   #welcome .regions{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:10px}
   #welcome .regions button{background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:12px; padding:12px 10px; font-size:14px; font-weight:600; cursor:pointer; text-align:left}
@@ -289,6 +300,20 @@ try{
   </div>
 </section>
 
+<section id="ol14-sec" style="display:none">
+  <div class="section-panel">
+    <div class="fc-head">
+      <h2>The next two weeks</h2>
+      <span class="fc-now" id="ol14-now"></span>
+    </div>
+    <p class="lead" id="ol14-lead"></p>
+    <div class="ol14-wrap"><svg id="ol14-chart" viewBox="0 0 900 150" preserveAspectRatio="none" role="img" aria-label="Daily high–low range for the next fourteen days; lighter bars are projected, with a wider uncertainty band."></svg></div>
+    <div class="ol14-days" id="ol14-days"></div>
+    <div class="ol14-legend"><span><i class="sw meas"></i>measured / scheduled</span><span><i class="sw proj"></i>projected from the weekly rhythm</span><span><i class="sw band"></i>80% band</span></div>
+    <p class="note" id="ol14-note"></p>
+  </div>
+</section>
+
 <!-- ================= ADVANCED VIEW ================= -->
 <div class="adv-only">
   <div class="adv-head">Advanced · every sensor, chart and table</div>
@@ -358,7 +383,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29a</span> — redesign preview · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29b</span> — redesign preview · 14-day outlook · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -535,6 +560,67 @@ function renderSimple(){
   renderRibbon(pl);
 }
 
+// ---------- next two weeks ----------
+function renderOutlook14(M){
+  var sec=document.getElementById("ol14-sec"); if(!sec) return;
+  if(!M.ok || M.lake){ sec.style.display="none"; return; }
+  var pl=M.pl, fc=forecastSeriesFor(pl), ol=M.outlook;
+  if(!fc || !fc.arrival.length){ sec.style.display="none"; return; }
+  var now=Date.now(), tk=dayKey(now), toFt=M.toFtH, hz=(ol&&ol.horizon)||0;
+  // Per-day summary at THIS spot: measured (past today + en route), then the
+  // schedule, then the projection — the same series the tide table reads.
+  var pts=[];
+  (M.flowP||[]).forEach(function(p){ if(dayKey(p.t)===tk) pts.push({t:p.t, v:p.v, kind:"meas"}); });
+  if(ol) ol.futM.forEach(function(p){ pts.push({t:p.t, v:p.v, kind:"meas"}); });
+  fc.arrival.forEach(function(p){ if(p.t>Math.max(now,hz)) pts.push({t:p.t, v:p.v, lo:p.lo, hi:p.hi, kind:p.est?"proj":"sched"}); });
+  var days=[];
+  for(var d=0; d<14; d++){
+    var k=tk+d, dp=pts.filter(function(p){ return dayKey(p.t)===k; });
+    if(dp.length<4){ days.push(null); continue; }
+    var lo=Infinity, hi=-Infinity, uLo=Infinity, uHi=-Infinity, sum=0, nProj=0, nMeas=0;
+    dp.forEach(function(p){ lo=Math.min(lo,p.v); hi=Math.max(hi,p.v); sum+=p.v; uLo=Math.min(uLo, p.lo!=null?p.lo:p.v); uHi=Math.max(uHi, p.hi!=null?p.hi:p.v); if(p.kind==="proj") nProj++; if(p.kind==="meas") nMeas++; });
+    days.push({k:k, lo:lo, hi:hi, mean:sum/dp.length, uLo:uLo, uHi:uHi, proj:nProj>dp.length/2, meas:nMeas>dp.length/2, t0:k*DAY_MS+OFF_MS});
+  }
+  var have=days.filter(Boolean);
+  if(have.length<3){ sec.style.display="none"; return; }
+  sec.style.display="";
+  var W=900,H=150,pad=6, all=[];
+  have.forEach(function(x){ all.push(x.uLo, x.uHi); });
+  var min=Math.min.apply(null,all), max=Math.max.apply(null,all), span=(max-min)||1;
+  function Y(v){ return pad+(H-2*pad)*(1-(v-min)/span); }
+  var col=W/14, svg="";
+  // week grid + today tint
+  for(var i=0;i<14;i++){ if(i) svg+='<line x1="'+(i*col).toFixed(1)+'" y1="0" x2="'+(i*col).toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,'+(((tk+i-4)%7===0)?'0.45':'0.18')+')" stroke-width="1"/>'; }
+  svg+='<rect x="0" y="0" width="'+col.toFixed(1)+'" height="'+H+'" fill="var(--water)" opacity="0.07"/>';
+  // typical line: this week's median level at the spot
+  var wk=(M.flowP||[]).map(function(p){ return p.v; }).sort(function(a,b){ return a-b; });
+  if(wk.length>=8){ var med=wk[Math.floor(wk.length/2)]; if(med>=min&&med<=max) svg+='<line x1="0" y1="'+Y(med).toFixed(1)+'" x2="'+W+'" y2="'+Y(med).toFixed(1)+'" stroke="var(--muted)" stroke-width="1" stroke-dasharray="4 5" opacity="0.7"/>'; }
+  days.forEach(function(x,i){
+    if(!x) return;
+    var cx=i*col+col/2, bw=col*0.34, uw=col*0.62;
+    if(x.uHi>x.hi || x.uLo<x.lo) svg+='<rect x="'+(cx-uw/2).toFixed(1)+'" y="'+Y(x.uHi).toFixed(1)+'" width="'+uw.toFixed(1)+'" height="'+Math.max(2,Y(x.uLo)-Y(x.uHi)).toFixed(1)+'" rx="3" fill="var(--water)" opacity="0.16"/>';
+    svg+='<rect x="'+(cx-bw/2).toFixed(1)+'" y="'+Y(x.hi).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(3,Y(x.lo)-Y(x.hi)).toFixed(1)+'" rx="4" fill="var(--water)" opacity="'+(x.proj?'0.45':'0.95')+'"'+(x.proj?' stroke="var(--water)" stroke-width="1.5" stroke-dasharray="4 3"':'')+'/>';
+    svg+='<line x1="'+(cx-bw/2-3).toFixed(1)+'" y1="'+Y(x.mean).toFixed(1)+'" x2="'+(cx+bw/2+3).toFixed(1)+'" y2="'+Y(x.mean).toFixed(1)+'" stroke="var(--text)" stroke-width="2"/>';
+  });
+  var chart=document.getElementById("ol14-chart"); chart.innerHTML=svg;
+  var wrap=chart.parentNode, yl=wrap.querySelector(".ylab"); if(!yl){ yl=document.createElement("div"); yl.className="ylab"; wrap.appendChild(yl); }
+  var fy=function(v){ if(toFt){ var f=toFt(v); return f!=null?(f<0.05?"0":"+"+f.toFixed(1))+"ft":""; } return (Math.abs(v)>=9500 ? Math.round(v/1000)+"k" : (v/1000).toFixed(1)+"k"); };
+  var yT=fy(max), yM=fy((max+min)/2), yB=fy(min);
+  yl.innerHTML='<span class="yl-top" style="top:2px">'+yT+'</span>'+(yM!==yT&&yM!==yB?'<span class="yl-mid" style="top:50%;transform:translateY(-50%)">'+yM+'</span>':'')+'<span class="yl-bot" style="bottom:2px">'+yB+'</span>';
+  document.getElementById("ol14-days").innerHTML=days.map(function(x,i){ var t=(tk+i)*DAY_MS+OFF_MS+12*3600000; var lab=new Date(t).toLocaleDateString([], {timeZone:"America/Phoenix", weekday:"short"}).slice(0,2)+' '+new Date(t).toLocaleDateString([], {timeZone:"America/Phoenix", day:"numeric"}); return '<span class="'+(i===0?'today':'')+'">'+(i===0?'Today':lab)+'</span>'; }).join("");
+  // text
+  var schedEnd=fc.schedEndAt, firstProj=days.findIndex(function(x){ return x && x.proj; });
+  var dam=(M.seg==="upper")?"davis":"parker", sk=outlookData && outlookData.skill && outlookData.skill[dam] || {};
+  var peakDay=null; have.forEach(function(x){ if(!peakDay||x.hi>peakDay.hi) peakDay=x; });
+  var lowDay=null; have.forEach(function(x){ if(!lowDay||x.lo<lowDay.lo) lowDay=x; });
+  var dayName=function(x){ var t=x.t0+12*3600000; return x.k===tk?"today":(x.k===tk+1?"tomorrow":new Date(t).toLocaleDateString([], {timeZone:"America/Phoenix", weekday:"long"})+(x.k-tk>6?" "+new Date(t).toLocaleDateString([], {timeZone:"America/Phoenix", month:"short", day:"numeric"}):"")); };
+  var lvl=function(v){ return lvlOf(M, v); };
+  var lead='Each bar is one day’s low-to-high swing at '+esc(pl.name)+' (tick = daily average). '+(schedEnd?'Solid bars follow Reclamation’s published schedule through <b>'+azDay(schedEnd)+'</b>; ':'')+(firstProj>=0?'lighter dashed bars from <b>'+dayName(days[firstProj])+'</b> on are projected from the dams’ weekly release rhythm, with the band showing where 8 days in 10 should land. ':'')+'Biggest day ahead: <b>'+dayName(peakDay)+'</b> (up to '+lvl(peakDay.hi)+'); lowest water: <b>'+dayName(lowDay)+'</b> (down to '+lvl(lowDay.lo)+').';
+  document.getElementById("ol14-lead").innerHTML=lead;
+  document.getElementById("ol14-now").innerHTML=(outlookData&&outlookData.dams&&outlookData.dams[dam])?('rhythm learned from <b>'+(Math.round(outlookData.dams[dam].weeksLearned*10)/10)+' wk</b> of releases so far'):'';
+  var parts=[]; ["1-2","3-5","6-9","10-14"].forEach(function(b){ var v=sk[b]; if(v && v.n>=5) parts.push(b+' days out: within ±'+Math.round(v.medPct)+'% on a typical day (±'+Math.round(v.p90Pct)+'% on 9 of 10, n='+v.n+')'); });
+  document.getElementById("ol14-note").innerHTML=parts.length ? '<b>Scorecard</b> — the robot checks every daily forecast against what actually happened at the dam: '+parts.join(' · ')+'.' : '<b>Scorecard:</b> the robot logs each day’s forecast and scores it against what actually happens at the dam; real accuracy numbers per lead time appear here after a few days of scoring.';
+}
 // ---------- river ribbon ----------
 var RIBBON=[{n:"Davis Dam",m:276.0},{n:"Laughlin",m:274.0},{n:"Needles",m:246.9},{n:"Topock",m:233.9},{n:"Lake Havasu",m:209.5},{n:"Parker Dam",m:192.2},{n:"Headgate",m:177.7},{n:"Water Wheel",m:151.4},{n:"I-10",m:121.3},{n:"Walter’s Camp",m:88.3},{n:"Martinez Lake",m:55.0}];
 function nearestPlaceByMile(m){ var best=null; PLACES.forEach(function(p){ if(!best||Math.abs(p.mile-m)<Math.abs(best.mile-m)) best=p; }); return best; }
@@ -616,7 +702,7 @@ document.addEventListener("click", function(ev){
   if(currentMode()!=="advanced") setMode("advanced");
 });
 window.onPlaceChange=function(k){ noteRecent(k); };
-window.onRiverRender=function(){ renderSimple(); };
+window.onRiverRender=function(){ renderSimple(); try{ renderOutlook14(heroModel()); }catch(e){ if(window.console) console.error(e); } };
 // First paint before any data: show the spot name right away.
 (function(){ try{ if(store.get(PLACE_KEY)) document.getElementById("spot-name").textContent=currentPlace().name; renderRibbon(currentPlace()); }catch(e){} })();
 </script>

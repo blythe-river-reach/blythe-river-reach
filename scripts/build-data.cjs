@@ -695,6 +695,143 @@ async function mergeHtmlFallback(out, reason) {
   out.errors.push("reach: " + reason + " — merged " + merged + " points from the HTML daily report" + (through ? " (through " + new Date(through).toISOString() + ")" : ""));
 }
 
+
+// ---------- 14-day outlook ----------
+// Beyond Reclamation's published schedule (~5 days) the releases follow a
+// strong weekly rhythm (power demand + irrigation orders). We learn that
+// hour-of-day x day-of-week shape from a rolling hourly archive of each dam's
+// release, anchor it to the recent level (drifting toward last year's same
+// weeks), and widen the band with lead time. Every run also logs its daily
+// predictions and scores them against what actually happened, so the page can
+// state real accuracy per lead time instead of a decorative "confidence".
+const OUTLOOK_DAYS = 14, HOURLY_KEEP_DAYS = 35, DAY = 86400000, OFF = 7 * 3600 * 1000;
+const OUTLOOK_DAMS = { davis: "davis", parker: "parker" };
+
+function mergeHourly(prevArr, pts) {
+  const m = {};
+  for (const p of prevArr || []) m[p[0]] = p[1];
+  for (const p of pts || []) { const t = Math.round(p.t / 3600000) * 3600000; if (p.v != null) m[t] = p.v; }
+  const cutoff = Date.now() - HOURLY_KEEP_DAYS * DAY;
+  return Object.keys(m).map((t) => [+t, m[t]]).filter((p) => p[0] >= cutoff).sort((a, b) => a[0] - b[0]);
+}
+function mstSlot(t) { // 0..167 = dow*24 + hour, Arizona time
+  const d = new Date(t - OFF); // shift so UTC fields read as MST
+  return d.getUTCDay() * 24 + d.getUTCHours();
+}
+function weeklyPattern(hourly) {
+  if (!hourly || hourly.length < 24 * 5) return null;
+  const mean = hourly.reduce((s, p) => s + p[1], 0) / hourly.length;
+  if (!(mean > 0)) return null;
+  const buckets = Array.from({ length: 168 }, () => []);
+  for (const p of hourly) buckets[mstSlot(p[0])].push(p[1] / mean);
+  const shape = [], sd = [], n = [];
+  for (let i = 0; i < 168; i++) {
+    const b = buckets[i];
+    if (!b.length) { shape.push(null); sd.push(null); n.push(0); continue; }
+    const m = b.reduce((a, v) => a + v, 0) / b.length;
+    const v = b.length > 1 ? b.reduce((a, x) => a + (x - m) * (x - m), 0) / (b.length - 1) : null;
+    shape.push(m); sd.push(v == null ? null : Math.sqrt(v)); n.push(b.length);
+  }
+  // fill empty slots from the nearest hour on the same day, else the overall mean
+  for (let i = 0; i < 168; i++) if (shape[i] == null) {
+    let f = null; for (let k = 1; k < 24 && f == null; k++) { const a = shape[(i + k) % 168], b = shape[(i - k + 168) % 168]; f = a != null ? a : b; }
+    shape[i] = f == null ? 1 : f;
+  }
+  const weeks = (hourly[hourly.length - 1][0] - hourly[0][0]) / (7 * DAY);
+  const pooled = sd.filter((x) => x != null);
+  const sdPooled = pooled.length ? pooled.reduce((a, x) => a + x, 0) / pooled.length : 0.12;
+  return { shape, sd, n, mean, weeks: +weeks.toFixed(2), sdPooled };
+}
+function seasonalAnchor(dailyLastYear, fromT, toT) {
+  // last year's same window from the daily archive ([t, avg, min, max])
+  if (!dailyLastYear || !dailyLastYear.length) return null;
+  const a = fromT - 365 * DAY, b = toT - 365 * DAY, vals = [];
+  for (const p of dailyLastYear) { if (p[0] >= a && p[0] <= b && p[1] != null) vals.push(p[1]); }
+  return vals.length >= 5 ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+}
+function buildDamOutlook(hourly, sched, dailyArchive) {
+  const pat = weeklyPattern(hourly);
+  if (!pat) return null;
+  const now = Date.now();
+  const schedEnd = sched && sched.length ? sched[sched.length - 1].t : now;
+  const start = Math.max(now, schedEnd) + 3600000;
+  const end = now + OUTLOOK_DAYS * DAY;
+  const recent = hourly.filter((p) => p[0] >= now - 7 * DAY);
+  const recentMean = recent.length >= 24 ? recent.reduce((s, p) => s + p[1], 0) / recent.length : pat.mean;
+  const seasonal = seasonalAnchor(dailyArchive, now, end);
+  const points = [];
+  for (let t = Math.ceil(start / 3600000) * 3600000; t <= end; t += 3600000) {
+    const dAhead = (t - now) / DAY;
+    // Weight toward the seasonal level as the pattern's memory fades: 0 at
+    // day 5, 0.5 by day 14 (only when last year's window is known).
+    const w = seasonal != null ? Math.min(0.5, Math.max(0, (dAhead - 5) / 18)) : 0;
+    const anchor = recentMean * (1 - w) + (seasonal != null ? seasonal : recentMean) * w;
+    const k = mstSlot(t);
+    const v = anchor * pat.shape[k];
+    // Per-slot spread once 3+ weeks are in the archive; until then a fixed
+    // 20% (one or two samples per slot cannot measure spread). Clamped so a
+    // single odd week can neither flatten nor blow up the band.
+    const sdRel = pat.weeks >= 3 && pat.sd[k] != null && pat.n[k] >= 3 ? Math.min(0.35, Math.max(0.06, pat.sd[k])) : 0.2;
+    const grow = 1 + 0.12 * Math.max(0, dAhead - 5);   // uncertainty widens past the schedule
+    const half = 1.28 * sdRel * anchor * grow;           // ~80% band
+    points.push([t, Math.round(v), Math.round(Math.max(0, v - half)), Math.round(v + half), dAhead <= 10 ? "pattern" : "seasonal"]);
+  }
+  return { schedEnd, hourly: points, recentMean: Math.round(recentMean), seasonalMean: seasonal != null ? Math.round(seasonal) : null, weeksLearned: pat.weeks, sdPooled: +pat.sdPooled.toFixed(3) };
+}
+function leadBucket(lead) { return lead <= 2 ? "1-2" : lead <= 5 ? "3-5" : lead <= 9 ? "6-9" : "10-14"; }
+function scoreOutlook(prevOut, damKey, sched, damOut, accumDaily) {
+  // prevOut: previous run's outlook block (carries pending predictions + scores)
+  const st = (prevOut && prevOut.scoring && prevOut.scoring[damKey]) || { pending: [], scores: {} };
+  const todayStart = Math.floor((Date.now() - OFF) / DAY) * DAY + OFF;
+  const actual = {};
+  for (const p of accumDaily || []) if (p[4] == null || p[4] >= 20) actual[p[0]] = p[1];
+  const keep = [];
+  for (const e of st.pending) {
+    if (e.d < todayStart && actual[e.d] != null) {
+      const a = actual[e.d]; if (a > 0) { const err = +(Math.abs(e.pred - a) / a * 100).toFixed(1); const b = leadBucket(e.lead); (st.scores[b] = st.scores[b] || []).push(err); if (st.scores[b].length > 120) st.scores[b].shift(); }
+    } else if (e.d >= todayStart - 2 * DAY) keep.push(e); // drop stale entries that never got an actual
+  }
+  st.pending = keep;
+  // New predictions: daily means for the next 14 days, from schedule where it exists, else the outlook
+  const byDay = {};
+  const add = (t, v) => { const d = Math.floor((t - OFF) / DAY) * DAY + OFF; (byDay[d] = byDay[d] || []).push(v); };
+  for (const p of sched || []) if (p.t > Date.now()) add(p.t, p.v);
+  for (const p of (damOut && damOut.hourly) || []) add(p[0], p[1]);
+  for (const d of Object.keys(byDay)) {
+    const dd = +d, lead = Math.round((dd - todayStart) / DAY);
+    if (lead < 1 || lead > OUTLOOK_DAYS || byDay[d].length < 12) continue;
+    if (st.pending.some((e) => e.d === dd && e.lead === lead)) continue;
+    st.pending.push({ d: dd, lead, pred: Math.round(byDay[d].reduce((a, v) => a + v, 0) / byDay[d].length) });
+  }
+  const skill = {};
+  for (const b of Object.keys(st.scores)) {
+    const arr = st.scores[b].slice().sort((x, y) => x - y);
+    if (!arr.length) continue;
+    const q = (f) => arr[Math.min(arr.length - 1, Math.floor(f * (arr.length - 1)))];
+    skill[b] = { n: arr.length, medPct: q(0.5), p90Pct: q(0.9) };
+  }
+  return { state: st, skill };
+}
+function buildOutlook(out, prev) {
+  const prevOut = (prev && prev.outlook) || {};
+  const prevHourly = (prev && prev.history && prev.history.hourly) || {};
+  const hourly = {};
+  const byKey = {}; for (const s of out.stations || []) byKey[s.key] = s;
+  for (const dam of Object.keys(OUTLOOK_DAMS)) hourly[dam] = mergeHourly(prevHourly[dam], byKey[dam] ? byKey[dam].flow : []);
+  const dams = {}, scoring = {}, skill = {};
+  const daily = (out.history && out.history.usgs && out.history.usgs.sites) || {};
+  const accum = (out.history && out.history.accum && out.history.accum.sites) || {};
+  for (const dam of Object.keys(OUTLOOK_DAMS)) {
+    const sched = dam === "parker" ? (out.parkerSchedule && out.parkerSchedule.points) : (out.davisSchedule && out.davisSchedule.points);
+    const dayArch = daily[dam] && daily[dam].flow;
+    const o = buildDamOutlook(hourly[dam], sched || [], dayArch);
+    if (o) dams[dam] = o;
+    const sc = scoreOutlook(prevOut, dam, sched || [], o, accum[dam] && accum[dam].flow);
+    scoring[dam] = sc.state; skill[dam] = sc.skill;
+  }
+  return { hourly, outlook: { generatedAt: new Date().toISOString(), days: OUTLOOK_DAYS, dams, skill, scoring } };
+}
+
 async function main() {
   const prev = loadPrevious();
   const out = { generatedAt: new Date().toISOString(), stations: [], headgate: null, errors: [] };
@@ -814,6 +951,17 @@ async function main() {
     if (prev && prev.parkerSchedule) { out.parkerSchedule = prev.parkerSchedule; out.davisSchedule = prev.davisSchedule || null; out.errors.push("davisparker: carried forward from " + prev.generatedAt); }
   }
 
+  try {
+    const ob = buildOutlook(out, prev);
+    out.history = out.history || {};
+    out.history.hourly = ob.hourly;
+    out.outlook = ob.outlook;
+  } catch (e) {
+    out.errors.push("outlook: " + (e && e.message ? e.message : e));
+    if (prev && prev.outlook) out.outlook = prev.outlook;
+    if (prev && prev.history && prev.history.hourly) { out.history = out.history || {}; out.history.hourly = prev.history.hourly; }
+  }
+
   fs.mkdirSync("data", { recursive: true });
   fs.writeFileSync("data/riverdata.json", JSON.stringify(out));
   const histUsgsN = out.history && out.history.usgs ? Object.keys(out.history.usgs.sites || {}).length : 0;
@@ -828,4 +976,4 @@ async function main() {
 }
 
 if (require.main === module) main();
-module.exports = { parseHeadgate, buildStations, calibrate, xcorrPair, parseDavisParker, parseHourly7, newestReading, accumulateDaily, fetchUsgsHistory };
+module.exports = { buildOutlook, weeklyPattern, parseHeadgate, buildStations, calibrate, xcorrPair, parseDavisParker, parseHourly7, newestReading, accumulateDaily, fetchUsgsHistory };

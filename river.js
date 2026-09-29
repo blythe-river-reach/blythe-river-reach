@@ -1082,8 +1082,9 @@ function heroModel(){
     var _srcL=ref.label;
     if(_meas && _ol.futM.length){ var _bd=1e18; _ol.futM.forEach(function(p3){ var dd=Math.abs(p3.t-e0.t); if(dd<_bd && p3.src){ _bd=dd; _srcL=p3.src; } }); }
     var _tail=_meas ? ' That water is already past '+_srcL+' — measured, on its way.'
-                    : ' From the dam schedule, trued to the local sensor.';
-    M.tail=_tail; M.measuredNext=_meas;
+                    : (e0.est ? ' Projected from the weekly release rhythm — no schedule is published that far out yet.'
+                              : ' From the dam schedule, trued to the local sensor.');
+    M.tail=_tail; M.measuredNext=_meas; M.projectedNext=!!e0.est;
     // Sanity guard: a coming "low" ABOVE the current level (or "high" below it)
     // means today's extreme is already behind us — say that instead.
     var mism=null;
@@ -1273,6 +1274,14 @@ function renderReach(){
     else { lead.innerHTML='No nearby sensor is reporting for this spot right now.'; }
   }
 }
+// Map a forecast point's value AND its band through the same transform.
+function mapV(p, fn){
+  var o={t:p.t, v:fn(p.v)};
+  if(p.lo!=null) o.lo=fn(p.lo);
+  if(p.hi!=null) o.hi=fn(p.hi);
+  if(p.est) o.est=true;
+  return o;
+}
 function forecastSeriesFor(pl){
   var seg=segFor(pl);
   var d=null, srcNote="", originMile=HEADGATE_MILE, originName="Headgate Rock Dam";
@@ -1281,7 +1290,7 @@ function forecastSeriesFor(pl){
     originMile=PARKER_MILE; originName="Parker Dam";
     if(psData && psData.length){ d=clean(psData); srcNote=" Parker Dam\u2019s own published schedule \u2014 full release, straight from the source."; }
     else if(hg && hg.parker && hg.parker.length){ d=clean(hg.parker); srcNote=" Full Parker release \u2014 this stretch is above the CRIT canal turnout."; }
-    else if(hg && hg.critAvg!=null){ d=clean(hg.downstream).map(function(p){ return {t:p.t, v:p.v+hg.critAvg}; }); srcNote=" Approximated by adding the CRIT diversion (~"+fmt(hg.critAvg)+" cfs) back in."; }
+    else if(hg && hg.critAvg!=null){ d=clean(hg.downstream).map(function(p){ return mapV(p, function(v){ return v+hg.critAvg; }); }); srcNote=" Approximated by adding the CRIT diversion (~"+fmt(hg.critAvg)+" cfs) back in."; }
     else if(hg){ d=clean(hg.downstream); srcNote=" Note: this stretch actually carries ~1,200 cfs more (it\u2019s above the CRIT turnout)."; }
   } else if(seg==="upper"){
     originMile=DAVIS_MILE; originName="Davis Dam";
@@ -1293,7 +1302,7 @@ function forecastSeriesFor(pl){
     if(pl.mile < WASTE_MILE){
       var ret=returnEst();
       if(ret){
-        d=d.map(function(p){ return {t:p.t, v:p.v+ret}; });
+        d=d.map(function(p){ return mapV(p, function(v){ return v+ret; }); });
         srcNote+=" Plus the Poston Wasteway return (~"+fmt(ret)+" cfs \u00b7 USGS) that re-enters the river above Lost Lake.";
       }
     }
@@ -1301,7 +1310,7 @@ function forecastSeriesFor(pl){
       var dv=divEst();
       if(dv && dv.cfs>0){
         var clamped=0;
-        d=d.map(function(p){ if(p.v-dv.cfs<0) clamped++; return {t:p.t, v:Math.max(0, p.v-dv.cfs)}; });
+        d=d.map(function(p){ if(p.v-dv.cfs<0) clamped++; return mapV(p, function(v){ return Math.max(0, v-dv.cfs); }); });
         srcNote+=dv.measured ? " Minus the measured Palo Verde Canal diversion (~"+fmt(dv.cfs)+" cfs \u00b7 USGS canal gauge)." : " Minus roughly what Palo Verde is diverting lately (~"+fmt(dv.cfs)+" cfs, estimated from the sensors).";
         if(clamped>0) srcNote += " During the deepest lows this simple subtraction bottoms out near zero \u2014 the real channel keeps some water (drains return flow), so treat those hours as \u201cvery low,\u201d not dry.";
       }
@@ -1317,7 +1326,7 @@ function forecastSeriesFor(pl){
   // hours of travel-time error can't poison it.
   var tru=scheduleTrue(d, pl);
   if(tru){
-    d=d.map(function(p){ return {t:p.t, v:Math.max(0, tru.mMed+(p.v-tru.sMed)*tru.scale)}; });
+    d=d.map(function(p){ return mapV(p, function(v){ return Math.max(0, tru.mMed+(v-tru.sMed)*tru.scale); }); });
     var bits=[];
     if(Math.abs(tru.sMed-tru.mMed)>=Math.max(120,0.04*tru.mMed)) bits.push('the raw schedule math has run ~'+fmt(Math.abs(tru.sMed-tru.mMed))+' cfs '+(tru.sMed>tru.mMed?'high':'low')+' vs its readings lately');
     if(tru.scale<1) bits.push('the daily swing flattens ~'+Math.round((1-tru.scale)*100)+'% over the long run to here');
@@ -1325,7 +1334,9 @@ function forecastSeriesFor(pl){
     srcNote+=' Heights auto-trued to '+tru.label+' ('+bits.join('; ')+').';
   }
   var shift=(seg==="lake") ? 0 : lagMsFrom(originMile, pl);
-  return { arrival:d.map(function(p){ return {t:p.t+shift, v:p.v}; }), srcNote:srcNote, originMile:originMile, originName:originName, seg:seg };
+  var arrival=d.map(function(p){ var o=mapV(p, function(v){ return v; }); o.t=p.t+shift; return o; });
+  var schedEndAt=null; for(var si=0;si<arrival.length;si++){ if(arrival[si].est){ schedEndAt=si?arrival[si-1].t:arrival[si].t; break; } }
+  return { arrival:arrival, srcNote:srcNote, originMile:originMile, originName:originName, seg:seg, schedEndAt:schedEndAt };
 }
 function scheduleTrue(d, pl){
   var ref=refFor(pl);
@@ -1343,11 +1354,12 @@ function scheduleTrue(d, pl){
   // (not just the usual day-to-day wiggle), a static true-up would erase a real
   // change — skip and let the schedule speak for itself.
   var t0=d[0].t, blocks={};
-  d.forEach(function(p){ var b=Math.floor((p.t-t0)/86400000); (blocks[b]=blocks[b]||[]).push(p.v); });
+  d.forEach(function(p){ if(p.est) return; var b=Math.floor((p.t-t0)/86400000); (blocks[b]=blocks[b]||[]).push(p.v); });
   var keys=Object.keys(blocks).map(Number).sort(function(a,b){return a-b;}), bmeds=[];
   keys.forEach(function(k){ if(blocks[k].length>=12){ var bm=q(blocks[k],0.5); if(bm>0) bmeds.push(bm); } });
   if(bmeds.length>=2){ var trd=bmeds[bmeds.length-1]/bmeds[0]; if(trd>1.3 || trd<0.77) return null; }
-  var sv=d.map(function(p){ return p.v; });
+  var sv=d.filter(function(p){ return !p.est; }).map(function(p){ return p.v; });
+  if(sv.length<8) return null;
   var sMed=q(sv,0.5), mMed=q(mv,0.5);
   var sSpan=q(sv,0.85)-q(sv,0.15), mSpan=q(mv,0.85)-q(mv,0.15);
   var scale=1;
@@ -1470,7 +1482,7 @@ function blendedOutlook(pl){
       var s0=futS[0].t, FADE2=6*3600000;
       futS=futS.map(function(p){
         var w=1-Math.min(1,(p.t-s0)/FADE2);
-        return {t:p.t, v:Math.max(0, p.v+dS*w)};
+        return mapV(p, function(v){ return Math.max(0, v+dS*w); });
       });
     }
   }
@@ -1508,7 +1520,7 @@ function renderHeadgate(){
   }
   // Show ~5 h of context before "now" so the solid measured line has some
   // history to stand on instead of hugging the left edge.
-  var now=Date.now(), fut=fc.arrival.filter(function(p){ return p.t >= now - 5*3600*1000; }), series=fut.length>=4?fut:fc.arrival;
+  var now=Date.now(), fut=fc.arrival.filter(function(p){ return p.t >= now - 5*3600*1000 && p.t <= now + 5*86400000; }), series=fut.length>=4?fut:fc.arrival;
   // Solid line = ACTUAL readings for the past 5 h, then the measured en-route
   // water, drawn over the dashed schedule — so you can also see how well the
   // schedule has been tracking reality. Same blended outlook as hero and tide.
@@ -1551,8 +1563,8 @@ function findTides(points){
     var p=points[i];
     if(dir>=0 && p.v>ext.v){ ext=p; if(dir===0)dir=1; }
     else if(dir<=0 && p.v<ext.v){ ext=p; if(dir===0)dir=-1; }
-    if(dir>0 && p.v<ext.v-amp){ ex.push({type:"high",t:ext.t,v:ext.v}); dir=-1; ext=p; }
-    else if(dir<0 && p.v>ext.v+amp){ ex.push({type:"low",t:ext.t,v:ext.v}); dir=1; ext=p; }
+    if(dir>0 && p.v<ext.v-amp){ ex.push({type:"high",t:ext.t,v:ext.v,est:!!ext.est}); dir=-1; ext=p; }
+    else if(dir<0 && p.v>ext.v+amp){ ex.push({type:"low",t:ext.t,v:ext.v,est:!!ext.est}); dir=1; ext=p; }
   }
   return ex;
 }
@@ -1604,7 +1616,7 @@ function renderTide(){
   upcoming.forEach(function(e2){
     var ft=toFt?toFt(e2.v):null;
     var isM=(horizon && e2.t<=horizon); if(isM) enrouteN++; else fromSchedule=true;
-    rows.push({type:e2.type, t:e2.t, lvl:(ft!=null ? ftLbl(ft) : fmt(e2.v)+" cfs"), tag:isM?" \u00b7 en route":" \u00b7 scheduled"});
+    rows.push({type:e2.type, t:e2.t, lvl:(ft!=null ? ftLbl(ft) : fmt(e2.v)+" cfs"), tag:isM?" \u00b7 en route":(e2.est?" \u00b7 projected":" \u00b7 scheduled")});
   });
   if(!upcoming.length && ex.length>=2){
     ["high","low"].forEach(function(type){
@@ -1664,6 +1676,40 @@ function loadHeadgate(){
 }
 // GitHub relay: hourly data the Action committed, served with CORS from raw.githubusercontent
 var relayInfo=null, loadingNow=false, psData=null, dsData=null, havasuData=null, relayCal=null;
+var outlookData=null, SCHED_END={};
+// Append the robot's 14-day projection beyond each dam's published schedule.
+// Points carry lo/hi (80% band) and est:true so every downstream transform
+// (diversions, truing, travel-time shift, tide detection) simply extends.
+function extendWithOutlook(points, dam, adjust){
+  var o=outlookData && outlookData.dams && outlookData.dams[dam];
+  var base=(points||[]).slice();
+  SCHED_END[dam]=base.length?base[base.length-1].t:0;
+  if(!o || !o.hourly || !o.hourly.length) return base;
+  var last=SCHED_END[dam];
+  o.hourly.forEach(function(h){
+    if(h[0]<=last) return;
+    var v=h[1], lo=h[2], hi=h[3];
+    if(adjust){ v=adjust(v); lo=adjust(lo); hi=adjust(hi); }
+    base.push({t:h[0], v:Math.max(0,v), lo:Math.max(0,lo), hi:Math.max(0,hi), est:true, src2:h[4]});
+  });
+  return base;
+}
+function applyOutlook(){
+  if(!outlookData) return;
+  psData=extendWithOutlook(psData, "parker");
+  dsData=extendWithOutlook(dsData, "davis");
+  if(hgData && hgData.downstream && hgData.downstream.length){
+    var crit=(hgData.critAvg!=null)?hgData.critAvg:1200;
+    // The Headgate report ends about a day before Parker's own schedule: bridge
+    // that gap with the published Parker release minus the CRIT diversion, THEN
+    // the projection — so the downstream reaches never show a hole.
+    var hgEnd=hgData.downstream[hgData.downstream.length-1].t;
+    var bridged=hgData.downstream.slice();
+    (psData||[]).forEach(function(p){ if(p.t>hgEnd && !p.est) bridged.push({t:p.t, v:Math.max(0,p.v-crit)}); });
+    hgData.downstream=extendWithOutlook(bridged, "parker", function(v){ return v-crit; });
+    SCHED_END.headgate=SCHED_END.parker;
+  }
+}
 function setLoading(on){
   loadingNow=on;
   var s=document.getElementById("load-spin"); if(s) s.style.display=on?"inline-block":"none";
@@ -1723,6 +1769,7 @@ function loadAll(){
       if(j.davisSchedule && j.davisSchedule.points && j.davisSchedule.points.length){ dsData=j.davisSchedule.points; }
       if(j.havasu && j.havasu.elev && j.havasu.elev.length){ havasuData=j.havasu.elev; }
       if(j.history && (j.history.usgs || j.history.accum)){ histData=j.history; }
+      if(j.outlook && j.outlook.dams){ outlookData=j.outlook; applyOutlook(); }
     }
     rebuild(); // paint whatever we have right now
     var tasks=[];
