@@ -256,7 +256,7 @@ function calibrate(stations) {
     ["belowdavis", "bigbend", 9.5], ["bigbend", "boyscout", 11.2],
     ["boyscout", "interstate", 10.5], ["interstate", "topockg", 10.55],
     ["parkergage", "waterwheel", 23.3], ["waterwheel", "i10", 30.7],
-    ["i10", "taylor", 14.7], ["taylor", "cibola", 19.3],
+    ["i10", "taylor", 14.7], ["taylor", "oxbow", 13.0], ["oxbow", "cibola", 6.3],
     ["cibola", "picacho", 25.3], ["picacho", "martinez", 7.0]
   ];
   // Alternates used only when a primary pair's gauge is dark (I-10 has been

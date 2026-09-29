@@ -355,6 +355,19 @@ try{
 
 <!-- ================= ADVANCED VIEW ================= -->
 <div class="adv-only">
+  <section id="hc-sec">
+    <div class="section-panel">
+      <div class="fc-head">
+        <h2>Forecast check — replay the past</h2>
+        <span class="fc-now" id="hc-score"></span>
+      </div>
+      <p class="lead" id="hc-lead">Replaying…</p>
+      <div class="range-picker" id="hc-pick"><button data-h="48" class="on">2 days ago</button><button data-h="72">3 days ago</button><button data-h="96">4 days ago</button><button data-h="120">5 days ago</button></div>
+      <svg id="hc-chart" viewBox="0 0 900 120" preserveAspectRatio="none" style="display:none" role="img" aria-label="Replay: a forecast made in the past against what the gauge then read."></svg>
+      <div class="axis" id="hc-axis"></div>
+      <p class="note" id="hc-note"></p>
+    </div>
+  </section>
   <div class="adv-head">Advanced · every sensor, chart and table</div>
 
   <section>
@@ -422,7 +435,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29h</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29i</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -454,7 +467,7 @@ try{
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="/river.js?v=2026-09-29c"></script>
+<script src="/river.js?v=2026-09-29d"></script>
 <script>
 // ============================================================
 // Simple-view UI, spot picker, and river ribbon — rendered on top of the

@@ -643,7 +643,7 @@ function rebuild(){
   st.forEach(function(s){ if(RIVER_ORDER[s.key]!=null) s.order=RIVER_ORDER[s.key]; });
   st.sort(function(a,b){ return (a.order==null?99:a.order)-(b.order==null?99:b.order); });
   STATIONS=st;
-  renderCards(); renderHero(); renderHeadgate(); renderReach(); renderYear(); renderTide(); renderCal();
+  renderCards(); renderHero(); renderHeadgate(); renderHindcast(); renderReach(); renderYear(); renderTide(); renderCal();
   if(typeof window.onRiverRender==="function"){ try{ window.onRiverRender(); }catch(e){ if(window.console) console.error(e); } }
   var _sl=document.getElementById("sched-link");
   if(_sl) _sl.textContent=(segFor(currentPlace())==="upper" ? "Davis Dam" : "Parker Dam")+" projected schedule (PDF) \u2197";
@@ -1681,6 +1681,78 @@ function renderHeadgate(){
   noteEl.textContent=(fc.srcNote.indexOf("Headgate report")>=0) ? ((hgData&&hgData.note)||"") : "";
 }
 
+// ---------- forecast replay (hindcast) ----------
+// Rewind the page's clock: hide every reading after the cutoff, feed the dam's
+// ACTUAL release as its plan, run the very same outlook the page shows, and
+// hand back that forecast next to what the gauge then read. This tests the
+// river model (travel time, spread, gain, level truing) on its own — not
+// Reclamation's plan changes.
+var HC_BACK=48;
+function hindcast(pl, backH){
+  var ref=refFor(pl); if(!ref || !ref.st || ref.st.flow.length<48) return null;
+  var end=ref.st.flow[ref.st.flow.length-1].t, cut=end-backH*3600000, HOLD=48*3600000;
+  if(cut-ref.st.flow[0].t < 30*3600000) return null; // needs a day of history to true on
+  var rel=STATIONS.find(function(s){ return s.key==="parker" && s.flow.length; }), relD=STATIONS.find(function(s){ return s.key==="davis" && s.flow.length; });
+  var realNow=Date.now, saved={ST:STATIONS, ps:psData, hg:hgData, ds:dsData}, ol=null;
+  try{
+    var crit=(hgData && hgData.critAvg!=null)?hgData.critAvg:1200;
+    STATIONS=STATIONS.map(function(s){ var o={}; for(var k in s) o[k]=s[k]; o.flow=s.flow.filter(function(p){return p.t<=cut;}); o.stage=s.stage.filter(function(p){return p.t<=cut;}); return o; });
+    if(rel){
+      var plan=rel.flow.filter(function(p){ return p.t>cut-24*3600000; }).map(function(p){ return {t:p.t, v:p.v}; });
+      psData=plan;
+      hgData=hgData?{downstream:plan.map(function(p){return {t:p.t,v:Math.max(0,p.v-crit)};}), parker:plan, critAvg:crit, note:hgData.note}:null;
+    }
+    if(relD) dsData=relD.flow.filter(function(p){ return p.t>cut-24*3600000; }).map(function(p){ return {t:p.t, v:p.v}; });
+    Date.now=function(){ return cut; };
+    ol=blendedOutlook(pl);
+  } catch(e){ ol=null; }
+  finally { Date.now=realNow; STATIONS=saved.ST; psData=saved.ps; hgData=saved.hg; dsData=saved.ds; }
+  if(!ol || !ol.blend.length) return null;
+  var fc=ol.blend.filter(function(p){ return p.t>cut && p.t<=cut+HOLD; }).map(function(p){ return {t:p.t, v:p.v, meas:p.t<=ol.horizon}; });
+  var truth=ref.st.flow.map(function(p){ return {t:p.t+ol.lag, v:p.v}; }).filter(function(p){ return p.t>cut-3*3600000 && p.t<=cut+HOLD; });
+  if(fc.length<6 || truth.length<6) return null;
+  // score on matched hours
+  var tm={}; truth.forEach(function(p){ tm[Math.round(p.t/3600000)]=p.v; });
+  var toFt=tideRating(pl), se=0, seF=0, n=0, pv=[], tv=[];
+  fc.forEach(function(p){ var v=tm[Math.round(p.t/3600000)]; if(v==null) return; var e=p.v-v; se+=e*e; n++; pv.push(p.v); tv.push(v);
+    if(toFt){ var a=toFt(p.v), b=toFt(v); if(a!=null && b!=null) seF+=(a-b)*(a-b); } });
+  if(n<6) return null;
+  function q(a,f){ var s=a.slice().sort(function(x,y){return x-y;}); return s[Math.max(0,Math.min(s.length-1,Math.floor(s.length*f)))]; }
+  var exF=findTides(fc), exT=findTides(truth.filter(function(p){ return p.t>cut; }));
+  // pair the first real high/low with the NEAREST forecast extreme of its kind
+  function nearest(type, t){ var best=null; exF.forEach(function(e){ if(e.type!==type) return; if(!best || Math.abs(e.t-t)<Math.abs(best.t-t)) best=e; }); return (best && Math.abs(best.t-t)<=12*3600000) ? best : null; }
+  var hT=exT.find(function(e){return e.type==="high";}), lT=exT.find(function(e){return e.type==="low";});
+  var hF=hT?nearest("high",hT.t):null, lF=lT?nearest("low",lT.t):null;
+  return { cut:cut, end:Math.min(cut+HOLD, truth[truth.length-1].t), fc:fc, truth:truth, ref:ref, lag:ol.lag, horizon:ol.horizon, n:n,
+    rmse:Math.sqrt(se/n), rmseFt:toFt?Math.sqrt(seF/n):null, swingP:q(pv,0.85)-q(pv,0.15), swingT:q(tv,0.85)-q(tv,0.15),
+    high:(hF&&hT)?{dtMin:Math.round((hF.t-hT.t)/60000), pred:hF, real:hT}:null, low:(lF&&lT)?{dtMin:Math.round((lF.t-lT.t)/60000), pred:lF, real:lT}:null, toFt:toFt };
+}
+function renderHindcast(){
+  var sec=document.getElementById("hc-sec"), lead=document.getElementById("hc-lead"), svg=document.getElementById("hc-chart"), score=document.getElementById("hc-score"), note=document.getElementById("hc-note");
+  if(!sec||!lead||!svg) return;
+  var pick=document.getElementById("hc-pick");
+  if(pick && !pick._wired){ pick._wired=true; pick.addEventListener("click", function(ev){ var b=ev.target.closest("button"); if(!b) return; HC_BACK=+b.getAttribute("data-h")||48; renderHindcast(); }); }
+  if(pick) Array.prototype.forEach.call(pick.querySelectorAll("button"), function(b){ b.classList.toggle("on", +b.getAttribute("data-h")===HC_BACK); });
+  var pl=currentPlace(), seg=segFor(pl);
+  var hc=(seg==="lake") ? null : hindcast(pl, HC_BACK);
+  var hax=document.getElementById("hc-axis");
+  if(!hc){ svg.style.display="none"; if(hax) hax.style.display="none"; if(score) score.textContent=""; if(note) note.textContent="";
+    lead.textContent=(seg==="lake") ? "No replay for the lake — pick a river spot." : "Not enough history at this spot yet to replay a forecast (needs a couple of days of readings)."; return; }
+  svg.style.display="block";
+  areaChart(svg, hc.fc, "var(--house)", true, "hc-axis", false, false, hc.truth);
+  svg._series=hc.truth;
+  var ft=hc.toFt;
+  function lv(v){ var f=ft?ft(v):null; return f!=null ? '<b class="mono">'+ftStr(f)+'</b>' : '<b class="mono">'+fmt(v)+'</b> cfs'; }
+  var errTxt = hc.rmseFt!=null ? 'typically within <b class="mono">±'+hc.rmseFt.toFixed(1)+' ft</b> ('+fmt(Math.round(hc.rmse))+' cfs)' : 'typically within <b class="mono">'+fmt(Math.round(hc.rmse))+' cfs</b>';
+  var ratio=hc.swingT>0 ? hc.swingP/hc.swingT : null;
+  var swingTxt = ratio!=null ? 'daily swing forecast '+fmt(Math.round(hc.swingP))+' vs real '+fmt(Math.round(hc.swingT))+' cfs ('+(ratio>1.15?'too big':ratio<0.85?'too small':'about right')+')' : '';
+  var timing=[];
+  if(hc.high) timing.push('first high came '+(Math.abs(hc.high.dtMin)<20?'right on time':Math.abs(hc.high.dtMin)+' min '+(hc.high.dtMin>0?'earlier':'later')+' than forecast')+' at '+lv(hc.high.real.v)+' (forecast '+lv(hc.high.pred.v)+')');
+  if(hc.low) timing.push('first low '+(Math.abs(hc.low.dtMin)<20?'right on time':Math.abs(hc.low.dtMin)+' min '+(hc.low.dtMin>0?'earlier':'later')+' than forecast')+' at '+lv(hc.low.real.v)+' (forecast '+lv(hc.low.pred.v)+')');
+  if(score) score.innerHTML='<b>'+(hc.rmseFt!=null?'±'+hc.rmseFt.toFixed(1)+' ft':fmt(Math.round(hc.rmse))+' cfs')+'</b> over '+Math.round((hc.end-hc.cut)/3600000)+' h';
+  lead.innerHTML='The page rewound to <b style="color:var(--text)">'+azTime(hc.cut)+'</b> with only the readings it had then, made its forecast for the next '+Math.round((hc.end-hc.cut)/3600000)+' h (dashed), and here is what '+hc.ref.label+' actually read afterwards (solid). It was '+errTxt+'; '+swingTxt+(timing.length?'; '+timing.join('; '):'')+'.';
+  if(note) note.textContent='Fair test of the river model only: the replay uses what Parker Dam actually released as its plan, so Reclamation changing the schedule after the fact is not counted against it. Solid before the start = the readings it knew; the dashed line’s first '+Math.max(0,Math.round((hc.horizon-hc.cut)/3600000))+' h were en-route measured water, the rest the dam schedule.';
+}
 // ---------- tide ----------
 function findTides(points){
   if(points.length<6) return [];
