@@ -16,7 +16,7 @@ const C = require("../lib/marks-core.js");
 const E = require("../lib/engine-node.js");
 const REPO = "blythe-river-reach/blythe-river-reach";
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
-const stores = () => ({ places: getStore("marks-places"), marks: getStore("marks-marks"), readings: getStore("marks-readings"), ratelimit: getStore("marks-ratelimit"), photos: getStore("marks-photos"), settings: getStore("marks-settings") });
+const stores = () => ({ places: getStore({ name: "marks-places", consistency: "strong" }), marks: getStore({ name: "marks-marks", consistency: "strong" }), readings: getStore({ name: "marks-readings", consistency: "strong" }), ratelimit: getStore({ name: "marks-ratelimit", consistency: "strong" }), photos: getStore({ name: "marks-photos", consistency: "strong" }), settings: getStore({ name: "marks-settings", consistency: "strong" }) });
 
 // Engine on the freshest data for this branch; cached per warm function instance.
 let cache = { branch: null, at: 0, ctx: null, data: null };
