@@ -46,7 +46,8 @@
   .top{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
   .brand{display:flex; flex-direction:column; line-height:1.15; margin-right:auto}
   .brand .reach{color:var(--muted); font-size:11.5px}
-  .tools{display:flex; gap:6px}
+  .tools{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end}
+  @media (max-width:430px){ #tip-link .lbl{display:none} .tools button, .tbtn, #tip-link{padding:8px 9px} }
   .tools button, .tbtn{background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:8px 11px; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap}
   .tools button:hover{border-color:var(--water)}
   .tools #refresh:disabled{opacity:.5}
@@ -79,7 +80,23 @@
   .h2-head{display:flex; align-items:flex-start; gap:12px; margin-top:8px}
   .glyph{font-size:38px; line-height:1; width:46px; text-align:center; flex-shrink:0; margin-top:2px}
   .h2-title{font-size:clamp(21px,5.4vw,27px); font-weight:700; letter-spacing:-.02em; line-height:1.2}
+  .h2-then{color:var(--muted); font-size:15px; margin-top:3px; font-weight:500}
+  .h2-then b{color:var(--text); font-weight:650}
   .h2-sub{color:var(--muted); font-size:14px; margin-top:6px}
+  .hero2{border-left:5px solid var(--steady)}
+  .hero2.rising{border-left-color:var(--rise)} .hero2.falling{border-left-color:var(--fall)} .hero2.steady{border-left-color:var(--steady)}
+  .today{margin-top:14px; background:var(--tile); border:1px solid var(--border); border-radius:14px; padding:10px 12px 8px}
+  .today-hd{display:flex; justify-content:space-between; gap:8px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.07em}
+  .today-hd span:last-child{text-transform:none; letter-spacing:0}
+  #today-svg{width:100%; height:70px; display:block}
+  .today-row{position:relative; height:18px; font-size:11.5px; font-weight:700; color:var(--text)}
+  .today-row span{position:absolute; top:0; white-space:nowrap; transform:translateX(-50%)}
+  .today-row span.edge-l{transform:none} .today-row span.edge-r{transform:translateX(-100%)}
+  .today-row span.now{color:var(--house)}
+  .today-row span.hi{color:var(--rise)} .today-row span.lo{color:var(--fall)}
+  .today-row span b{color:var(--text)}
+  .today-axis{display:flex; justify-content:space-between; font-size:10.5px; color:var(--muted); margin-top:2px}
+  .today-axis span:first-child{visibility:hidden}
   .h2-sub b{color:var(--text); font-weight:600}
   .tiles{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:14px}
   @media (min-width:640px){ .tiles{grid-template-columns:repeat(4,1fr)} }
@@ -220,7 +237,7 @@
   .row:hover{background:var(--panel2)}
   .row.on{background:rgba(56,189,224,.12); outline:1px solid var(--water)}
   .row .rn{flex:1; min-width:0}
-  .row .rm{color:var(--muted); font-size:11.5px; white-space:nowrap}
+  .row .rm{color:var(--text); font-size:13px; font-weight:600; white-space:nowrap}
   .row .rs{width:26px; text-align:center; font-size:14px}
   .row .bell{font-size:13px; margin-left:4px}
   .spot-btn .bell{font-size:15px; margin-right:2px}
@@ -250,7 +267,7 @@ try{
 <header class="top">
   <div class="brand"><h1>Is The River Up?</h1><span class="reach">Colorado River · Davis Dam → Martinez Lake</span></div>
   <div class="tools">
-    <a href="https://ko-fi.com/IsTheRiverUp" target="_blank" rel="noopener" id="tip-link" title="This site is free — tips cover the domain and upkeep. Opens the Ko-fi tip jar in a new tab.">🛟 Tip jar</a>
+    <a href="https://ko-fi.com/IsTheRiverUp" target="_blank" rel="noopener" id="tip-link" title="This site is free — tips cover the domain and upkeep. Opens the Ko-fi tip jar in a new tab.">🛟<span class="lbl">&nbsp;Tip jar</span></a>
     <button id="mode-btn" title="Show every sensor, chart and table">Advanced</button>
     <button id="theme-btn" title="Day / night colors">☀️</button>
     <button id="alerts-btn" title="Push alerts for this spot">🔔</button>
@@ -288,11 +305,19 @@ try{
     <div class="glyph" id="h2-glyph" aria-hidden="true">▬</div>
     <div style="flex:1; min-width:0">
       <div class="h2-title" id="h2-title">Reading the closest sensor…</div>
+      <div class="h2-then" id="h2-then"></div>
       <div class="h2-sub" id="h2-sub"></div>
     </div>
   </div>
+  <div class="today" id="today" style="display:none">
+    <div class="today-hd"><span>Today at a glance</span><span id="today-note"></span></div>
+    <div class="today-row" id="today-top"></div>
+    <svg id="today-svg" viewBox="0 0 900 70" preserveAspectRatio="none" role="img" aria-label="Today’s water level curve with the highs and lows labelled and a marker for now."></svg>
+    <div class="today-row" id="today-bot"></div>
+    <div class="today-axis"><span>midnight</span><span>6 AM</span><span>noon</span><span>6 PM</span><span>midnight</span></div>
+  </div>
   <div class="tiles" id="tiles"></div>
-  <div class="chips" id="chips"></div>
+  <div class="chips" id="chips" style="display:none"></div>
   <div class="lvlbar" id="lvlbar" style="display:none"></div>
   <div class="h2-foot" id="h2-foot"></div>
 </section>
@@ -394,7 +419,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29c</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29d</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -487,11 +512,17 @@ function renderSimple(){
     title.textContent= loadingNow ? "Reading the closest sensor…" : "No sensor is reporting yet";
     sub.textContent= loadingNow ? "" : "Try Refresh in a minute.";
     tiles.innerHTML=""; chips.innerHTML=""; bar.style.display="none"; foot.innerHTML=""; asof.textContent="";
+    document.getElementById("h2-then").innerHTML=""; document.getElementById("today").style.display="none"; document.getElementById("hero2").className="hero2 steady";
     return;
   }
   var m=M.head.m;
   glyph.textContent=TMARK[m]; glyph.style.color=TCOLOR[m];
-  title.textContent=M.head.t;
+  document.getElementById("hero2").className="hero2 "+(m||"steady");
+  // Two-part headline: the state now (big), what comes next (smaller).
+  var _ht=String(M.head.t||""), _cut=_ht.indexOf(" — ");
+  title.textContent=_cut>0?_ht.slice(0,_cut):_ht;
+  document.getElementById("h2-then").innerHTML=_cut>0?('then <b>'+esc(_ht.slice(_cut+3))+'</b>'):"";
+  renderToday(M);
   asof.textContent="as of "+azClock(M.c.t)+ageShort(M.c.t).replace(/ \((.*)\)$/," · $1");
   // Sentence: the "what next" turn, without the source attribution (that's
   // for the advanced view) — plus the week context.
@@ -544,7 +575,8 @@ function renderSimple(){
     }
   }
   tiles.innerHTML=T.map(function(t){
-    return '<div class="tile'+(t.dim?' dim':'')+'"><div class="k"><span>'+t.k+'</span></div><div class="v"><span class="g" style="color:'+t.gc+'">'+t.g+'</span><span class="n">'+t.n+'</span></div><div class="l">'+t.l+'</div></div>';
+    var small=String(t.n).replace(/<[^>]*>/g,"").length>8;
+    return '<div class="tile'+(t.dim?' dim':'')+'"><div class="k"><span>'+t.k+'</span></div><div class="v"><span class="g" style="color:'+t.gc+'">'+t.g+'</span><span class="n"'+(small?' style="font-size:19px"':'')+'>'+t.n+'</span></div><div class="l">'+t.l+'</div></div>';
   }).join("");
 
   // ---- chips: the next few turns ----
@@ -585,6 +617,61 @@ function renderSimple(){
   renderRibbon(pl);
 }
 
+// ---------- today at a glance ----------
+function renderToday(M){
+  var box=document.getElementById("today"), svg=document.getElementById("today-svg"), note=document.getElementById("today-note");
+  if(!box) return;
+  if(!M.ok || M.lake){ box.style.display="none"; return; }
+  var now=Date.now(), tk=dayKey(now), t0=tk*DAY_MS+OFF_MS, t1=t0+DAY_MS, hz=(M.outlook&&M.outlook.horizon)||0;
+  var pts=[];
+  (M.flowP||[]).forEach(function(p){ if(p.t>=t0&&p.t<t1) pts.push({t:p.t, v:p.v, k:"meas"}); });
+  if(M.outlook) M.outlook.futM.forEach(function(p){ if(p.t>=t0&&p.t<t1) pts.push({t:p.t, v:p.v, k:"meas"}); });
+  var fc=forecastSeriesFor(M.pl);
+  if(fc) fc.arrival.forEach(function(p){ if(p.t>Math.max(now,hz) && p.t>=t0 && p.t<t1) pts.push({t:p.t, v:p.v, k:p.est?"proj":"sched"}); });
+  pts.sort(function(a,b){ return a.t-b.t; });
+  if(pts.length<6){ box.style.display="none"; return; }
+  box.style.display="";
+  var W=900,H=70,top=6,bot=4, vals=pts.map(function(p){ return p.v; }), min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), span=(max-min)||1;
+  function X(t){ return (t-t0)/DAY_MS*W; }
+  function Y(v){ return top+(H-top-bot)*(1-(v-min)/span); }
+  var g="";
+  [6,12,18].forEach(function(h){ var x=X(t0+h*3600000); g+='<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.25)" stroke-width="1"/>'; });
+  var past=pts.filter(function(p){ return p.t<=now; }), fut=pts.filter(function(p){ return p.t>=now; });
+  var pastPts=past.map(function(p){ return {x:X(p.t), y:Y(p.v)}; }), futPts=fut.map(function(p){ return {x:X(p.t), y:Y(p.v)}; });
+  var allPts=pts.map(function(p){ return {x:X(p.t), y:Y(p.v)}; });
+  var area=yrSmoothPath(allPts)+" L"+allPts[allPts.length-1].x.toFixed(1)+" "+H+" L"+allPts[0].x.toFixed(1)+" "+H+" Z";
+  g+='<path d="'+area+'" fill="var(--water)" opacity="0.13"/>';
+  if(pastPts.length>1) g+='<path d="'+yrSmoothPath(pastPts)+'" fill="none" stroke="var(--water)" stroke-width="2.4" stroke-linejoin="round"/>';
+  if(futPts.length>1) g+='<path d="'+yrSmoothPath(futPts)+'" fill="none" stroke="var(--water)" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round" opacity="0.85"/>';
+  // highs & lows today, labelled on the curve
+  var ex=findTides(pts);
+  var labels=[];
+  ex.forEach(function(e){ labels.push({t:e.t, v:e.v, type:e.type}); });
+  // include the day's overall extremes if the tide finder missed them
+  var hiP=pts.reduce(function(a,p){ return p.v>a.v?p:a; }), loP=pts.reduce(function(a,p){ return p.v<a.v?p:a; });
+  if(!labels.some(function(l){ return Math.abs(l.t-hiP.t)<2*3600000; })) labels.push({t:hiP.t, v:hiP.v, type:"high"});
+  if(!labels.some(function(l){ return Math.abs(l.t-loP.t)<2*3600000; })) labels.push({t:loP.t, v:loP.v, type:"low"});
+  labels.sort(function(a,b){ return a.t-b.t; });
+  // Labels live in HTML rows above (highs) and below (lows) the curve, so they
+  // never stretch with the SVG; each row skips a label that would overlap.
+  var topRow=[], botRow=[], lastTop=-1e9, lastBot=-1e9, MINGAP=0.19; // fraction of width
+  var xnP=X(now)/W;
+  labels.forEach(function(l){
+    var xp=X(l.t)/W, up=(l.type==="high");
+    g+='<circle cx="'+X(l.t).toFixed(1)+'" cy="'+Y(l.v).toFixed(1)+'" r="4" fill="'+(up?"var(--rise)":"var(--fall)")+'"/>';
+    var txt=(up?"▲ ":"▼ ")+"<b>"+lvlOf(M,l.v)+"</b> "+azClock(l.t).replace(/:00 /," ");
+    if(up){ if(xp-lastTop<MINGAP || Math.abs(xp-xnP)<0.16) return; lastTop=xp; topRow.push({xp:xp, cls:"hi", txt:txt}); }
+    else { if(xp-lastBot<MINGAP) return; lastBot=xp; botRow.push({xp:xp, cls:"lo", txt:txt}); }
+  });
+  g+='<line x1="'+X(now).toFixed(1)+'" y1="0" x2="'+X(now).toFixed(1)+'" y2="'+H+'" stroke="var(--house)" stroke-width="2"/>';
+  topRow.push({xp:xnP, cls:"now", txt:"now"});
+  var rowHtml=function(items){ return items.map(function(it){ var edge=it.xp<0.08?" edge-l":(it.xp>0.92?" edge-r":""); return '<span class="'+it.cls+edge+'" style="left:'+(it.xp*100).toFixed(1)+'%">'+it.txt+'</span>'; }).join(""); };
+  document.getElementById("today-top").innerHTML=rowHtml(topRow);
+  document.getElementById("today-bot").innerHTML=rowHtml(botRow);
+  svg.innerHTML=g;
+  var nMeas=pts.filter(function(p){ return p.k==="meas"&&p.t>now; }).length, nProj=pts.filter(function(p){ return p.k==="proj"; }).length;
+  note.textContent=(nProj?"dashed = projected":(nMeas?"dashed = en route / scheduled":"dashed = scheduled"));
+}
 // ---------- next two weeks ----------
 function renderOutlook14(M){
   var sec=document.getElementById("ol14-sec"); if(!sec) return;
@@ -671,9 +758,15 @@ function toggleFav(k){ var f=favs(); var i=f.indexOf(k); if(i>=0) f.splice(i,1);
 function statusGlyph(p){ // tiny live trend for the list — cheap: nearest sensor's trend
   try{ var r=refFor(p); if(!r||!r.st) return ""; var s=r.st.flow.length?r.st.flow:r.st.stage; var t=trend(s); return '<span style="color:'+TCOLOR[t]+'">'+TMARK[t]+'</span>'; }catch(e){ return ""; }
 }
+function levelText(p){ // cheap live level for the list: nearest sensor, no travel-time shift
+  try{ var r=refFor(p); if(!r||!r.st) return ""; var st=r.st;
+    if(segFor(p)==="lake"){ return (havasuData&&havasuData.length)?havasuData[havasuData.length-1].v.toFixed(1)+" ft":""; }
+    if(st.stage.length>=4){ var a=stageAboveLow(st.stage); return a!=null?(a<0.05?"0.0 ft":"+"+a.toFixed(1)+" ft"):""; }
+    var c=cur(st.flow); return c?fmt(c.v)+" cfs":""; }catch(e){ return ""; }
+}
 function rowHtml(p, on){
-  var f=favs().indexOf(p.key)>=0, ps=pushState(), bell=(ps && ps.spot===p.key);
-  return '<button class="row'+(on?' on':'')+'" data-k="'+p.key+'"><span class="rs">'+statusGlyph(p)+'</span><span class="rn">'+esc(p.name)+(bell?' <span class="bell" title="Push alerts are on for this spot">🔔</span>':'')+'</span><span class="star'+(f?' on':'')+'" data-fav="'+p.key+'" title="Favorite">'+(f?'★':'☆')+'</span></button>';
+  var f=favs().indexOf(p.key)>=0, ps=pushState(), bell=(ps && ps.spot===p.key), lt=levelText(p);
+  return '<button class="row'+(on?' on':'')+'" data-k="'+p.key+'"><span class="rs">'+statusGlyph(p)+'</span><span class="rn">'+esc(p.name)+(bell?' <span class="bell" title="Push alerts are on for this spot">🔔</span>':'')+'</span>'+(lt?'<span class="rm mono" title="Right now at the nearest sensor">'+lt+'</span>':'')+'<span class="star'+(f?' on':'')+'" data-fav="'+p.key+'" title="Favorite">'+(f?'★':'☆')+'</span></button>';
 }
 function buildPicker(q){
   var list=document.getElementById("pick-list"), cur=currentPlace().key;
@@ -690,7 +783,7 @@ function buildPicker(q){
     html+='<div class="grp">'+SEG_LABEL[seg]+'</div>'+ps.map(function(p){ return rowHtml(p, p.key===cur); }).join("");
   });
   if(!html) html='<div class="grp">Nothing matches “'+esc(q)+'” — try a town, resort, bridge, or dam name.</div>';
-  html+='<p class="note" style="padding:0 8px">★ favorite · 🔔 alerts on · the arrow shows what the water is doing there right now.</p>';
+  html+='<p class="note" style="padding:0 8px">Each spot shows the water right now at its nearest sensor: the arrow is the trend, the number is feet above this week’s low (or flow where there’s no height gauge). ★ favorite · 🔔 alerts on.</p>';
   list.innerHTML=html;
 }
 function openSheet(){ document.getElementById("sheet").classList.add("open"); document.getElementById("sheet-bg").classList.add("open"); var q=document.getElementById("pick-q"); q.value=""; buildPicker(""); setTimeout(function(){ try{ if(window.matchMedia("(min-width:700px)").matches) q.focus(); }catch(e){} },50); }
