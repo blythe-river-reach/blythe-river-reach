@@ -1,4 +1,4 @@
-# RELEASE 2026-07-10p — Is The River Up
+# RELEASE 2026-09-29a — Is The River Up
 name: Update river data
 
 on:
@@ -26,6 +26,9 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
+    # A hung upstream connection must not sit on the concurrency slot for
+    # GitHub's 6-hour default; the script also times out every fetch itself.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
 
@@ -34,7 +37,8 @@ jobs:
           node-version: 24
 
       - name: Install PDF parser
-        run: npm install pdf-parse@1.1.1 --no-save
+        # the registry hiccups now and then; one retry covers it
+        run: npm install pdf-parse@1.1.1 --no-save || (sleep 10 && npm install pdf-parse@1.1.1 --no-save)
 
       - name: Fetch and parse river data
         run: node scripts/build-data.cjs
@@ -44,9 +48,35 @@ jobs:
         run: mv data/riverdata.json "data/riverdata-${{ github.ref_name }}.json"
 
       - name: Commit data (skips Netlify build)
+        env:
+          BRANCH: ${{ github.ref_name }}
         run: |
+          set -euo pipefail
           git config user.name "river-bot"
           git config user.email "river-bot@users.noreply.github.com"
-          git add data/
-          git diff --cached --quiet || git commit -m "river data $(date -u +%FT%TZ) [skip netlify]"
-          git push
+          # Two robot runs occasionally overlap (delayed cron slots), and GitHub
+          # itself sometimes answers a push with a 500. Each run's output is a
+          # complete snapshot, so on any push failure the newest file simply
+          # wins: park the fresh data, sync to the remote tip, drop it back in,
+          # and push again with backoff.
+          FRESH="$(mktemp -d)"
+          cp -a data/. "$FRESH/"
+          for attempt in 1 2 3 4 5; do
+            git fetch --quiet origin "$BRANCH"
+            git reset --quiet --hard "origin/$BRANCH"
+            cp -a "$FRESH/." data/
+            git add data/
+            if git diff --cached --quiet; then
+              echo "nothing changed since the remote tip — no commit"
+              exit 0
+            fi
+            git commit --quiet -m "river data $(date -u +%FT%TZ) [skip netlify]"
+            if git push origin "HEAD:$BRANCH"; then
+              echo "pushed on attempt $attempt"
+              exit 0
+            fi
+            echo "push attempt $attempt failed — re-syncing and retrying"
+            sleep $((2 ** attempt))
+          done
+          echo "::error::could not push river data after 5 attempts"
+          exit 1

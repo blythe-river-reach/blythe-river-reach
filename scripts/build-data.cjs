@@ -1,10 +1,20 @@
-// RELEASE 2026-07-12a — Is The River Up data robot (Davis Dam → Martinez Lake)
+// RELEASE 2026-09-29a — Is The River Up data robot (Davis Dam → Martinez Lake)
 // Runs in GitHub Actions (Node 20). Fetches Reclamation's hourly reach feed (with the
 // HTML daily-report as a fallback when the JSON export stalls) plus the dam schedule
 // PDFs server-side (no CORS), parses them, and writes data/riverdata.json for the
 // dashboard to read. Exits 0 if at least one source worked.
 
 const fs = require("fs");
+
+// Every upstream call gets a hard timeout. Without one, a hung connection to
+// Reclamation or USGS would hold the workflow's concurrency slot for GitHub's
+// 6-hour default and the site would go stale with no error anywhere. With it,
+// a hang becomes an ordinary "carried forward from previous run" error that
+// the per-source try/catch blocks below already handle.
+const FETCH_TIMEOUT_MS = +(process.env.FETCH_TIMEOUT_MS || 25000);
+const _rawFetch = globalThis.fetch;
+globalThis.fetch = (url, opts) =>
+  _rawFetch(url, Object.assign({}, opts, { signal: (opts && opts.signal) || AbortSignal.timeout(FETCH_TIMEOUT_MS) }));
 
 const BOR = "https://www.usbr.gov/lc/region/g4000/riverops/webreports/hourlyweb.json";
 const HG = "https://www.usbr.gov/lc/region/g4000/hourly/HeadgateReport.pdf";
