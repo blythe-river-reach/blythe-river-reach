@@ -220,6 +220,8 @@
   .row .rn{flex:1; min-width:0}
   .row .rm{color:var(--muted); font-size:11.5px; white-space:nowrap}
   .row .rs{width:26px; text-align:center; font-size:14px}
+  .row .bell{font-size:13px; margin-left:4px}
+  .spot-btn .bell{font-size:15px; margin-right:2px}
   .row .star{background:none; border:0; color:var(--muted); font-size:18px; cursor:pointer; padding:2px 6px; line-height:1}
   .row .star.on{color:#f2c94c}
   .al-row{display:flex; align-items:flex-start; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); font-size:15px; cursor:pointer}
@@ -469,8 +471,8 @@ var CMP_WORD={bigger:"bigger than", smaller:"smaller than", similar:"about the s
 function renderSimple(){
   var M=heroModel();
   var pl=M.pl;
-  var chosen=!!store.get(PLACE_KEY);
-  document.getElementById("spot-name").textContent=chosen?pl.name:"Pick your spot";
+  var chosen=!!store.get(PLACE_KEY), _ps=pushState();
+  document.getElementById("spot-name").innerHTML=chosen?(esc(pl.name)+((_ps&&_ps.spot===pl.key)?' <span class="bell" title="Push alerts are on for this spot">🔔</span>':'')):"Pick your spot";
   document.title=chosen?("Is The River Up? — "+pl.name):"Is The River Up? — Colorado River levels, Davis Dam to Martinez Lake";
   document.getElementById("h2-eyebrow").textContent="Near "+pl.name+" right now";
   var pillEl=document.getElementById("h2-pill");
@@ -667,8 +669,8 @@ function statusGlyph(p){ // tiny live trend for the list — cheap: nearest sens
   try{ var r=refFor(p); if(!r||!r.st) return ""; var s=r.st.flow.length?r.st.flow:r.st.stage; var t=trend(s); return '<span style="color:'+TCOLOR[t]+'">'+TMARK[t]+'</span>'; }catch(e){ return ""; }
 }
 function rowHtml(p, on){
-  var f=favs().indexOf(p.key)>=0;
-  return '<button class="row'+(on?' on':'')+'" data-k="'+p.key+'"><span class="rs">'+statusGlyph(p)+'</span><span class="rn">'+esc(p.name)+'</span><span class="rm">mi '+p.mile.toFixed(0)+'</span><span class="star'+(f?' on':'')+'" data-fav="'+p.key+'" title="Favorite">'+(f?'★':'☆')+'</span></button>';
+  var f=favs().indexOf(p.key)>=0, ps=pushState(), bell=(ps && ps.spot===p.key);
+  return '<button class="row'+(on?' on':'')+'" data-k="'+p.key+'"><span class="rs">'+statusGlyph(p)+'</span><span class="rn">'+esc(p.name)+(bell?' <span class="bell" title="Push alerts are on for this spot">🔔</span>':'')+'</span><span class="rm" title="Reclamation river mile '+p.mile.toFixed(1)+' — miles upstream from the Mexico border">RM '+p.mile.toFixed(0)+'</span><span class="star'+(f?' on':'')+'" data-fav="'+p.key+'" title="Favorite">'+(f?'★':'☆')+'</span></button>';
 }
 function buildPicker(q){
   var list=document.getElementById("pick-list"), cur=currentPlace().key;
@@ -685,6 +687,7 @@ function buildPicker(q){
     html+='<div class="grp">'+SEG_LABEL[seg]+'</div>'+ps.map(function(p){ return rowHtml(p, p.key===cur); }).join("");
   });
   if(!html) html='<div class="grp">Nothing matches “'+esc(q)+'” — try a town, resort, bridge, or dam name.</div>';
+  html+='<p class="note" style="padding:0 8px">RM = Reclamation river mile, counted upstream from the Mexico border (Martinez Lake 55 → Davis Dam 276). The site uses the mile difference between your spot and each sensor to time the water’s arrival. ★ favorite · 🔔 alerts on.</p>';
   list.innerHTML=html;
 }
 function openSheet(){ document.getElementById("sheet").classList.add("open"); document.getElementById("sheet-bg").classList.add("open"); var q=document.getElementById("pick-q"); q.value=""; buildPicker(""); setTimeout(function(){ try{ if(window.matchMedia("(min-width:700px)").matches) q.focus(); }catch(e){} },50); }
