@@ -5,6 +5,8 @@
 //   POST /api/places                 { name, mile, lat, lon, note }
 //   GET  /api/readings?mark=<id>     readings + fitted curve/ladder for a mark
 //   POST /api/readings               { mark, kind, depth|rung|rung2, t, branch, note }
+//   POST /api/marks/photo?mark=<id>  JPEG bytes (shrunk by the page), owner only
+//   GET  /api/marks/photo?mark=<id>  the JPEG (public once the mark is approved; ?d=<device> for your own pending mark)
 // Every request carries x-device (a random id the page keeps in localStorage).
 import { getStore } from "@netlify/blobs";
 import { createRequire } from "node:module";
@@ -13,7 +15,7 @@ const C = require("../lib/marks-core.js");
 const E = require("../lib/engine-node.js");
 const REPO = "blythe-river-reach/blythe-river-reach";
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
-const stores = () => ({ places: getStore("marks-places"), marks: getStore("marks-marks"), readings: getStore("marks-readings"), ratelimit: getStore("marks-ratelimit") });
+const stores = () => ({ places: getStore("marks-places"), marks: getStore("marks-marks"), readings: getStore("marks-readings"), ratelimit: getStore("marks-ratelimit"), photos: getStore("marks-photos") });
 
 // Engine on the freshest data for this branch; cached per warm function instance.
 let cache = { branch: null, at: 0, ctx: null, data: null };
@@ -28,9 +30,26 @@ async function engineFor(branch) {
 
 export default async (req) => {
   const url = new URL(req.url), path = url.pathname.replace(/\/+$/, "");
+  const S = stores();
+  if (path.endsWith("/marks/photo")) {
+    const id = String(url.searchParams.get("mark") || "");
+    if (req.method === "GET") {
+      const dq = String(url.searchParams.get("d") || req.headers.get("x-device") || "");
+      const r = await C.photoFor(S, C.DEVICE_RE.test(dq) ? dq : "", false, id);
+      if (r.error) return json(r, r.status || 404);
+      return new Response(r.buf, { status: 200, headers: { "content-type": "image/jpeg", "content-length": String(r.buf.byteLength), "cache-control": r.approved ? "public, max-age=86400" : "private, no-store", "etag": '"' + r.photo.at + '"' } });
+    }
+    if (req.method === "POST") {
+      const device = String(req.headers.get("x-device") || "");
+      if (!C.DEVICE_RE.test(device)) return json({ error: "device id required" }, 400);
+      const buf = Buffer.from(await req.arrayBuffer());
+      const r = await C.setPhoto(S, device, false, id, buf, { w: url.searchParams.get("w"), h: url.searchParams.get("h") });
+      return json(r, r.error ? (r.status || 400) : 200);
+    }
+    return json({ error: "method" }, 405);
+  }
   const device = String(req.headers.get("x-device") || "");
   if (!C.DEVICE_RE.test(device)) return json({ error: "device id required" }, 400);
-  const S = stores();
   let body = {}; if (req.method === "POST") { try { body = await req.json(); } catch (e) { return json({ error: "bad json" }, 400); } }
   const send = (r) => json(r, r && r.error ? (r.status || 400) : 200);
   try {
@@ -57,4 +76,4 @@ export default async (req) => {
   } catch (e) { return json({ error: String(e && e.message || e) }, 500); }
 };
 
-export const config = { path: ["/api/marks", "/api/places", "/api/readings"] };
+export const config = { path: ["/api/marks", "/api/marks/photo", "/api/places", "/api/readings"] };

@@ -259,6 +259,12 @@
   .mark-strip{margin-top:12px; background:var(--tile); border:1px solid var(--border); border-radius:14px; padding:11px 13px}
   .ms-hd{display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--muted)} .ms-hd b{color:var(--text)} .ms-hd .tbtn{margin-left:auto; padding:6px 10px; font-size:12.5px}
   .ms-body{margin-top:8px; display:flex; flex-direction:column; gap:5px; font-size:14.5px} .ms-line.ms-now{font-size:17px; font-weight:700} .ms-line .mono{font-weight:700}
+  .ms-ref{display:flex; gap:10px; align-items:flex-start; margin-top:8px; font-size:13px; color:var(--text)} .ms-reftxt{flex:1; min-width:0}
+  .ms-photo,.rd-photo-img{width:96px; height:72px; object-fit:cover; border-radius:10px; border:1px solid var(--border); cursor:zoom-in; flex:0 0 auto; background:var(--panel2)}
+  .rd-photo-img{width:100%; height:180px; margin-top:8px}
+  .linkbtn{background:none; border:0; color:var(--water); font:inherit; font-size:12.5px; cursor:pointer; padding:0; margin-left:6px; text-decoration:underline}
+  #photo-lb{position:fixed; inset:0; background:rgba(0,0,0,.88); z-index:60; display:none; align-items:center; justify-content:center; cursor:zoom-out} #photo-lb.open{display:flex} #photo-lb img{max-width:96vw; max-height:92vh; border-radius:10px}
+  #mk-photo-prev{display:none; width:100%; max-height:220px; object-fit:cover; border-radius:10px; margin-top:8px; border:1px solid var(--border)}
   .tagp{font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:#f2b64a; border:1px solid #f2b64a; border-radius:999px; padding:1px 7px; margin-left:6px; font-weight:600}
   .row.sub{padding-left:26px; font-size:14px} .row.sub .rs{opacity:.6} .row .rl{color:var(--muted); font-size:12px}
   .pick-add{display:flex; gap:8px; flex-wrap:wrap; padding:10px 8px 4px}
@@ -451,7 +457,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29q</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29r</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -503,6 +509,9 @@ try{
     <label class="fld">Exactly where the reading is taken<textarea id="mk-ref" maxlength="300" placeholder="e.g. Depth at the bottom edge of the concrete ramp, centre, measured with a stick"></textarea></label>
     <label class="fld">Landmarks, bottom to top (optional, one per line)<textarea id="mk-ladder" placeholder="toe of ramp&#10;first joint&#10;top of ramp&#10;&#10;Add a height if you know it: first joint = 1.5"></textarea></label>
     <p class="note" style="margin-top:4px">With landmarks, people can report “water is at the first joint” instead of measuring. The heights work themselves out from readings; typing them just speeds that up.</p>
+    <label class="fld">Photo of the reference (optional, one per mark)<input id="mk-photo" type="file" accept="image/*" capture="environment"></label>
+    <img id="mk-photo-prev" alt="">
+    <p class="note" id="mk-photo-note" style="margin-top:4px"></p>
     <div class="fld-row"><button class="tbtn" id="mk-geo-btn" style="margin-top:10px">🧭 Pin my location</button></div>
     <label class="fld">Or paste a waypoint<div class="fld-row" style="margin-top:5px"><input id="mk-coords" style="margin-top:0" placeholder="33.7123, -114.5012 · DMS · or a Maps link"><button class="tbtn" id="mk-coords-btn">Use it</button></div></label>
     <p class="note" id="mk-geo" style="margin-top:6px"></p>
@@ -513,6 +522,7 @@ try{
   <div class="sheet-hd"><h2>✎ Reading at <span id="rd-mark"></span></h2><button class="x" id="rd-x" aria-label="Close">✕</button></div>
   <div class="sheet-body" style="padding:0 16px 24px">
     <p class="note" id="rd-ref" style="margin:2px 0 0"></p>
+    <div id="rd-photo"></div>
     <div class="seg2"><button id="rd-kind-depth" class="on">Measured depth</button><button id="rd-kind-rung">Water is at a landmark</button></div>
     <div id="rd-depth-wrap"><div class="fld-row"><label class="fld">Feet<input id="rd-ft" type="number" inputmode="numeric" min="0" max="40" placeholder="0"></label><label class="fld">Inches<input id="rd-in" type="number" inputmode="numeric" min="0" max="11" placeholder="0"></label></div></div>
     <div id="rd-rung-wrap" style="display:none">
@@ -527,6 +537,8 @@ try{
     <p class="note">The time matters most: the river moves several feet a day, so the reading is matched to the level the sensors say this spot had at that moment.</p>
   </div>
 </div>
+<input id="ms-photo-file" type="file" accept="image/*" capture="environment" style="display:none">
+<div id="photo-lb" role="dialog" aria-label="Photo"><img alt=""></div>
 <div class="toast" id="toast"></div>
 
 <script src="/river.js?v=2026-09-29g"></script>
@@ -1005,6 +1017,6 @@ window.onRiverRender=function(){ renderSimple(); try{ renderOutlook14(heroModel(
 // First paint before any data: show the spot name right away.
 (function(){ try{ if(store.get(PLACE_KEY)) document.getElementById("spot-name").textContent=currentPlace().name; renderRibbon(currentPlace()); }catch(e){} })();
 </script>
-<script src="/marks-ui.js?v=2026-09-29k"></script>
+<script src="/marks-ui.js?v=2026-09-29l"></script>
 </body>
 </html>

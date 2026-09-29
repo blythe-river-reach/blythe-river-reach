@@ -101,6 +101,28 @@ async function createReading(stores, device, body, levelFn) {
   const all = prior.concat([rec]);
   return { ok: true, reading: pub(rec, device), summary: summarize(mark, all, now) };
 }
+// ---- photos (one per mark; JPEG already shrunk by the page) ----
+const PHOTO_MAX = 800 * 1024;
+async function setPhoto(stores, device, admin, markId, buf, meta) {
+  const mark = await getMark(stores, markId); if (!mark) return { error: "no such mark", status: 404 };
+  if (!admin && mark.owner !== device) return { error: "only the mark's creator can add its photo", status: 403 };
+  const b = Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+  if (b.length < 1024 || b.length > PHOTO_MAX) return { error: "photo must be 1 KB - 800 KB (the page shrinks it first)", status: 413 };
+  if (!(b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff)) return { error: "photo must be a JPEG", status: 415 };
+  if (!admin && !(await rateOk(stores, device))) return { error: "too many submissions this hour", status: 429 };
+  await stores.photos.set(mark.id, b);
+  const key = mark._key; delete mark._key;
+  mark.photo = { at: Date.now(), bytes: b.length, w: meta && +meta.w || null, h: meta && +meta.h || null };
+  await stores.marks.setJSON(key, mark);
+  return { ok: true, photo: mark.photo };
+}
+async function photoFor(stores, device, admin, markId) {
+  const mark = await getMark(stores, markId); if (!mark || !mark.photo) return { error: "no photo", status: 404 };
+  if (!visible(mark, device, admin)) return { error: "no photo", status: 404 };
+  const buf = await stores.photos.get(mark.id, { type: "arrayBuffer" }).catch(() => null);
+  if (!buf) return { error: "no photo", status: 404 };
+  return { ok: true, buf, photo: mark.photo, approved: mark.status === "approved" };
+}
 // ---- admin ----
 async function queue(stores) {
   const places = await listAll(stores.places, ""), marks = await listAll(stores.marks, ""), readings = await listAll(stores.readings, "");
@@ -111,11 +133,12 @@ async function act(stores, body) {
   const store = { place: stores.places, mark: stores.marks, reading: stores.readings }[type]; if (!store) return { error: "type", status: 400 };
   const all = await listAll(store, ""); const rec = all.find((r) => r.id === id); if (!rec) return { error: "not found", status: 404 };
   const key = rec._key; delete rec._key;
-  if (action === "delete") { await store.delete(key); return { ok: true, deleted: id }; }
+  if (action === "delete") { await store.delete(key); if (type === "mark") await stores.photos.delete(id).catch(() => {}); return { ok: true, deleted: id }; }
+  if (action === "unphoto") { if (type !== "mark") return { error: "photos belong to marks", status: 400 }; await stores.photos.delete(id).catch(() => {}); delete rec.photo; await store.setJSON(key, rec); return { ok: true, record: rec }; }
   if (action === "setmile") { if (type !== "place") return { error: "mile only applies to places", status: 400 }; const mile = +body.mile; if (!(mile >= 40 && mile <= 280)) return { error: "mile out of range", status: 400 }; rec.mile = +mile.toFixed(2); rec.mileEditedAt = new Date().toISOString(); await store.setJSON(key, rec); return { ok: true, record: rec }; }
   const allowed = type === "reading" ? { ok: "ok", hide: "hidden" } : { approve: "approved", hide: "hidden", pending: "pending" };
   if (!allowed[action]) return { error: "action", status: 400 };
   rec.status = allowed[action]; rec.reviewedAt = new Date().toISOString();
   await store.setJSON(key, rec); return { ok: true, record: rec };
 }
-module.exports = { listPlaces, createPlace, listMarks, createMark, getMark, listReadings, createReading, queue, act, summarize, DEVICE_RE };
+module.exports = { listPlaces, createPlace, listMarks, createMark, getMark, listReadings, createReading, setPhoto, photoFor, queue, act, summarize, DEVICE_RE };

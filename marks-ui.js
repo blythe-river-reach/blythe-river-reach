@@ -37,6 +37,29 @@
   function markRowAt(m){ var p=PLACES.find(function(x){ return x.key===m.spot; }); if(!p) return ""; var cur=currentMarkId(); return '<button class="row sub'+(m.id===cur?' on':'')+'" data-mark="'+m.id+'" data-k="'+p.key+'"><span class="rs">\u2933</span><span class="rn">'+esc(m.name)+' <span class="muted-sm">\u00b7 at '+esc(p.name)+'</span>'+(m.status!=="approved"?' <span class="tagp">'+(m.status==="pending"?"pending":m.status)+'</span>':'')+'</span><span class="rl">mark</span></button>'; }
   window.MarksUI.markRows=markRows; window.MarksUI.markRowAt=markRowAt; window.MarksUI.addButtons=addButtons;
 
+  // ---- photos: shrink on the phone (max 1280 px, JPEG ~0.82), which also
+  // drops the camera's metadata; upload the bytes; one photo per mark ----
+  function shrinkImage(file){
+    var MAX=1280;
+    function draw(src, w, h){
+      var sc=Math.min(1, MAX/Math.max(w,h)), cw=Math.max(1,Math.round(w*sc)), ch=Math.max(1,Math.round(h*sc));
+      var c=document.createElement("canvas"); c.width=cw; c.height=ch; c.getContext("2d").drawImage(src, 0, 0, cw, ch);
+      return new Promise(function(res, rej){ c.toBlob(function(bl){ bl?res({blob:bl, w:cw, h:ch}):rej(new Error("couldn\u2019t encode the photo")); }, "image/jpeg", 0.82); });
+    }
+    if(window.createImageBitmap){
+      return createImageBitmap(file, {imageOrientation:"from-image"}).catch(function(){ return createImageBitmap(file); }).then(function(bm){ var r=draw(bm, bm.width, bm.height); if(bm.close) bm.close(); return r; });
+    }
+    return new Promise(function(res, rej){ var url=URL.createObjectURL(file), im=new Image(); im.onload=function(){ URL.revokeObjectURL(url); res(draw(im, im.naturalWidth, im.naturalHeight)); }; im.onerror=function(){ URL.revokeObjectURL(url); rej(new Error("that file isn\u2019t an image")); }; im.src=url; });
+  }
+  function uploadPhoto(markId, file){
+    return shrinkImage(file).then(function(r){
+      return fetch("/api/marks/photo?mark="+encodeURIComponent(markId)+"&w="+r.w+"&h="+r.h, {method:"POST", headers:{"content-type":"image/jpeg","x-device":deviceId()}, body:r.blob}).then(function(resp){ return resp.json().then(function(j){ if(!resp.ok) throw new Error(j.error||("HTTP "+resp.status)); return j; }); });
+    });
+  }
+  function photoUrl(m){ if(!m || !m.photo) return null; return "/api/marks/photo?mark="+encodeURIComponent(m.id)+"&v="+m.photo.at+(m.status!=="approved"&&m.mine?"&d="+encodeURIComponent(deviceId()):""); }
+  function photoImg(m, cls){ var u=photoUrl(m); return u?'<img class="'+(cls||"ms-photo")+'" src="'+u+'" alt="Photo of the reference at '+esc(m.name)+'" data-lb="'+u+'">':""; }
+  window.MarksUI.shrinkImage=shrinkImage; window.MarksUI.uploadPhoto=uploadPhoto; window.MarksUI.photoUrl=photoUrl;
+  function openLightbox(src){ var lb=$("photo-lb"); if(!lb) return; lb.querySelector("img").src=src; lb.classList.add("open"); }
   // ---- the strip under the tiles ----
   function stageForCfs(pl, v){ return (typeof stageAbsAt==="function") ? stageAbsAt(pl, v) : null; }
   function readingsFor(id, cb){ var c=RD_CACHE[id]; if(c && Date.now()-c.at<60000){ cb(c.data); return; } if(c && c.pending){ c.cbs.push(cb); return; } RD_CACHE[id]={pending:true, cbs:[cb]}; api("GET","/api/readings?mark="+encodeURIComponent(id)).then(function(j){ var cbs=RD_CACHE[id].cbs; RD_CACHE[id]={at:Date.now(), data:j}; cbs.forEach(function(f){ f(j); }); }).catch(function(e){ var cbs=RD_CACHE[id].cbs; RD_CACHE[id]={at:Date.now(), data:{error:e.message}}; cbs.forEach(function(f){ f({error:e.message}); }); }); }
@@ -59,7 +82,9 @@
     }
     el.style.display="block";
     var M=heroModel();
-    el.innerHTML='<div class="ms-hd"><span>At <b>'+esc(m.name)+'</b>'+(m.status!=="approved"?' <span class="tagp">'+(m.status==="pending"?"awaiting approval · only you see it":m.status)+'</span>':'')+'</span><button class="tbtn" id="ms-report">✎ Report a reading</button></div><div class="ms-body" id="ms-body">Loading readings…</div>';
+    el.innerHTML='<div class="ms-hd"><span>At <b>'+esc(m.name)+'</b>'+(m.status!=="approved"?' <span class="tagp">'+(m.status==="pending"?"awaiting approval · only you see it":m.status)+'</span>':'')+'</span><button class="tbtn" id="ms-report">✎ Report a reading</button></div>'+
+      '<div class="ms-ref">'+photoImg(m)+'<div class="ms-reftxt"><span class="muted-sm">Reference: </span>'+esc(m.ref)+(m.mine?' <button class="linkbtn" id="ms-photo-btn">'+(m.photo?"Replace photo":"Add a photo of the reference")+'</button>':'')+'</div></div>'+
+      '<div class="ms-body" id="ms-body">Loading readings…</div>';
     readingsFor(m.id, function(j){
       var body=$("ms-body"); if(!body) return;
       if(j.error){ body.innerHTML='<span class="muted-sm">Couldn’t load readings ('+esc(j.error)+').</span>'; return; }
@@ -76,6 +101,7 @@
       body.innerHTML=html;
     });
     el.querySelector("#ms-report").addEventListener("click", openReading);
+    var pb=el.querySelector("#ms-photo-btn"); if(pb) pb.addEventListener("click", function(){ var f=$("ms-photo-file"); if(f){ f.value=""; f.click(); } });
   }
   // ---- sheets ----
   function openS(id){ $(id).classList.add("open"); $("sheet-bg").classList.add("open"); }
@@ -157,22 +183,25 @@
     }).catch(function(e){ toast(e.message, 4000); });
   }
   // add a mark
-  function openMark(){ var pl=currentPlace(); $("mk-spot").textContent=pl.name; $("mk-name").value=""; $("mk-ref").value=""; $("mk-ladder").value=""; $("mk-geo").textContent=""; $("mk-coords").value=""; $("mk-sheet")._pin=null; openS("mk-sheet"); }
+  function openMark(){ var pl=currentPlace(); $("mk-spot").textContent=pl.name; $("mk-name").value=""; $("mk-ref").value=""; $("mk-ladder").value=""; $("mk-geo").textContent=""; $("mk-coords").value=""; $("mk-sheet")._pin=null; var f=$("mk-photo"); if(f) f.value=""; var pv=$("mk-photo-prev"); if(pv){ pv.style.display="none"; pv.src=""; } $("mk-photo-note").textContent=""; openS("mk-sheet"); }
   function saveMark(){
     var pl=currentPlace(), name=$("mk-name").value.trim(), ref=$("mk-ref").value.trim(), pin=$("mk-sheet")._pin;
     if(name.length<2){ toast("Give the mark a name."); return; }
     if(ref.length<8){ toast("Describe exactly where the reading is taken."); return; }
     var ladder=$("mk-ladder").value.split("\n").map(function(l){ return l.trim(); }).filter(Boolean).map(function(l){ var mm=l.match(/^(.*?)\s*[@=:]\s*(-?\d+(?:\.\d+)?)\s*(?:ft)?\s*$/); return mm?{label:mm[1].trim(), h:+mm[2]}:{label:l}; });
     if(ladder.length===1){ toast("A ladder needs two or more landmarks (or leave it empty)."); return; }
+    var file=($("mk-photo") && $("mk-photo").files && $("mk-photo").files[0]) || null;
     api("POST","/api/marks",{spot:pl.key, name:name, ref:ref, ladder:ladder, lat:pin?pin[0]:null, lon:pin?pin[1]:null}).then(function(j){
       toast("Mark added — only you can see it until it’s approved. You can report readings right away.", 5000); closeAll();
-      return load().then(function(){ setMark(j.mark.id); });
+      var up=file ? uploadPhoto(j.mark.id, file).then(function(){ toast("Photo attached.", 2500); }).catch(function(e){ toast("Mark saved, but the photo didn’t upload ("+e.message+"). You can add it from the mark’s panel.", 6000); }) : Promise.resolve();
+      return up.then(load).then(function(){ setMark(j.mark.id); });
     }).catch(function(e){ toast(e.message, 4000); });
   }
   // report a reading
   function openReading(){
     var m=currentMark(); if(!m) return;
     $("rd-mark").textContent=m.name; $("rd-ref").textContent=m.ref;
+    var ph=$("rd-photo"); if(ph){ ph.innerHTML=photoImg(m, "rd-photo-img"); }
     var hasL=!!(m.ladder&&m.ladder.length);
     $("rd-kind-rung").style.display=hasL?"":"none"; $("rd-kind-rung").classList.toggle("on", false); $("rd-kind-depth").classList.add("on");
     $("rd-depth-wrap").style.display=""; $("rd-rung-wrap").style.display="none";
@@ -217,8 +246,12 @@
       case "rd-kind-rung": $("rd-kind-rung").classList.add("on"); $("rd-kind-depth").classList.remove("on"); $("rd-depth-wrap").style.display="none"; $("rd-rung-wrap").style.display=""; break;
     }
   });
-  document.addEventListener("change", function(ev){ if(ev.target.id==="rd-when") $("rd-time").style.display=ev.target.value==="custom"?"":"none"; if(ev.target.id==="rd-rmode") $("rd-rung2-wrap").style.display=ev.target.value==="between"?"":"none"; });
+  document.addEventListener("change", function(ev){
+    if(ev.target.id==="mk-photo"){ var f=ev.target.files&&ev.target.files[0]; var pv=$("mk-photo-prev"); if(!f||!pv) return; shrinkImage(f).then(function(r){ pv.src=URL.createObjectURL(r.blob); pv.style.display="block"; $("mk-photo-note").textContent=Math.round(r.blob.size/1024)+" KB after shrinking to "+r.w+"\u00d7"+r.h+" \u2014 camera details are stripped."; }).catch(function(e){ $("mk-photo-note").textContent=e.message; }); return; }
+    if(ev.target.id==="ms-photo-file"){ var f2=ev.target.files&&ev.target.files[0], m=currentMark(); if(!f2||!m) return; toast("Uploading the photo\u2026", 8000); uploadPhoto(m.id, f2).then(function(){ toast("Photo attached.", 2500); RD_CACHE={}; return load(); }).catch(function(e){ toast(e.message, 5000); }); return; }
+    if(ev.target.id==="rd-when") $("rd-time").style.display=ev.target.value==="custom"?"":"none"; if(ev.target.id==="rd-rmode") $("rd-rung2-wrap").style.display=ev.target.value==="between"?"":"none"; });
   $("sheet-bg").addEventListener("click", closeAll);
+  document.addEventListener("click", function(ev){ var im=ev.target.closest && ev.target.closest("img[data-lb]"); if(im){ openLightbox(im.getAttribute("data-lb")); return; } if(ev.target.closest && ev.target.closest("#photo-lb")){ $("photo-lb").classList.remove("open"); } });
   document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeAll(); });
   // a picker click on a mark row: choose the spot AND the mark
   $("pick-list").addEventListener("click", function(ev){ var row=ev.target.closest && ev.target.closest(".row[data-mark]"); if(!row) return; ev.stopPropagation(); ev.preventDefault(); if(typeof closeSheet==="function") closeSheet(); if(typeof noteRecent==="function") noteRecent(row.getAttribute("data-k")); store.set(MARK_KEY,row.getAttribute("data-mark")); setPlace(row.getAttribute("data-k")); }, true);
