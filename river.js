@@ -1306,17 +1306,17 @@ function forecastSeriesFor(pl){
   var hg=(hgData && hgData.downstream && hgData.downstream.length) ? hgData : null;
   if(seg==="strip" || seg==="lake"){
     originMile=PARKER_MILE; originName="Parker Dam";
-    if(psData && psData.length){ d=clean(psData); srcNote=" Parker Dam\u2019s own published schedule \u2014 full release, straight from the source."; }
-    else if(hg && hg.parker && hg.parker.length){ d=clean(hg.parker); srcNote=" Full Parker release \u2014 this stretch is above the CRIT canal turnout."; }
+    if(psData && psData.length){ d=clean(withArchive(psData,"parker")); srcNote=" Parker Dam\u2019s own published schedule \u2014 full release, straight from the source."; }
+    else if(hg && hg.parker && hg.parker.length){ d=clean(withArchive(hg.parker,"headgateParker")); srcNote=" Full Parker release \u2014 this stretch is above the CRIT canal turnout."; }
     else if(hg && hg.critAvg!=null){ d=clean(hg.downstream).map(function(p){ return mapV(p, function(v){ return v+hg.critAvg; }); }); srcNote=" Approximated by adding the CRIT diversion (~"+fmt(hg.critAvg)+" cfs) back in."; }
     else if(hg){ d=clean(hg.downstream); srcNote=" Note: this stretch actually carries ~1,200 cfs more (it\u2019s above the CRIT turnout)."; }
   } else if(seg==="upper"){
     originMile=DAVIS_MILE; originName="Davis Dam";
-    if(dsData && dsData.length){ d=clean(dsData); srcNote=" Davis Dam\u2019s own published schedule \u2014 full release, straight from the source."; }
+    if(dsData && dsData.length){ d=clean(withArchive(dsData,"davis")); srcNote=" Davis Dam\u2019s own published schedule \u2014 full release, straight from the source."; }
     else return null;
   } else {
     if(!hg) return null;
-    d=clean(hg.downstream);
+    d=clean(withArchive(hg.downstream,"headgate"));
     if(pl.mile < WASTE_MILE){
       var ret=returnEst();
       if(ret){
@@ -1342,51 +1342,63 @@ function forecastSeriesFor(pl){
   // local gauge actually reads. Match the forecast's typical level and swing
   // width to the sensor's last daily cycle — never point-by-point, so a couple
   // hours of travel-time error can't poison it.
-  var tru=scheduleTrue(d, pl);
+  var tru=scheduleTrue(d, pl, seg==="lake"?null:originMile);
   if(tru){
     d=d.map(function(p){ return mapV(p, function(v){ return Math.max(0, tru.mMed+(v-tru.sMed)*tru.scale); }); });
     var bits=[];
     if(Math.abs(tru.sMed-tru.mMed)>=Math.max(120,0.04*tru.mMed)) bits.push('the raw schedule math has run ~'+fmt(Math.abs(tru.sMed-tru.mMed))+' cfs '+(tru.sMed>tru.mMed?'high':'low')+' vs its readings lately');
     if(tru.scale<1) bits.push('the daily swing flattens ~'+Math.round((1-tru.scale)*100)+'% over the long run to here');
     if(tru.scale>1) bits.push('the daily swing runs ~'+Math.round((tru.scale-1)*100)+'% bigger here');
-    srcNote+=' Heights auto-trued to '+tru.label+' ('+bits.join('; ')+').';
+    srcNote+=' Heights auto-trued to '+tru.label+(tru.overlap?' from the last day\u2019s overlap':'')+(bits.length?' ('+bits.join('; ')+')':'')+'.';
   }
   var shift=(seg==="lake") ? 0 : lagMsFrom(originMile, pl);
   var arrival=d.map(function(p){ var o=mapV(p, function(v){ return v; }); o.t=p.t+shift; return o; });
   var schedEndAt=null; for(var si=0;si<arrival.length;si++){ if(arrival[si].est){ schedEndAt=si?arrival[si-1].t:arrival[si].t; break; } }
   return { arrival:arrival, srcNote:srcNote, originMile:originMile, originName:originName, seg:seg, schedEndAt:schedEndAt };
 }
-function scheduleTrue(d, pl){
+function scheduleTrue(d, pl, originMile){
   var ref=refFor(pl);
   if(!ref || !ref.st || !ref.st.flow || ref.st.flow.length<8) return null;
-  // The strip/lake/upper forecasts ARE the dam's own release schedule and their
-  // reference sensor IS that release — nothing to true, and "correcting" the
-  // plan to match yesterday's cycle would just distort it.
-  if(ref.key==="parker" || ref.key==="davis") return null;
   function q(a,f){ var s=a.slice().sort(function(x,y){return x-y;}); return s[Math.max(0,Math.min(s.length-1,Math.floor(s.length*f)))]; }
   var now=Date.now();
-  // The sensor's last full daily cycle — what the river is actually running.
-  var mv=ref.st.flow.filter(function(p){ return p.t>=now-26*3600*1000; }).map(function(p){ return p.v; });
-  if(mv.length<8) return null;
-  // Regime-change guard: if the schedule TRENDS to a new level across its days
-  // (not just the usual day-to-day wiggle), a static true-up would erase a real
-  // change — skip and let the schedule speak for itself.
-  var t0=d[0].t, blocks={};
-  d.forEach(function(p){ if(p.est) return; var b=Math.floor((p.t-t0)/86400000); (blocks[b]=blocks[b]||[]).push(p.v); });
-  var keys=Object.keys(blocks).map(Number).sort(function(a,b){return a-b;}), bmeds=[];
-  keys.forEach(function(k){ if(blocks[k].length>=12){ var bm=q(blocks[k],0.5); if(bm>0) bmeds.push(bm); } });
-  if(bmeds.length>=2){ var trd=bmeds[bmeds.length-1]/bmeds[0]; if(trd>1.3 || trd<0.77) return null; }
-  var sv=d.filter(function(p){ return !p.est; }).map(function(p){ return p.v; });
-  if(sv.length<8) return null;
+  // Preferred calibration: the schedule's hours we have ALREADY OBSERVED. Put
+  // both the schedule (shifted from its dam) and the sensor's readings on this
+  // spot's clock, take the last 26 h they share, and compare level and swing
+  // there — apples to apples, so the correction is the reach's real attenuation
+  // (and any plan-vs-actual bias at the dam) rather than a window mismatch.
+  var shift=(originMile!=null)?lagMsFrom(originMile, pl):0, lagR=lagMsFrom(ref.mile, pl), w0=now-30*3600*1000;
+  // Pair hour by hour so only hours BOTH series cover are compared (a partial
+  // window that catches one trough against a full day is worse than nothing).
+  var sm={};
+  d.forEach(function(p){ if(p.est) return; var tp=p.t+shift; if(tp>=w0 && tp<=now) sm[Math.round(tp/3600000)]=p.v; });
+  var so=[], mo=[];
+  ref.st.flow.forEach(function(p){ var tp=p.t+lagR; if(tp>=w0 && tp<=now){ var k=Math.round(tp/3600000); if(sm[k]!=null){ so.push(sm[k]); mo.push(p.v); } } });
+  var overlap=(so.length>=12), sv, mv;
+  if(overlap){ sv=so; mv=mo; }
+  else {
+    // The strip/lake/upper forecasts ARE the dam's own plan and their reference
+    // IS that release: without observed overlap there is nothing to true.
+    if(ref.key==="parker" || ref.key==="davis") return null;
+    // Regime-change guard (fallback path only): if the published days trend to
+    // a new level, a static true-up against yesterday would erase a real change.
+    var t0=d[0].t, blocks={};
+    d.forEach(function(p){ if(p.est) return; var b=Math.floor((p.t-t0)/86400000); (blocks[b]=blocks[b]||[]).push(p.v); });
+    var keys=Object.keys(blocks).map(Number).sort(function(a,b){return a-b;}), bm=[];
+    keys.forEach(function(k){ if(blocks[k].length>=12) bm.push(blocks[k].reduce(function(x,y){return x+y;},0)/blocks[k].length); });
+    if(bm.length>=2){ var trd=bm[bm.length-1]/(bm[0]||1); if(trd>1.5 || trd<0.67) return null; }
+    sv=d.filter(function(p){ return !p.est; }).map(function(p){ return p.v; });
+    mv=ref.st.flow.filter(function(p){ return p.t>=now-26*3600*1000; }).map(function(p){ return p.v; });
+    if(sv.length<8 || mv.length<8) return null;
+  }
   var sMed=q(sv,0.5), mMed=q(mv,0.5);
   var sSpan=q(sv,0.85)-q(sv,0.15), mSpan=q(mv,0.85)-q(mv,0.15);
   var scale=1;
-  if(sSpan>500 && mSpan>0){
-    scale=Math.max(0.25, Math.min(1.5, mSpan/sSpan));
-    if(scale>0.85 && scale<1.15) scale=1; // within noise — don't fiddle
+  if(sSpan>300 && mSpan>0){
+    scale=Math.max(0.2, Math.min(1.5, mSpan/sSpan));
+    if(scale>0.95 && scale<1.05) scale=1; // within noise
   }
-  if(scale===1 && Math.abs(sMed-mMed)<Math.max(120,0.04*mMed)) return null; // already true
-  return {sMed:sMed, mMed:mMed, scale:scale, label:ref.label};
+  if(scale===1 && Math.abs(sMed-mMed)<Math.max(80,0.03*mMed)) return null; // already true
+  return {sMed:sMed, mMed:mMed, scale:scale, label:ref.label, overlap:overlap, dbg:{so:so.length, mo:mo.length, sSpan:Math.round(sSpan), mSpan:Math.round(mSpan), shiftH:+(shift/3600000).toFixed(1), lagRH:+(lagR/3600000).toFixed(1)}};
 }
 // Measured future: water that already passed the gauges upstream of this spot
 // is en route — no schedule needed. Chain every in-zone gauge above the place
@@ -1695,7 +1707,17 @@ function loadHeadgate(){
 }
 // GitHub relay: hourly data the Action committed, served with CORS from raw.githubusercontent
 var relayInfo=null, loadingNow=false, psData=null, dsData=null, havasuData=null, relayCal=null;
-var outlookData=null, SCHED_END={};
+var outlookData=null, SCHED_END={}, schedArc=null;
+// Prepend archived (already-published, now-past) schedule points so the
+// true-up can compare the schedule's hours we have actually observed — even at
+// reaches where the schedule takes 1-2 days to arrive.
+function withArchive(arr, key){
+  var a=(schedArc && schedArc[key])||[];
+  if(!a.length) return arr||[];
+  var first=(arr&&arr.length)?arr[0].t:Infinity;
+  var pre=a.filter(function(p){ return p.t<first; }).map(function(p){ return {t:p.t, v:p.v, past:true}; });
+  return pre.concat(arr||[]);
+}
 // Append the robot's 14-day projection beyond each dam's published schedule.
 // Points carry lo/hi (80% band) and est:true so every downstream transform
 // (diversions, truing, travel-time shift, tide detection) simply extends.
@@ -1788,6 +1810,7 @@ function loadAll(){
       if(j.davisSchedule && j.davisSchedule.points && j.davisSchedule.points.length){ dsData=j.davisSchedule.points; }
       if(j.havasu && j.havasu.elev && j.havasu.elev.length){ havasuData=j.havasu.elev; }
       if(j.history && (j.history.usgs || j.history.accum)){ histData=j.history; }
+      if(j.schedArchive) schedArc=j.schedArchive;
       if(j.outlook && j.outlook.dams){ outlookData=j.outlook; applyOutlook(); }
     }
     rebuild(); // paint whatever we have right now

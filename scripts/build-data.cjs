@@ -980,6 +980,26 @@ async function main() {
     if (prev && prev.parkerSchedule) { out.parkerSchedule = prev.parkerSchedule; out.davisSchedule = prev.davisSchedule || null; out.errors.push("davisparker: carried forward from " + prev.generatedAt); }
   }
 
+  // Rolling archive of the PUBLISHED schedules (6 days back). Reclamation only
+  // publishes forward, but far-downstream reaches need yesterday's schedule to
+  // calibrate against what actually arrived 1-2 days later.
+  try {
+    const arc = (prev && prev.schedArchive) || {};
+    const mergeArc = (prevArr, pts) => {
+      const m = {};
+      for (const p of prevArr || []) m[p.t] = p.v;
+      for (const p of pts || []) if (p && p.t && p.v != null) m[p.t] = p.v;
+      const cutoff = Date.now() - 6 * 86400000;
+      return Object.keys(m).map((t) => ({ t: +t, v: m[t] })).filter((p) => p.t >= cutoff).sort((a, b) => a.t - b.t);
+    };
+    out.schedArchive = {
+      parker: mergeArc(arc.parker, out.parkerSchedule && out.parkerSchedule.points),
+      davis: mergeArc(arc.davis, out.davisSchedule && out.davisSchedule.points),
+      headgate: mergeArc(arc.headgate, out.headgate && out.headgate.downstream),
+      headgateParker: mergeArc(arc.headgateParker, out.headgate && out.headgate.parker),
+    };
+  } catch (e) { out.errors.push("schedarchive: " + (e && e.message ? e.message : e)); if (prev && prev.schedArchive) out.schedArchive = prev.schedArchive; }
+
   try {
     const ob = buildOutlook(out, prev);
     out.history = out.history || {};

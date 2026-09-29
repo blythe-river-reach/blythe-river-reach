@@ -421,7 +421,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29e</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29f</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -628,9 +628,10 @@ function renderToday(M){
   var now=Date.now(), tk=dayKey(now), t0=tk*DAY_MS+OFF_MS, t1=t0+DAY_MS, hz=(M.outlook&&M.outlook.horizon)||0;
   var pts=[];
   (M.flowP||[]).forEach(function(p){ if(p.t>=t0&&p.t<t1) pts.push({t:p.t, v:p.v, k:"meas"}); });
-  if(M.outlook) M.outlook.futM.forEach(function(p){ if(p.t>=t0&&p.t<t1) pts.push({t:p.t, v:p.v, k:"meas"}); });
-  var fc=forecastSeriesFor(M.pl);
-  if(fc) fc.arrival.forEach(function(p){ if(p.t>Math.max(now,hz) && p.t>=t0 && p.t<t1) pts.push({t:p.t, v:p.v, k:p.est?"proj":"sched"}); });
+  // The same blended series the hero and tide table read: measured en-route
+  // water, then the schedule with the seam faded over ~6 h — no steps.
+  if(M.outlook) M.outlook.blend.forEach(function(p){ if(p.t>now && p.t>=t0 && p.t<t1) pts.push({t:p.t, v:p.v, k:(hz&&p.t<=hz)?"meas":(p.est?"proj":"sched")}); });
+  else { var fc0=forecastSeriesFor(M.pl); if(fc0) fc0.arrival.forEach(function(p){ if(p.t>now && p.t>=t0 && p.t<t1) pts.push({t:p.t, v:p.v, k:p.est?"proj":"sched"}); }); }
   pts.sort(function(a,b){ return a.t-b.t; });
   if(pts.length<6){ box.style.display="none"; return; }
   box.style.display="";
@@ -692,8 +693,8 @@ function renderOutlook14(M){
   // schedule, then the projection — the same series the tide table reads.
   var pts=[];
   (M.flowP||[]).forEach(function(p){ if(dayKey(p.t)===tk) pts.push({t:p.t, v:p.v, kind:"meas"}); });
-  if(ol) ol.futM.forEach(function(p){ pts.push({t:p.t, v:p.v, kind:"meas"}); });
-  fc.arrival.forEach(function(p){ if(p.t>Math.max(now,hz)) pts.push({t:p.t, v:p.v, lo:p.lo, hi:p.hi, kind:p.est?"proj":"sched"}); });
+  if(ol && ol.blend.length) ol.blend.forEach(function(p){ if(p.t>now) pts.push({t:p.t, v:p.v, lo:p.lo, hi:p.hi, kind:(hz&&p.t<=hz)?"meas":(p.est?"proj":"sched")}); });
+  else fc.arrival.forEach(function(p){ if(p.t>now) pts.push({t:p.t, v:p.v, lo:p.lo, hi:p.hi, kind:p.est?"proj":"sched"}); });
   var days=[];
   for(var d=0; d<14; d++){
     var k=tk+d, dp=pts.filter(function(p){ return dayKey(p.t)===k; });
