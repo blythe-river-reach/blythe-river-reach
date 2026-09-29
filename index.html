@@ -236,6 +236,20 @@
   .sheet-search button{background:var(--panel2); border:1px solid var(--border); color:var(--text); border-radius:12px; padding:0 13px; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap}
   .sheet-body{overflow-y:auto; padding:4px 10px 24px; -webkit-overflow-scrolling:touch}
   .grp{color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; padding:12px 8px 4px}
+  .pick-chips{display:flex; gap:6px; overflow-x:auto; padding:2px 8px 10px; -webkit-overflow-scrolling:touch; scrollbar-width:none} .pick-chips::-webkit-scrollbar{display:none} .pick-chips .chip{flex:0 0 auto; padding:6px 11px; font-size:13px; cursor:pointer} .pick-chips .chip.on{border-color:var(--water); color:var(--water)}
+  .rv{position:relative; padding-left:22px; margin:0 4px 6px 8px}
+  .rv:before{content:""; position:absolute; left:9px; top:14px; bottom:14px; width:3px; border-radius:2px; background:var(--water); opacity:.4}
+  .rv .seghd{position:sticky; top:0; z-index:2; background:var(--panel); padding:10px 6px 4px; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-left:-22px; padding-left:24px}
+  .rv .seghd:before{content:""; position:absolute; left:6px; top:12px; width:9px; height:9px; border-radius:50%; background:var(--panel); border:2px solid var(--water)}
+  .row.stop{position:relative; padding:9px 6px 9px 10px; gap:8px}
+  .row.stop .dot{position:absolute; left:-17px; top:50%; width:9px; height:9px; margin-top:-5px; border-radius:50%; background:var(--panel); border:2px solid var(--water); box-sizing:border-box}
+  .row.stop.on .dot{background:var(--water); width:13px; height:13px; margin-top:-7px; left:-19px; box-shadow:0 0 0 3px rgba(56,189,224,.25)}
+  .row.stop.fav .dot{border-color:#f2c94c} .row.stop.user .dot{border-radius:1px; transform:rotate(45deg); border-color:#f2b64a}
+  .row.stop.dam .dot{width:19px; height:5px; border-radius:2px; background:var(--text); border:0; margin-top:-3px; left:-22px}
+  .row.stop.dam .rn{font-size:12.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted)}
+  .row.stop .rs{width:auto; font-size:13px} .row.stop .rm{font-size:12.5px; opacity:.9} .row.stop.on .rm{font-weight:700; opacity:1}
+  .row.stop .gg{color:var(--water); font-size:11px; margin-left:4px; vertical-align:1px}
+  .row.sub{margin-left:0}
   .grp.acc{display:flex; align-items:center; gap:8px; width:100%; background:var(--panel2); border:1px solid var(--border); border-radius:12px; padding:11px 12px; margin:8px 0 2px; cursor:pointer; text-align:left; color:var(--text); font-size:12px; letter-spacing:.06em}
   .grp.acc .chev{width:12px; color:var(--muted)} .grp.acc .gl{flex:1} .grp.acc .gc{color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0}
   .grp.acc.open{border-color:var(--water)}
@@ -466,7 +480,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29t</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29u</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -884,60 +898,57 @@ function levelText(p){ // cheap live level for the list: nearest sensor, no trav
     if(st.stage.length>=4){ var a=stageAboveLow(st.stage); return a!=null?ftStr(a):""; }
     var c=cur(st.flow); return c?fmt(c.v)+" cfs":""; }catch(e){ return ""; }
 }
+// ---------- the river-line picker ----------
+// One line from Davis Dam to Martinez Lake; spots are stops, dams are bars,
+// short stretch labels stick as you scroll. Levels show where there is a
+// sensor and at your spot; other stops just carry their trend arrow.
+var PICK_MARKS_OPEN={};
+var SEG_SHORT={upper:"Davis Dam to Topock", lake:"Lake Havasu", strip:"Parker Strip", mid:"Headgate to Palo Verde Dam", below:"Palo Verde Dam to Martinez Lake"};
+var DAM_KEYS={davisdam:1, parkerdam:1, headgate:1, pvdam:1};
+// Search words people use that aren't in a spot's name.
+var PLACE_ALIAS={i10fwy:"blythe ehrenberg interstate bridge", hiddenbeach:"blythe", mcintyre:"blythe", riverroad:"blythe palo verde", hartmine:"cibola", walters:"cibola", pvdam:"blythe diversion", villa:"palo verde", sbullhead:"bullhead city", bigbendsra:"bullhead city", laughlin:"bullhead city casino", avi:"casino", moabi:"needles", topock:"needles gorge", sandbar:"topock gorge havasu", havasulanding:"havasu", lhc:"havasu", havasu:"havasu", parkerdam:"parker", riverlodge:"parker strip", roadrunner:"parker strip", moovalya:"parker strip", bluewater:"parker strip casino", headgate:"parker", bigriver:"parker", picachosra:"yuma", martinezlk:"yuma fishers landing imperial"};
+function placeMatch(p, q){ return p.name.toLowerCase().indexOf(q)>=0 || (PLACE_ALIAS[p.key]||"").indexOf(q)>=0; }
+function sensorAt(p){ try{ var r=refFor(p); return !!(r && r.d<=2.5); }catch(e){ return false; } }
 function rowHtml(p, on){
-  var f=favs().indexOf(p.key)>=0, ps=pushState(), bell=(ps && ps.spot===p.key), lt=levelText(p);
-  return '<button class="row'+(on?' on':'')+'" data-k="'+p.key+'"><span class="rs">'+statusGlyph(p)+'</span><span class="rn">'+esc(p.name)+(p.user?' <span class="tagp">'+(p.user.status==="approved"?"community":"yours \u00b7 pending")+'</span>':'')+(bell?' <span class="bell" title="Push alerts are on for this spot">🔔</span>':'')+'</span>'+((window.MarksUI && MarksUI.marksFor(p.key).length)?'<span class="mk-badge" data-mk="'+p.key+'" title="Depth marks here">\u2933 '+MarksUI.marksFor(p.key).length+'</span>':'')+(lt?'<span class="rm mono" title="Right now at the nearest sensor">'+lt+'</span>':'')+'<span class="star'+(f?' on':'')+'" data-fav="'+p.key+'" title="Favorite">'+(f?'★':'☆')+'</span></button>';
+  var f=favs().indexOf(p.key)>=0, ps=pushState(), bell=(ps && ps.spot===p.key), dam=!!DAM_KEYS[p.key], gauge=sensorAt(p);
+  var lt=(on||gauge)?levelText(p):"";
+  var nMk=(window.MarksUI?MarksUI.marksFor(p.key).length:0);
+  return '<button class="row stop'+(on?' on':'')+(dam?' dam':'')+(f?' fav':'')+(p.user?' user':'')+'" data-k="'+p.key+'"><span class="dot" aria-hidden="true"></span>'+
+    '<span class="rn">'+esc(p.name)+(p.user?' <span class="tagp">'+(p.user.status==="approved"?"community":"yours \u00b7 pending")+'</span>':'')+(bell?' <span class="bell" title="Push alerts are on for this spot">\ud83d\udd14</span>':'')+(gauge&&!dam?' <span class="gg" title="A sensor reads right here">\u25c9</span>':'')+'</span>'+
+    (nMk?'<span class="mk-badge" data-mk="'+p.key+'" title="Depth marks here">\u2933 '+nMk+'</span>':'')+
+    '<span class="rs">'+statusGlyph(p)+'</span>'+(lt?'<span class="rm mono">'+lt+'</span>':'')+
+    '<span class="star'+(f?' on':'')+'" data-fav="'+p.key+'" title="Favorite">'+(f?'\u2605':'\u2606')+'</span></button>';
 }
-var PICK_OPEN_KEY="blythe_pickopen_v1", PICK_MARKS_OPEN={};
-function pickOpen(){ return store.get(PICK_OPEN_KEY)||null; }
-function buildPicker(q){
-  var list=document.getElementById("pick-list"), cur=currentPlace().key, curSeg=segFor(currentPlace());
-  q=(q||"").trim().toLowerCase();
-  var html="", open=pickOpen();
-  if(!q){
-    var fk=favs(), rk=recents().filter(function(k){ return fk.indexOf(k)<0 && k!==cur; });
-    if(fk.length){ html+='<div class="grp">\u2605 Favorites</div>'+fk.map(function(k){ var p=placeByKey(k); return p?rowHtml(p, p.key===cur):""; }).join(""); }
-    if(rk.length){ html+='<div class="grp">Recent</div>'+rk.map(function(k){ var p=placeByKey(k); return p?rowHtml(p, false):""; }).join(""); }
-  }
-  // Yours: places and marks you added (pending or approved). Community: places
-  // other people added that have been approved. Both also sit in river order below.
+function chipRow(){
+  var cur=currentPlace().key, fk=favs(), rk=recents().filter(function(k){ return fk.indexOf(k)<0 && k!==cur; }), html="";
   var mineP=PLACES.filter(function(p){ return p.user && p.user.mine; }), mineM=window.MarksUI?MarksUI.myMarks():[];
-  var commP=PLACES.filter(function(p){ return p.user && !p.user.mine && p.user.status==="approved"; });
-  function accHead(seg, label, count, isOpen){ return '<button class="grp acc'+(isOpen?' open':'')+'" data-seg="'+seg+'" aria-expanded="'+(isOpen?'true':'false')+'"><span class="chev">'+(isOpen?'\u25be':'\u25b8')+'</span><span class="gl">'+label+'</span><span class="gc">'+count+'</span></button>'; }
-  var match=function(p){ return !q || p.name.toLowerCase().indexOf(q)>=0; };
-  if(mineP.length || mineM.length){
-    var mp=mineP.filter(match), mm=mineM.filter(function(m){ return !q || m.name.toLowerCase().indexOf(q)>=0; });
-    if(mp.length || mm.length){
-      var oY=!!q || (open ? open.indexOf("yours")>=0 : true);
-      html+=accHead("yours", "\u2605 Yours", mineP.length+' place'+(mineP.length===1?'':'s')+(mineM.length?' \u00b7 '+mineM.length+' mark'+(mineM.length===1?'':'s'):''), oY);
-      if(oY) html+='<div class="acc-body">'+mp.sort(function(a,b){ return b.mile-a.mile; }).map(function(p){ return rowHtml(p, p.key===cur); }).join("")+mm.map(function(m){ return MarksUI.markRowAt(m); }).join("")+'</div>';
-    }
-  }
-  if(commP.length){
-    var cp=commP.filter(match);
-    if(cp.length){
-      var oC=!!q || (open ? open.indexOf("community")>=0 : false);
-      html+=accHead("community", "From the community", commP.length+' place'+(commP.length===1?'':'s'), oC);
-      if(oC) html+='<div class="acc-body">'+cp.sort(function(a,b){ return b.mile-a.mile; }).map(function(p){ return rowHtml(p, p.key===cur)+((p.key===cur || PICK_MARKS_OPEN[p.key])?MarksUI.markRows(p):""); }).join("")+'</div>';
-    }
-  }
+  fk.forEach(function(k){ var p=placeByKey(k); if(p) html+='<button class="chip'+(k===cur?' on':'')+'" data-k="'+k+'">\u2605 '+esc(p.name)+'</button>'; });
+  rk.forEach(function(k){ var p=placeByKey(k); if(p) html+='<button class="chip" data-k="'+k+'">'+esc(p.name)+'</button>'; });
+  mineP.forEach(function(p){ if(fk.indexOf(p.key)<0) html+='<button class="chip'+(p.key===cur?' on':'')+'" data-k="'+p.key+'">\u2691 '+esc(p.name)+'</button>'; });
+  mineM.forEach(function(m){ html+='<button class="chip'+(MarksUI.currentMarkId()===m.id?' on':'')+'" data-mark-chip="'+m.id+'" data-k="'+m.spot+'">\u2933 '+esc(m.name)+'</button>'; });
+  return html ? '<div class="pick-chips">'+html+'</div>' : "";
+}
+function buildPicker(q){
+  var list=document.getElementById("pick-list"), cur=currentPlace().key;
+  q=(q||"").trim().toLowerCase();
+  var html=q ? "" : chipRow(), any=false;
+  html+='<div class="rv">';
   ["upper","lake","strip","mid","below"].forEach(function(seg){
     var all=PLACES.filter(function(p){ return segFor(p)===seg; }).sort(function(a,b){ return b.mile-a.mile; });
-    var ps=all.filter(function(p){ return !q || p.name.toLowerCase().indexOf(q)>=0 || SEG_LABEL[seg].toLowerCase().indexOf(q)>=0; });
+    var ps=all.filter(function(p){ return !q || placeMatch(p, q) || SEG_SHORT[seg].toLowerCase().indexOf(q)>=0; });
     if(!ps.length) return;
-    // open when searching, when it holds the current spot, or when the person opened it
-    var isOpen = !!q || (open ? open.indexOf(seg)>=0 : seg===curSeg);
-    var nMarks=0; all.forEach(function(p){ nMarks+=(window.MarksUI?MarksUI.marksFor(p.key).length:0); });
-    html+='<button class="grp acc'+(isOpen?' open':'')+'" data-seg="'+seg+'" aria-expanded="'+(isOpen?'true':'false')+'"><span class="chev">'+(isOpen?'\u25be':'\u25b8')+'</span><span class="gl">'+SEG_LABEL[seg]+'</span><span class="gc">'+all.length+(nMarks?' \u00b7 '+nMarks+' mark'+(nMarks===1?'':'s'):'')+'</span></button>';
-    if(isOpen) html+='<div class="acc-body">'+ps.map(function(p){ return rowHtml(p, p.key===cur)+((window.MarksUI && (p.key===cur || PICK_MARKS_OPEN[p.key]))?MarksUI.markRows(p):""); }).join("")+'</div>';
+    any=true;
+    html+='<div class="seghd"><span>'+SEG_SHORT[seg]+'</span></div>';
+    html+=ps.map(function(p){ return rowHtml(p, p.key===cur)+((window.MarksUI && (p.key===cur || PICK_MARKS_OPEN[p.key]))?MarksUI.markRows(p):""); }).join("");
   });
-  if(!html) html='<div class="grp">Nothing matches \u201c'+esc(q)+'\u201d \u2014 try a town, resort, bridge, or dam name.</div>';
+  html+='</div>';
+  if(!any) html='<div class="grp">Nothing matches \u201c'+esc(q)+'\u201d \u2014 try a town, resort, bridge, or dam name.</div>';
   if(window.MarksUI) html+=MarksUI.addButtons();
-  html+='<p class="note" style="padding:0 8px">Arrow = trend at the nearest sensor; the number is feet above (+) or below (\u2212) this week\u2019s average there, or flow where there\u2019s no height gauge. \u2933 = depth marks people have added at a spot.</p>';
+  html+='<p class="note" style="padding:0 8px">\u25c9 = a sensor reads right here (its live level is shown; other stops read from the nearest one). Arrow = trend. \u2933 = depth marks people have added. \u2691 = a place you added.</p>';
   list.innerHTML=html;
   var am=document.getElementById("pick-add-mark"); if(am) am.textContent="\u271a Depth mark at "+currentPlace().name;
 }
-function openSheet(){ document.getElementById("sheet").classList.add("open"); document.getElementById("sheet-bg").classList.add("open"); var q=document.getElementById("pick-q"); q.value=""; buildPicker(""); setTimeout(function(){ try{ if(window.matchMedia("(min-width:700px)").matches) q.focus(); }catch(e){} },50); }
+function openSheet(){ document.getElementById("sheet").classList.add("open"); document.getElementById("sheet-bg").classList.add("open"); var q=document.getElementById("pick-q"); q.value=""; buildPicker(""); try{ var on=document.querySelector("#pick-list .row.on"); if(on) on.scrollIntoView({block:"center"}); }catch(e){} setTimeout(function(){ try{ if(window.matchMedia("(min-width:700px)").matches) q.focus(); }catch(e){} },50); }
 function closeSheet(){ document.getElementById("sheet").classList.remove("open"); document.getElementById("sheet-bg").classList.remove("open"); }
 document.getElementById("spot-btn").addEventListener("click", openSheet);
 document.getElementById("sheet-x").addEventListener("click", closeSheet);
@@ -945,8 +956,10 @@ document.getElementById("sheet-bg").addEventListener("click", function(){ closeS
 document.addEventListener("keydown", function(e){ if(e.key==="Escape"){ closeSheet(); closeAlerts(); } });
 document.getElementById("pick-q").addEventListener("input", function(){ buildPicker(this.value); });
 document.getElementById("pick-list").addEventListener("click", function(ev){
-  var acc=ev.target.closest && ev.target.closest(".grp.acc");
-  if(acc){ var seg=acc.getAttribute("data-seg"), o=pickOpen(); if(!o){ o=[segFor(currentPlace()), "yours"]; } var i=o.indexOf(seg); if(i>=0) o.splice(i,1); else o.push(seg); store.set(PICK_OPEN_KEY, o); buildPicker(document.getElementById("pick-q").value); return; }
+  var mchip=ev.target.closest && ev.target.closest("[data-mark-chip]");
+  if(mchip){ store.set("blythe_mark_v1", mchip.getAttribute("data-mark-chip")); noteRecent(mchip.getAttribute("data-k")); closeSheet(); setPlace(mchip.getAttribute("data-k")); return; }
+  var chip=ev.target.closest && ev.target.closest(".pick-chips .chip[data-k]");
+  if(chip){ noteRecent(chip.getAttribute("data-k")); closeSheet(); setPlace(chip.getAttribute("data-k")); return; }
   var mkb=ev.target.closest && ev.target.closest(".mk-badge");
   if(mkb){ ev.stopPropagation(); var k2=mkb.getAttribute("data-mk"); PICK_MARKS_OPEN[k2]=!PICK_MARKS_OPEN[k2]; buildPicker(document.getElementById("pick-q").value); return; }
   var star=ev.target.closest && ev.target.closest(".star");
