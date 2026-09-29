@@ -106,17 +106,31 @@
     if(!r){ toast("Couldn\u2019t read a waypoint there \u2014 try \u201c33.7123, -114.5012\u201d or paste a Maps link."); return; }
     if(r.err){ toast(r.err, 5000); return; }
     $(sheetId)._pin=r;
-    if(withMile){ var mi=mileFromPin(r[0], r[1]); if(mi){ $("pl-mile").value=mi.mile; $(noteId).textContent="Waypoint "+r[0].toFixed(4)+", "+r[1].toFixed(4)+" \u2014 about river mile "+mi.mile+", between "+mi.near.name+" and "+mi.near2.name+(mi.dist>3?" ("+mi.dist.toFixed(0)+" mi from the nearest known spot \u2014 check the mile)":""); } else $(noteId).textContent="Waypoint set, but couldn\u2019t work out the river mile \u2014 type it."; }
+    if(withMile){ var mi=mileFromPin(r[0], r[1]); if(mi){ $("pl-mile").value=mi.mile; $(noteId).textContent="Waypoint "+r[0].toFixed(4)+", "+r[1].toFixed(4)+" \u2014 about river mile "+mi.mile+", between "+mi.up.name+" and "+mi.down.name+(mi.dist>1.5?" ("+mi.dist.toFixed(1)+" mi off the river line \u2014 check the mile)":""); } else $(noteId).textContent="Waypoint set, but couldn\u2019t work out the river mile \u2014 type it."; }
     else $(noteId).textContent="Pinned at "+r[0].toFixed(4)+", "+r[1].toFixed(4);
   }
-  // River mile from a pin: interpolate between the two nearest known places by
-  // distance (good to about a mile on this straight-ish river).
+  // River mile from a pin: project the point onto the river line drawn through
+  // the known spots in mile order (approved user places with pins included),
+  // take the closest segment, and interpolate its two spots' miles. Reports
+  // how far the pin sits from that line so a pin well off the river is flagged.
   function mileFromPin(lat, lon){
-    var pts=[]; PLACES.forEach(function(p){ var g=PLACE_GEO[p.key] || (p.user && p.user.status==="approved" && p.user.lat!=null ? [p.user.lat, p.user.lon] : null); if(g) pts.push({p:p, d:haversineMi([lat,lon], g)}); });
-    if(pts.length<2) return null; pts.sort(function(a,b){ return a.d-b.d; });
-    var a=pts[0], b=pts.find(function(x){ return Math.abs(x.p.mile-a.p.mile)>0.5; }) || pts[1];
-    var w=a.d/((a.d+b.d)||1); var mile=a.p.mile+(b.p.mile-a.p.mile)*w;
-    return { mile:+mile.toFixed(1), near:a.p, near2:b.p, dist:a.d };
+    var vs=[]; PLACES.forEach(function(p){ var g=PLACE_GEO[p.key] || (p.user && p.user.status==="approved" && p.user.lat!=null ? [p.user.lat, p.user.lon] : null); if(g && p.mile>0) vs.push({p:p, g:g}); });
+    if(vs.length<2) return null;
+    vs.sort(function(a,b){ return b.p.mile-a.p.mile; });
+    var kx=69.1*Math.cos(lat*Math.PI/180), ky=69.1; // local miles per degree
+    var best=null;
+    for(var i=1;i<vs.length;i++){
+      var A=vs[i-1], B=vs[i];
+      var ax=(A.g[1]-lon)*kx, ay=(A.g[0]-lat)*ky, bx=(B.g[1]-lon)*kx, by=(B.g[0]-lat)*ky; // spots relative to the pin
+      var dx=bx-ax, dy=by-ay, L2=dx*dx+dy*dy; if(!L2) continue;
+      var t=Math.max(0, Math.min(1, -(ax*dx+ay*dy)/L2));
+      var px=ax+t*dx, py=ay+t*dy, d=Math.sqrt(px*px+py*py);
+      if(!best || d<best.d) best={d:d, t:t, A:A, B:B};
+    }
+    if(!best) return null;
+    var mile=best.A.p.mile+(best.B.p.mile-best.A.p.mile)*best.t;
+    var near=best.t<0.5?best.A.p:best.B.p, far=best.t<0.5?best.B.p:best.A.p;
+    return { mile:+mile.toFixed(1), near:near, near2:far, up:best.A.p, down:best.B.p, dist:best.d };
   }
   // add a place
   function openPlace(){
@@ -193,7 +207,7 @@
       case "pl-save": savePlace(); break;
       case "rd-save": saveReading(); break;
       case "mk-geo-btn": geo(function(lat,lon,acc){ $("mk-sheet")._pin=[lat,lon]; $("mk-geo").textContent="Pinned ("+(acc?"±"+Math.round(acc)+" m":"")+")"; }); break;
-      case "pl-geo-btn": geo(function(lat,lon,acc){ var r=mileFromPin(lat,lon); $("pl-sheet")._pin=[lat,lon]; if(r){ $("pl-mile").value=r.mile; $("pl-geo").textContent="Pinned — about river mile "+r.mile+", between "+r.near.name+" and "+r.near2.name+(r.dist>3?" ("+r.dist.toFixed(0)+" mi from the nearest known spot — check the mile)":""); } else $("pl-geo").textContent="Pinned, but couldn’t work out the river mile — type it."; }); break;
+      case "pl-geo-btn": geo(function(lat,lon,acc){ var r=mileFromPin(lat,lon); $("pl-sheet")._pin=[lat,lon]; if(r){ $("pl-mile").value=r.mile; $("pl-geo").textContent="Pinned — about river mile "+r.mile+", between "+r.up.name+" and "+r.down.name+(r.dist>1.5?" ("+r.dist.toFixed(1)+" mi off the river line — check the mile)":""); } else $("pl-geo").textContent="Pinned, but couldn’t work out the river mile — type it."; }); break;
       case "pl-coords-btn": usePasted("pl-sheet","pl-coords","pl-geo",true); break;
       case "pl-anchor-btn": useAnchor(); break;
       case "mk-coords-btn": usePasted("mk-sheet","mk-coords","mk-geo",false); break;

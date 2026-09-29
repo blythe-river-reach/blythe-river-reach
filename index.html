@@ -445,7 +445,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29m</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29n</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -530,8 +530,9 @@ try{
 // shared engine in river.js through window.onRiverRender.
 // ============================================================
 var FAV_KEY="blythe_favs_v1", RECENT_KEY="blythe_recent_v1";
-// Approximate coordinates for "near me" (nearest-landmark only; ±1 mi is fine).
-var PLACE_GEO={davisdam:[35.198,-114.571],laughlin:[35.168,-114.575],bigbendsra:[35.073,-114.635],sbullhead:[35.065,-114.615],avi:[34.998,-114.636],needles:[34.845,-114.597],moabi:[34.716,-114.520],topock:[34.716,-114.487],sandbar:[34.620,-114.430],havasulanding:[34.494,-114.372],lhc:[34.478,-114.334],havasu:[34.340,-114.170],parkerdam:[34.296,-114.140],riverlodge:[34.255,-114.160],roadrunner:[34.215,-114.185],moovalya:[34.175,-114.265],bluewater:[34.155,-114.287],headgate:[34.156,-114.305],bigriver:[34.135,-114.360],agneswilson:[33.985,-114.475],lostlake:[33.930,-114.490],hidden:[33.880,-114.510],ww:[33.860,-114.520],shaggy:[33.830,-114.530],ahaquin:[33.790,-114.530],twin:[33.780,-114.530],rancho:[33.750,-114.530],villa:[33.730,-114.520],pvdam:[33.716,-114.512],hiddenbeach:[33.660,-114.530],i10fwy:[33.610,-114.530],mcintyre:[33.550,-114.550],riverroad:[33.450,-114.620],hartmine:[33.360,-114.690],walters:[33.300,-114.700],picachosra:[33.020,-114.610],martinezlk:[32.980,-114.470]};
+// Coordinates for "near me" and waypoint-to-mile: the Laughlin-to-Walter’s Camp entries are
+// surveyed pins from the site owner (Sep 2026); the rest are approximate.
+var PLACE_GEO={davisdam:[35.198,-114.571],laughlin:[35.15931,-114.57013],bigbendsra:[35.073,-114.635],sbullhead:[35.0785,-114.60784],avi:[35.01528,-114.63787],needles:[34.85207,-114.60889],moabi:[34.716,-114.52],topock:[34.71918,-114.48746],sandbar:[34.59888,-114.42728],havasulanding:[34.494,-114.372],lhc:[34.478,-114.334],havasu:[34.34,-114.17],parkerdam:[34.29672,-114.1394],riverlodge:[34.26157,-114.13184],roadrunner:[34.23294,-114.18825],moovalya:[34.19772,-114.22544],bluewater:[34.17043,-114.26799],headgate:[34.16878,-114.2772],bigriver:[34.11839,-114.38413],agneswilson:[34.0424,-114.43521],lostlake:[34.00831,-114.46757],hidden:[33.96622,-114.49757],ww:[33.92426,-114.53095],shaggy:[33.88997,-114.5208],ahaquin:[33.8552,-114.53069],twin:[33.84452,-114.52876],rancho:[33.81071,-114.52648],villa:[33.7804,-114.51307],pvdam:[33.73212,-114.51177],hiddenbeach:[33.66218,-114.52147],i10fwy:[33.6048,-114.53055],mcintyre:[33.5167,-114.56245],riverroad:[33.41292,-114.65789],hartmine:[33.30326,-114.6783],walters:[33.24177,-114.68128],picachosra:[33.02,-114.61],martinezlk:[32.98,-114.47]};
 var SEG_LABEL={upper:"Davis Dam → Topock (upper river)", lake:"Lake Havasu", strip:"Parker Strip (full release)", mid:"Headgate → diversion dam", below:"Below the diversion dam"};
 var DAY_MS=86400000, OFF_MS=7*3600000;
 function dayKey(t){ return Math.floor((t-OFF_MS)/DAY_MS); }
@@ -963,6 +964,6 @@ window.onRiverRender=function(){ renderSimple(); try{ renderOutlook14(heroModel(
 // First paint before any data: show the spot name right away.
 (function(){ try{ if(store.get(PLACE_KEY)) document.getElementById("spot-name").textContent=currentPlace().name; renderRibbon(currentPlace()); }catch(e){} })();
 </script>
-<script src="/marks-ui.js?v=2026-09-29h"></script>
+<script src="/marks-ui.js?v=2026-09-29i"></script>
 </body>
 </html>
