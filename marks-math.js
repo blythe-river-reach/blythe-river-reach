@@ -81,8 +81,10 @@
   // beyond the end rungs it extrapolates a little, then clamps.
   function waterlineY(fit, ladder, stage){
     if(!fit || !ladder || stage==null) return null;
-    var pts=ladder.map(function(rg){ var o=fit[rg.id]; return (o && o.stage!=null && rg.px && rg.px.y!=null) ? {s:o.stage, y:+rg.px.y} : null; }).filter(Boolean).sort(function(a,b){ return a.s-b.s; });
-    if(pts.length<2) return null;
+    var pts=ladder.map(function(rg){ var o=fit[rg.id]; return (o && o.stage!=null && rg.px && rg.px.y!=null) ? {s:o.stage, y:+rg.px.y, bad:!!o.disorder} : null; }).filter(Boolean);
+    if(pts.length<2 || pts.some(function(p){ return p.bad; })) return null; // an out-of-order ladder can't place the water
+    pts.sort(function(a,b){ return a.s-b.s; });
+    for(var k=1;k<pts.length;k++){ if(pts[k].y>=pts[k-1].y) return null; } // higher water must sit higher in the photo
     var i=0; while(i<pts.length-2 && stage>pts[i+1].s) i++;
     var a=pts[i], b=pts[i+1]; if(!(b.s>a.s)) return null;
     var t=(stage-a.s)/(b.s-a.s), y=a.y+(b.y-a.y)*t;
