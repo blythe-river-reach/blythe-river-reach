@@ -47,7 +47,8 @@ try{
 // How fast a release pulse travels downstream. Calibrate: watch one high pass a sensor,
 // note when it reaches your dock, adjust until the times match.
 var WAVE_MPH = 4;
-var DISP_H_PER_MILE = 0.12; // default pulse spread (gaussian sigma, hours) per river mile; the robot measures the real figure per stretch
+var DISP_H_PER_MILE = 0.12;
+var GAIN_PER_MILE = 0.9985; // default swing gain per river mile (~0.94 over 40 mi); the robot measures the real figure per stretch // default pulse spread (gaussian sigma, hours) per river mile; the robot measures the real figure per stretch
 // Far gauges that may be chained as en-route water for a segment even though
 // they sit above a diversion (their level is trued to the nearest gauge).
 var CHAIN_EXTRA = { below:["waterwheel","parkergage"] };
@@ -184,6 +185,30 @@ function stretchSigmaH(mA, mB){
   var k=(relayCal && relayCal.dispHPerMile>=0.02 && relayCal.dispHPerMile<=0.3) ? relayCal.dispHPerMile : DISP_H_PER_MILE;
   var r=Math.max(0,rem)*k; v += r*r;
   return Math.sqrt(v);
+}
+// Swing gain along the route: what's left of the pulse's amplitude after the
+// spread is accounted for (diversion rhythm, bank storage). Per-stretch gains
+// multiply; the river-wide per-mile figure covers the gaps. Clamped so a bad
+// week of data can't flatten or inflate a forecast.
+function stretchGain(mA, mB){
+  var lo=Math.min(mA,mB), hi=Math.max(mA,mB), rem=hi-lo, g=1;
+  var segs=(relayCal && relayCal.segments) || [];
+  for(var i=0;i<segs.length;i++){
+    var s=segs[i], a=sensorInfo(s.from), b=sensorInfo(s.to);
+    if(!a || !b || !(s.gain>0.3 && s.gain<1.5)) continue;
+    var sl=Math.min(a.mile,b.mile), sh=Math.max(a.mile,b.mile);
+    var ol=Math.max(lo,sl), oh=Math.min(hi,sh);
+    if(oh>ol && sh>sl){ g *= Math.pow(s.gain, (oh-ol)/(sh-sl)); rem -= (oh-ol); }
+  }
+  var k=(relayCal && relayCal.gainPerMile>0.99 && relayCal.gainPerMile<=1.002) ? relayCal.gainPerMile : GAIN_PER_MILE;
+  g *= Math.pow(k, Math.max(0,rem));
+  return Math.max(0.6, Math.min(1.05, g));
+}
+// Scale a series' swing about its median (level is trued separately).
+function applyGain(series, g){
+  if(!series || !series.length || !(g>0) || Math.abs(g-1)<0.02) return series||[];
+  var vs=series.map(function(p){ return p.v; }).sort(function(x,y){ return x-y; }), med=vs[Math.floor(vs.length/2)];
+  return series.map(function(p){ var o=mapV(p, function(v){ return Math.max(0, med+(v-med)*g); }); if(p.past) o.past=true; if(p.src) o.src=p.src; return o; });
 }
 // Gaussian time-smoothing of a series (v, and lo/hi bands when present).
 function disperse(series, sigmaH){
@@ -1385,9 +1410,9 @@ function forecastSeriesFor(pl){
   if(!d || !d.length) return null;
   // Dispersion: the run from the dam SPREADS each pulse in time rather than
   // shrinking it. Smooth by the stretch's measured spread before anything else.
-  var sig=(seg==="lake") ? 0 : stretchSigmaH(originMile, pl.mile);
-  d=disperse(d, sig);
-  if(sig>=0.5) srcNote+=" Each pulse is spread ~"+(sig<1?sig.toFixed(1):Math.round(sig))+" h by the "+Math.round(Math.abs(originMile-pl.mile))+"-mile run from "+originName+" (the river smooths a release; it doesn\u2019t lose it).";
+  var sig=(seg==="lake") ? 0 : stretchSigmaH(originMile, pl.mile), gain=(seg==="lake") ? 1 : stretchGain(originMile, pl.mile);
+  d=applyGain(disperse(d, sig), gain);
+  if(sig>=0.5) srcNote+=" Each pulse is spread ~"+(sig<1?sig.toFixed(1):Math.round(sig))+" h by the "+Math.round(Math.abs(originMile-pl.mile))+"-mile run from "+originName+(gain<0.98?" and keeps ~"+Math.round(gain*100)+"% of its swing":"")+" (the river mostly smooths a release rather than losing it).";
   // Self-truing LEVEL: with the spread modelled, what's left is a level offset
   // (diversions, drains, seepage, plan-vs-actual) learned from the hours the
   // schedule and the local gauge have both already seen, on this spot's clock.
@@ -1420,7 +1445,7 @@ function forecastSeriesFor(pl){
   var shift=(seg==="lake") ? 0 : lagMsFrom(originMile, pl);
   var arrival=d.map(function(p){ var o=mapV(p, function(v){ return v; }); o.t=p.t+shift; if(p.past) o.past=true; return o; });
   var schedEndAt=null; for(var si=0;si<arrival.length;si++){ if(arrival[si].est){ schedEndAt=si?arrival[si-1].t:arrival[si].t; break; } }
-  return { arrival:arrival, srcNote:srcNote, originMile:originMile, originName:originName, seg:seg, schedEndAt:schedEndAt, sigmaH:sig };
+  return { arrival:arrival, srcNote:srcNote, originMile:originMile, originName:originName, seg:seg, schedEndAt:schedEndAt, sigmaH:sig, gain:gain };
 }
 function scheduleTrue(d, pl, originMile){
   var ref=refFor(pl);
@@ -1491,7 +1516,7 @@ function measuredArrival(pl){
   var base=null, out=[], coverEnd=0, srcs=[];
   gs.forEach(function(g){
     var lag=stretchHours(g.mile, pl.mile)*3600000;
-    var pts=disperse(g.flow.map(function(p){ return {t:p.t+lag, v:p.v, src:g.label}; }), stretchSigmaH(g.mile, pl.mile));
+    var pts=applyGain(disperse(g.flow.map(function(p){ return {t:p.t+lag, v:p.v, src:g.label}; }), stretchSigmaH(g.mile, pl.mile)), stretchGain(g.mile, pl.mile));
     if(!base){ base=pts; out=pts.slice(); coverEnd=pts[pts.length-1].t; srcs.push(g.label); return; }
     var tail=pts.filter(function(p){ return p.t>coverEnd+60000; });
     if(!tail.length) return;

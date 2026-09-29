@@ -283,7 +283,11 @@ function calibrate(stations) {
   // River-wide spread per mile (median over stretches long enough to measure it).
   const rates = segments.filter(s => s.sigmaH != null && s.miles >= 8).map(s => s.sigmaH / s.miles).sort((p, q) => p - q);
   const dispHPerMile = rates.length ? +(rates[Math.floor(rates.length / 2)]).toFixed(3) : null;
-  return { waveMph, dispHPerMile, segments };
+  // River-wide swing gain per mile (median of each stretch's gain^(1/miles));
+  // stretches no gauge pair covers use it.
+  const gr = segments.filter(s => s.gain > 0.3 && s.gain < 1.5 && s.miles >= 8).map(s => Math.pow(s.gain, 1 / s.miles)).sort((p, q) => p - q);
+  const gainPerMile = gr.length ? +(gr[Math.floor(gr.length / 2)]).toFixed(4) : null;
+  return { waveMph, dispHPerMile, gainPerMile, segments };
 }
 
 // Fetch JSON with retries: Reclamation's generator sometimes serves a truncated
