@@ -21,6 +21,8 @@
 <meta name="twitter:card" content="summary_large_image">
 <title>Is The River Up? — Colorado River levels, Davis Dam to Martinez Lake</title>
 <style>
+  html{overflow-x:hidden} body{overflow-x:hidden}
+  .axis, .ylab{overflow:hidden}
   :root{
     --bg:#0b1420; --panel:#121e2d; --panel2:#1a2a3d; --border:#243a52;
     --text:#e2ecf4; --muted:#8ea6bb; --water:#38bde0;
@@ -104,7 +106,7 @@
   .h2-sub{color:var(--muted); font-size:14px; margin-top:6px}
   .hero2{border-left:5px solid var(--steady)}
   .hero2.rising{border-left-color:var(--rise)} .hero2.falling{border-left-color:var(--fall)} .hero2.steady{border-left-color:var(--steady)}
-  .today{margin-top:14px; background:var(--tile); border:1px solid var(--border); border-radius:14px; padding:10px 12px 8px}
+  .today{overflow:hidden; margin-top:14px; background:var(--tile); border:1px solid var(--border); border-radius:14px; padding:10px 12px 8px}
   .today-hd{display:flex; justify-content:space-between; gap:8px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.07em}
   .today-hd span:last-child{text-transform:none; letter-spacing:0}
   #today-svg{width:100%; height:96px; display:block}
@@ -185,7 +187,9 @@
   .lvl-bar{flex:1; height:7px; background:var(--panel2); border-radius:5px; overflow:hidden}
   .lvl-bar>span{display:block; height:100%; border-radius:5px}
   .lvl-word{white-space:nowrap; font-weight:600}
+  #cal-table{overflow-x:auto; -webkit-overflow-scrolling:touch}
   table.tide{width:100%; border-collapse:collapse; font-size:14px}
+  @media (max-width:430px){ table.tide{font-size:13px} table.tide th, table.tide td{padding:6px 5px} }
   table.tide th{text-align:left; color:var(--muted); font-weight:500; font-size:12px; padding:6px 8px; border-bottom:1px solid var(--border)}
   table.tide td{padding:8px; border-bottom:1px solid var(--border)}
   table.tide tr:last-child td{border-bottom:none}
@@ -228,6 +232,7 @@
   .ol14-wrap .ylab span{position:absolute; left:0; width:32px; text-align:right; font-size:11px; font-weight:600; color:var(--muted)}
   #ol14-chart{width:100%; height:150px; display:block}
   .ol14-days{display:grid; grid-template-columns:repeat(14,1fr); margin-left:38px; font-size:10.5px; color:var(--muted); text-align:center; margin-top:4px}
+  .ol14-days{overflow:hidden}
   .ol14-days span{white-space:nowrap; overflow:visible}
   .ol14-days span.today{color:var(--water); font-weight:700}
   @media (max-width:520px){ .ol14-days span:nth-child(even){visibility:hidden} }
@@ -530,7 +535,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30j</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30k</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -667,7 +672,7 @@ try{
 <div id="photo-lb" role="dialog" aria-label="Photo"><img alt=""></div>
 <div class="toast" id="toast"></div>
 
-<script src="/river.js?v=2026-09-30i"></script>
+<script src="/river.js?v=2026-09-30k"></script>
 <script src="/marks-math.js?v=2026-09-29m"></script>
 <script>
 // ============================================================
@@ -767,7 +772,7 @@ function renderSimple(){
       var isM=M.outlook && M.outlook.horizon && e0.t<=M.outlook.horizon;
       var mins=Math.round((e0.t-Date.now())/60000);
       var inTxt= mins<60 ? mins+" min" : (mins/60).toFixed(mins<600?1:0).replace(/\.0$/,"")+" h";
-      T.push({k:"Next "+(e0.type==="high"?"high":"low"), g:(e0.type==="high"?"▲":"▼"), gc:(e0.type==="high"?"var(--rise)":"var(--fall)"), n:relTime(e0.t).replace(/^~/,""), l:'<b>'+lvlOf(M,e0.v)+'</b> · in '+inTxt+(e1?' · then '+(e1.type==="high"?"▲":"▼")+' '+relTime(e1.t).replace(/^~/,""):'')+'<br><span class="tag" style="font-size:10.5px">'+(isM?'water already en route':'from the dam schedule')+'</span>'});
+      T.push({k:"Next "+(e0.type==="high"?"high":"low"), g:(e0.type==="high"?"▲":"▼"), gc:(e0.type==="high"?"var(--rise)":"var(--fall)"), n:relTime(e0.t).replace(/^~/,"")+(e0.seam?' or later':''), l:'<b>'+lvlOf(M,e0.v)+'</b> · in '+inTxt+(e0.seam?'+':'')+(e1?' · then '+(e1.type==="high"?"▲":"▼")+' '+relTime(e1.t).replace(/^~/,""):'')+'<br><span class="tag" style="font-size:10.5px">'+(e0.seam?'en route · measured data ends there':(isM?'water already en route':'from the dam schedule'))+'</span>'});
     } else {
       T.push({k:"Next turn", g:"…", gc:"var(--muted)", n:"—", l:"no clear high or low ahead yet", dim:true});
     }
@@ -830,7 +835,7 @@ function renderSimple(){
     rows.push('<div class="row"><span class="ic">⬆</span><span><b>Upstream at '+U.name+' Dam:</b> release <span style="color:'+TCOLOR[U.trend]+'">'+TMARK[U.trend]+' '+TWORD[U.trend]+'</span> at <span class="mono">'+fmt(U.cfs)+' cfs</span> — that water reaches '+esc(pl.name)+' in <b>'+U.eta+'</b>.</span></div>');
   }
   if(!M.lake && M.measuredNext!=null){
-    rows.push('<div class="row"><span class="ic">'+(M.measuredNext?'📡':'📋')+'</span><span>'+(M.measuredNext?'The next turn is <b>already measured</b> at the gauges upstream — water on its way, not a guess.':'The next turn comes from the <b>dam release schedule</b>, trued to the local sensor.')+(M.curMph?' River current about <b>~'+M.curMph.toFixed(1)+' mph</b>.':'')+'</span></div>');
+    rows.push('<div class="row"><span class="ic">'+(M.measuredNext?'📡':'📋')+'</span><span>'+(M.seamNext?'The next turn is <b>already measured</b> upstream, but it sits right where the measured water runs out and the dam schedule takes over — so it may come a little <b>later</b> than the time shown, not earlier.':(M.measuredNext?'The next turn is <b>already measured</b> at the gauges upstream — water on its way, not a guess.':'The next turn comes from the <b>dam release schedule</b>, trued to the local sensor.'))+(M.curMph?' River current about <b>~'+M.curMph.toFixed(1)+' mph</b>.':'')+'</span></div>');
   }
   foot.innerHTML=rows.join("");
   renderRibbon(pl);

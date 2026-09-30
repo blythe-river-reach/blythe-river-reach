@@ -5,16 +5,20 @@ import { getStore } from "@netlify/blobs";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const C = require("../lib/marks-core.js");
+const NS = require("../lib/ns.js");
 const E = require("../lib/engine-node.js");
 let spotNames = null; // built-in spot key -> name, read once from river.js
 function spots() { if (!spotNames) { try { const ctx = E.makeContext(); spotNames = {}; for (const p of ctx.PLACES) spotNames[p.key] = p.name; } catch (e) { spotNames = {}; } } return spotNames; }
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 
-export default async (req) => {
+export default async (req, context) => {
   const want = process.env.ADMIN_KEY || process.env.PUSH_RUN_KEY;
   if (!want) return json({ error: "ADMIN_KEY not configured" }, 503);
   if (req.headers.get("x-admin-key") !== want) return json({ error: "unauthorized" }, 401);
-  const S = { places: getStore({ name: "marks-places", consistency: "strong" }), marks: getStore({ name: "marks-marks", consistency: "strong" }), readings: getStore({ name: "marks-readings", consistency: "strong" }), ratelimit: getStore({ name: "marks-ratelimit", consistency: "strong" }), photos: getStore({ name: "marks-photos", consistency: "strong" }), settings: getStore({ name: "marks-settings", consistency: "strong" }), feedback: getStore({ name: "marks-feedback", consistency: "strong" }) };
+  // x-ns: "production" or "branch" lets the admin page look at the other deploy's data set
+  const info = NS.deployInfo(context), nsOverride = /^(production|branch)$/.test(req.headers.get("x-ns") || "") ? req.headers.get("x-ns") : "";
+  const st = (n) => getStore({ name: NS.name(n, info, nsOverride), consistency: "strong" });
+  const S = { places: st("marks-places"), marks: st("marks-marks"), readings: st("marks-readings"), ratelimit: st("marks-ratelimit"), photos: st("marks-photos"), settings: st("marks-settings"), feedback: st("marks-feedback") };
   try {
     const url = new URL(req.url), pid = url.searchParams.get("photo");
     if (req.method === "GET" && pid) { const r = await C.photoFor(S, "", true, pid); if (r.error) return json(r, r.status || 404); return new Response(r.buf, { status: 200, headers: { "content-type": "image/jpeg", "cache-control": "private, no-store" } }); }
@@ -22,11 +26,11 @@ export default async (req) => {
       // push subscribers by spot (counts only; no endpoints leave the function)
       let push = null;
       try {
-        const ps = getStore({ name: "push-subs", consistency: "strong" }); const { blobs } = await ps.list(); const bySpot = {}; let n = 0;
+        const ps = st("push-subs"); const { blobs } = await ps.list(); const bySpot = {}; let n = 0;
         for (const b of blobs) { const rec = await ps.get(b.key, { type: "json" }).catch(() => null); if (rec && rec.subscription) { n++; const sp = rec.spots && typeof rec.spots === "object" ? Object.keys(rec.spots) : (rec.spot ? [rec.spot] : []); for (const k of sp) bySpot[k] = (bySpot[k] || 0) + 1; } }
         push = { total: n, bySpot };
       } catch (e) { push = { error: String(e && e.message || e) }; }
-      return json({ ok: true, spots: spots(), push, ...(await C.queue(S)) });
+      return json({ ok: true, spots: spots(), push, ns: { context: info.context, branch: info.branch, viewing: nsOverride || (info.production ? "production" : "branch"), prefix: NS.prefix(info, nsOverride) }, ...(await C.queue(S)) });
     }
     if (req.method === "POST") {
       let body = {}; try { body = await req.json(); } catch (e) { return json({ error: "bad json" }, 400); }

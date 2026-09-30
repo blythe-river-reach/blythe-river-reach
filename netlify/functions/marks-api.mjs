@@ -10,13 +10,15 @@
 //   POST /api/marks/pins             { mark, pins:{ rungId:{x,y} | null } } landmark positions on the photo, owner only
 // Every request carries x-device (a random id the page keeps in localStorage).
 import { getStore } from "@netlify/blobs";
+const NS = require("../lib/ns.js");
+
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const C = require("../lib/marks-core.js");
 const E = require("../lib/engine-node.js");
 const REPO = "blythe-river-reach/blythe-river-reach";
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
-const stores = () => ({ places: getStore({ name: "marks-places", consistency: "strong" }), marks: getStore({ name: "marks-marks", consistency: "strong" }), readings: getStore({ name: "marks-readings", consistency: "strong" }), ratelimit: getStore({ name: "marks-ratelimit", consistency: "strong" }), photos: getStore({ name: "marks-photos", consistency: "strong" }), settings: getStore({ name: "marks-settings", consistency: "strong" }), feedback: getStore({ name: "marks-feedback", consistency: "strong" }) });
+const stores = (info) => { const st = (n) => getStore({ name: NS.name(n, info), consistency: "strong" }); return { places: st("marks-places"), marks: st("marks-marks"), readings: st("marks-readings"), ratelimit: st("marks-ratelimit"), photos: st("marks-photos"), settings: st("marks-settings"), feedback: st("marks-feedback") }; };
 
 // Engine on the freshest data for this branch; cached per warm function instance.
 let cache = { branch: null, at: 0, ctx: null, data: null };
@@ -29,9 +31,9 @@ async function engineFor(branch) {
   cache = { branch, at: Date.now(), ctx, data }; return cache;
 }
 
-export default async (req) => {
+export default async (req, context) => {
   const url = new URL(req.url), path = url.pathname.replace(/\/+$/, "");
-  const S = stores();
+  const S = stores(NS.deployInfo(context));
   if (path.endsWith("/marks/config")) { const f = await C.getFlags(S); const now = Date.now(), fn = f.notice; const n = fn && (!fn.from || new Date(fn.from).getTime() <= now) && (!fn.until || new Date(fn.until).getTime() > now) ? fn : null; return json({ ok: true, marksEnabled: !!f.marksEnabled, notice: n }); }
   if (path.endsWith("/marks/photo")) {
     const id = String(url.searchParams.get("mark") || "");

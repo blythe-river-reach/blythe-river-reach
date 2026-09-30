@@ -7,13 +7,14 @@ import { getStore } from "@netlify/blobs";
 import webpush from "web-push";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
+const NS = require("../lib/ns.js");
 const alerts = require("../lib/alerts.js");
 const { spotsOf, expand } = require("../lib/push-subs.js");
 
 const REPO = "blythe-river-reach/blythe-river-reach";
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 
-export default async (req) => {
+export default async (req, context) => {
   if (req.method !== "POST") return json({ error: "method" }, 405);
   const want = process.env.PUSH_RUN_KEY;
   if (!want || req.headers.get("x-run-key") !== want) return json({ error: "unauthorized" }, 401);
@@ -28,7 +29,7 @@ export default async (req) => {
   if (!r.ok) return json({ error: "data fetch " + r.status }, 502);
   const data = await r.json();
 
-  const store = getStore({ name: "push-subs", consistency: "strong" });
+  const store = getStore({ name: NS.name("push-subs", NS.deployInfo(context)), consistency: "strong" });
   const { blobs } = await store.list();
   // One record per device; each carries a settings block per spot. Spots whose
   // chosen end passed more than a week ago are dropped (and the record with

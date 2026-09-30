@@ -5,13 +5,14 @@ import { getStore } from "@netlify/blobs";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
+const NS = require("../lib/ns.js");
 const { MAX_SPOTS, spotsOf } = require("../lib/push-subs.js");
 
 const keyFor = (endpoint) => createHash("sha256").update(String(endpoint)).digest("hex");
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 
-export default async (req) => {
-  const store = getStore({ name: "push-subs", consistency: "strong" });
+export default async (req, context) => {
+  const store = getStore({ name: NS.name("push-subs", NS.deployInfo(context)), consistency: "strong" });
   if (req.method === "GET") {
     const ep = new URL(req.url).searchParams.get("endpoint") || "";
     if (!ep) return json({ error: "endpoint required" }, 400);

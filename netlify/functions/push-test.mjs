@@ -1,18 +1,21 @@
 // POST { endpoint } -> sends one test notification to that subscription, so a
 // person can confirm alerts really reach their phone (iPhone especially).
 import { getStore } from "@netlify/blobs";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const NS = require("../lib/ns.js");
 import webpush from "web-push";
 import { createHash } from "node:crypto";
 const keyFor = (endpoint) => createHash("sha256").update(String(endpoint)).digest("hex");
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 
-export default async (req) => {
+export default async (req, context) => {
   if (req.method !== "POST") return json({ error: "method" }, 405);
   const pub = process.env.VAPID_PUBLIC_KEY, priv = process.env.VAPID_PRIVATE_KEY, subject = process.env.VAPID_SUBJECT || "mailto:river@istheriverup.com";
   if (!pub || !priv) return json({ error: "alerts are not configured on this site" }, 503);
   let body = {}; try { body = await req.json(); } catch (e) { return json({ error: "bad json" }, 400); }
   if (!body.endpoint) return json({ error: "endpoint required" }, 400);
-  const store = getStore({ name: "push-subs", consistency: "strong" });
+  const store = getStore({ name: NS.name("push-subs", NS.deployInfo(context)), consistency: "strong" });
   const rec = await store.get(keyFor(body.endpoint), { type: "json" }).catch(() => null);
   if (!rec || !rec.subscription) return json({ error: "not subscribed" }, 404);
   // at most one test a minute per subscription

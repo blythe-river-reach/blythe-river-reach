@@ -1255,10 +1255,11 @@ function heroModel(){
     var _meas=(_ol.horizon && e0.t<=_ol.horizon);
     var _srcL=ref.label;
     if(_meas && _ol.futM.length){ var _bd=1e18; _ol.futM.forEach(function(p3){ var dd=Math.abs(p3.t-e0.t); if(dd<_bd && p3.src){ _bd=dd; _srcL=p3.src; } }); }
-    var _tail=_meas ? ' That water is already past '+_srcL+' — measured, on its way.'
+    var _tail=_meas ? ' That water is already past '+_srcL+' — measured, on its way.'+(e0.seam?' The measured picture ends about then, so the turn may come a little later than shown.':'')
                     : (e0.est ? ' Projected from the weekly release rhythm — no schedule is published that far out yet.'
                               : ' From the dam schedule, trued to the local sensor.');
-    M.tail=_tail; M.measuredNext=_meas; M.projectedNext=!!e0.est;
+    var _seamW=e0.seam?' or later':'';
+    M.tail=_tail; M.measuredNext=_meas; M.projectedNext=!!e0.est; M.seamNext=!!e0.seam;
     // Sanity guard: a coming "low" ABOVE the current level (or "high" below it)
     // means today's extreme is already behind us — say that instead.
     var mism=null;
@@ -1285,11 +1286,11 @@ function heroModel(){
     var hrsM=(e0.t-Date.now())/3600000;
     var whenM=hrsM<1?'within the hour':(hrsM<1.75?'in about an hour':'in ~'+Math.round(hrsM)+' h');
     if(mism==="low-above"){
-      turn=' <b style="color:var(--text)">Right now looks like the bottom</b> — nothing lower ahead soon: even the next dip ('+lvlM+' around '+azTime(e0.t)+') sits above where the water is now.';
+      turn=' <b style="color:var(--text)">Right now looks like the bottom</b> — nothing lower ahead soon: even the next dip ('+lvlM+' around '+azTime(e0.t)+_seamW+') sits above where the water is now.';
       _head={m:'falling', t:'At the bottom — nothing lower ahead today'};
     }
     else if(mism==="high-below"){
-      turn=' <b style="color:var(--text)">Right now looks like the top</b> — nothing higher ahead soon: even the next peak ('+lvlM+' around '+azTime(e0.t)+') sits under where the water is now.';
+      turn=' <b style="color:var(--text)">Right now looks like the top</b> — nothing higher ahead soon: even the next peak ('+lvlM+' around '+azTime(e0.t)+_seamW+') sits under where the water is now.';
       _head={m:'rising', t:'At the top — nothing higher ahead today'};
     }
     else {
@@ -1306,41 +1307,41 @@ function heroModel(){
       M.startLater=startLater; M.interMove=interMove;
       if(!_up){ // heading to the cycle bottom at e0
         if(interMove){
-          turn=' <b style="color:var(--text)">Expect it to peak '+whenS+'</b> (~'+azClock(_ts.t)+') — then down to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
+          turn=' <b style="color:var(--text)">Expect it to peak '+whenS+'</b> (~'+azClock(_ts.t)+') — then down to '+_dstFull+' by '+azTime(e0.t)+_seamW+'.'+_tail;
           _head = tr==="falling" ? {m:'falling', t:'Dipping — peaks ~'+_sT+', then '+(_dst?'down to '+_dst:'drops')}
                 : {m:'rising', t:'Rising — tops out ~'+_sT+', then '+(_dst?'down to '+_dst:'drops')};
         }
         else if(startLater && tr!=="falling"){ // a measured fall overrules the schedule's plateau — never "holding" while the river is visibly dropping
-          turn=' <b style="color:var(--text)">Holding near the top until ~'+azClock(_ts.t)+'</b> — then down to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
+          turn=' <b style="color:var(--text)">Holding near the top until ~'+azClock(_ts.t)+'</b> — then down to '+_dstFull+' by '+azTime(e0.t)+_seamW+'.'+_tail;
           _head={m:'steady', t:_holdW+' — drops after ~'+_sT};
         }
         else if(tr==="rising"){
-          turn=' <b style="color:var(--text)">Peaking about now</b> — then down to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
-          _head={m:'rising', t:'Peaking now — down to '+(_dst||'the daily low')+' by ~'+_tT};
+          turn=' <b style="color:var(--text)">Peaking about now</b> — then down to '+_dstFull+' by '+azTime(e0.t)+_seamW+'.'+_tail;
+          _head={m:'rising', t:'Peaking now — down to '+(_dst||'the daily low')+' by ~'+_tT+_seamW};
         }
         else {
           var _pause=startLater?'easing off around ~'+azClock(_ts.t)+', then ':'';
-          turn=' <b style="color:var(--text)">Expect the dip '+whenM+'</b> — '+_pause+'down to '+_dstFull+' around '+azTime(e0.t)+(e1&&e1.type==="high"?', then back up':'')+'.'+_tail;
-          _head={m:'falling', t:'Dropping — down to '+(_dst||'the daily low')+' ~'+_tT+(e1&&e1.type==="high"?', then back up':'')};
+          turn=' <b style="color:var(--text)">Expect the dip '+whenM+'</b> — '+_pause+'down to '+_dstFull+' around '+azTime(e0.t)+_seamW+(e1&&e1.type==="high"?', then back up':'')+'.'+_tail;
+          _head={m:'falling', t:'Dropping — down to '+(_dst||'the daily low')+' ~'+_tT+_seamW+(e1&&e1.type==="high"?', then back up':'')};
         }
       } else { // heading to the cycle top at e0
         if(interMove){
-          turn=' <b style="color:var(--text)">Expect it to bottom out '+whenS+'</b> (~'+azClock(_ts.t)+') — then up to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
+          turn=' <b style="color:var(--text)">Expect it to bottom out '+whenS+'</b> (~'+azClock(_ts.t)+') — then up to '+_dstFull+' by '+azTime(e0.t)+_seamW+'.'+_tail;
           _head = tr==="rising" ? {m:'rising', t:'Rising — dips ~'+_sT+', then '+(_dst?'up to '+_dst:'higher')}
                 : {m:'falling', t:'Dropping — turns back up ~'+_sT};
         }
         else if(startLater && tr!=="rising"){ // mirror: a measured rise overrules "holding near the bottom"
-          turn=' <b style="color:var(--text)">Holding near the bottom until ~'+azClock(_ts.t)+'</b> — then up to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
+          turn=' <b style="color:var(--text)">Holding near the bottom until ~'+azClock(_ts.t)+'</b> — then up to '+_dstFull+' by '+azTime(e0.t)+_seamW+'.'+_tail;
           _head={m:'steady', t:_holdW+' — comes up ~'+_sT};
         }
         else if(tr==="falling"){
-          turn=' <b style="color:var(--text)">Bottoming out about now</b> — then up to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
-          _head={m:'falling', t:'At today’s low — up to '+(_dst||'the daily high')+' by ~'+_tT};
+          turn=' <b style="color:var(--text)">Bottoming out about now</b> — then up to '+_dstFull+' by '+azTime(e0.t)+_seamW+'.'+_tail;
+          _head={m:'falling', t:'At today’s low — up to '+(_dst||'the daily high')+' by ~'+_tT+_seamW};
         }
         else {
           var _pause2=startLater?'leveling off around ~'+azClock(_ts.t)+', then ':'';
-          turn=' <b style="color:var(--text)">Expect the peak '+whenM+'</b> — '+_pause2+'up to '+_dstFull+' around '+azTime(e0.t)+(e1&&e1.type==="low"?', then easing back':'')+'.'+_tail;
-          _head={m:'rising', t:'Rising — up to '+(_dst||'the daily high')+' by ~'+_tT+(e1&&e1.type==="low"?', then easing back':'')};
+          turn=' <b style="color:var(--text)">Expect the peak '+whenM+'</b> — '+_pause2+'up to '+_dstFull+' around '+azTime(e0.t)+_seamW+(e1&&e1.type==="low"?', then easing back':'')+'.'+_tail;
+          _head={m:'rising', t:'Rising — up to '+(_dst||'the daily high')+' by ~'+_tT+_seamW+(e1&&e1.type==="low"?', then easing back':'')};
         }
       }
     }
@@ -1752,6 +1753,12 @@ function blendedOutlook(pl){
   var blend=full.filter(function(p){ return p.t>now; }), gap=full.filter(function(p){ return p.t<=now; });
   futM=futM.filter(function(p){ return p.t>now; });
   var events=blend.length>=6 ? findTides(blend).filter(function(e){ return e.t>now; }) : [];
+  // A high or low that lands on the composite's spread-out edge (its last
+  // edgeH hours) is partly an artefact of where the measured water runs out:
+  // the river was still heading that way when the gauge data ended, and the
+  // schedule takes over from there. Flag it so the words say "or later".
+  var edgeMs=Math.max(3600000, ((comp&&comp.edgeH)||0)*3600000);
+  if(horizon>now) events.forEach(function(e){ if(e.t>=horizon-edgeMs && e.t<=horizon+3600000) e.seam=true; });
   return { ref:ref, lag:lag, flowP:flowP, cv:cv, comp:comp, fc:fc, horizon:horizon, lastT:lastT, futM:futM, blend:blend, gap:gap, events:events };
 }
 function tideRating(pl){
@@ -1807,8 +1814,8 @@ function renderHeadgate(){
   }
   var ex=(ol && ol.events.length) ? ol.events : findTides(_blend).filter(function(e2){ return e2.t>now; });
   var nh=ex.find(function(e2){return e2.type==="high";}), nl=ex.find(function(e2){return e2.type==="low";}), bits=[];
-  if(nh) bits.push('next high '+lvlTxt(nh.v)+' around '+azTime(nh.t));
-  if(nl) bits.push('next low '+lvlTxt(nl.v)+' around '+azTime(nl.t));
+  if(nh) bits.push('next high '+lvlTxt(nh.v)+' around '+azTime(nh.t)+(nh.seam?' or later':''));
+  if(nl) bits.push('next low '+lvlTxt(nl.v)+' around '+azTime(nl.t)+(nl.seam?' or later':''));
   nextEl.innerHTML=bits.join(" \u00b7 ");
   var ftLo=toFt?toFt(r.min):null, ftHi=toFt?toFt(r.max):null;
   var milesUp=Math.round(Math.abs(fc.originMile-pl.mile));
@@ -2004,7 +2011,7 @@ function renderTide(){
   upcoming.forEach(function(e2){
     var ft=toFt?toFt(e2.v):null;
     var isM=(horizon && e2.t<=horizon); if(isM) enrouteN++; else fromSchedule=true;
-    rows.push({type:e2.type, t:e2.t, lvl:(ft!=null ? ftLbl(ft) : fmt(e2.v)+" cfs"), tag:isM?" \u00b7 en route":(e2.est?" \u00b7 projected":" \u00b7 scheduled")});
+    rows.push({type:e2.type, t:e2.t, lvl:(ft!=null ? ftLbl(ft) : fmt(e2.v)+" cfs"), tag:e2.seam?" \u00b7 en route, or later":(isM?" \u00b7 en route":(e2.est?" \u00b7 projected":" \u00b7 scheduled"))});
   });
   if(!upcoming.length && ex.length>=2){
     ["high","low"].forEach(function(type){

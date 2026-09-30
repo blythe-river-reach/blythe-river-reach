@@ -29,7 +29,7 @@
   #lb{position:fixed; inset:0; background:rgba(0,0,0,.88); display:none; align-items:center; justify-content:center; z-index:9; cursor:zoom-out} #lb.open{display:flex} #lb img{max-width:96vw; max-height:92vh; border-radius:10px}
   .empty{color:var(--muted); padding:10px 4px}
 </style></head><body><div class="wrap">
-<header><h1>River admin</h1><input id="key" type="password" placeholder="admin key" style="min-width:200px"><button class="primary" id="load">Load</button><span class="muted" id="status"></span></header>
+<header><h1>River admin</h1><input id="key" type="password" placeholder="admin key" style="min-width:200px"><button class="primary" id="load">Load</button><select id="ns" style="display:none" title="Which data set to look at"><option value="">This deploy's data</option><option value="production">Production data</option></select><span class="muted" id="status"></span></header>
 <div id="app"><p class="muted">Enter the admin key (the push run key unless you set ADMIN_KEY) and load.</p></div>
 <div id="lb"><img alt=""></div>
 <script>
@@ -82,7 +82,8 @@ function noticeHtml(){
 try{ document.getElementById("key").value=localStorage.getItem(KEY_STORE)||""; }catch(e){}
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
 function key(){ var k=document.getElementById("key").value.trim(); try{ localStorage.setItem(KEY_STORE,k); }catch(e){} return k; }
-function api(method, body){ return fetch("/api/marks-admin",{method:method, headers:{"x-admin-key":key(),"content-type":"application/json"}, body:body?JSON.stringify(body):undefined, cache:"no-store"}).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||("HTTP "+r.status)); return j; }); }); }
+var NS_VIEW=""; // "" = this deploy's data set; "production" = the live site's (only offered on a branch deploy)
+function api(method, body){ return fetch("/api/marks-admin",{method:method, headers:{"x-admin-key":key(),"content-type":"application/json","x-ns":NS_VIEW}, body:body?JSON.stringify(body):undefined, cache:"no-store"}).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||("HTTP "+r.status)); return j; }); }); }
 function when(s){ try{ return new Date(s).toLocaleString("en-US",{timeZone:"America/Phoenix", month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}); }catch(e){ return String(s); } }
 function ago(t){ var m=Math.round((Date.now()-new Date(t).getTime())/60000); if(m<60) return m+" min ago"; var h=Math.round(m/60); if(h<48) return h+" h ago"; return Math.round(h/24)+" d ago"; }
 function spotName(k){ if(!Q) return k; if(/^u:/.test(k)){ var p=(Q.places||[]).find(function(x){ return "u:"+x.id===k; }); return p?p.name+" (user place)":k; } return (Q.spots&&Q.spots[k])||k; }
@@ -124,7 +125,8 @@ function render(){
   document.getElementById("app").innerHTML=h;
   var k=key(); document.querySelectorAll("img.ph").forEach(function(img){ fetch("/api/marks-admin?photo="+encodeURIComponent(img.getAttribute("data-photo")),{headers:{"x-admin-key":k}}).then(function(r){ return r.ok?r.blob():null; }).then(function(bl){ if(bl){ img.src=URL.createObjectURL(bl); } }).catch(function(){}); });
 }
-function load(){ var st=document.getElementById("status"); st.textContent="Loading\u2026"; return Promise.all([api("GET"), loadData()]).then(function(rs){ Q=rs[0]; st.textContent="Loaded "+new Date().toLocaleTimeString()+" \u00b7 "+branch(); render(); }).catch(function(e){ st.textContent="Error: "+e.message; }); }
+function load(){ var st=document.getElementById("status"); st.textContent="Loading\u2026"; return Promise.all([api("GET"), loadData()]).then(function(rs){ Q=rs[0]; var ns=Q.ns||{}; var sel=document.getElementById("ns"); if(sel){ sel.style.display=(ns.context && ns.context!=="production")?"":"none"; sel.value=NS_VIEW; } st.textContent="Loaded "+new Date().toLocaleTimeString()+" \u00b7 "+branch()+(ns.viewing?" \u00b7 data set: "+(ns.viewing==="production"?"PRODUCTION":"this deploy ("+(ns.prefix||"").replace(/--$/,"")+")"):""); render(); }).catch(function(e){ st.textContent="Error: "+e.message; }); }
+document.getElementById("ns").addEventListener("change", function(){ NS_VIEW=this.value; load(); });
 document.getElementById("load").addEventListener("click", load);
 document.getElementById("key").addEventListener("keydown", function(e){ if(e.key==="Enter") load(); });
 document.getElementById("app").addEventListener("click", function(ev){
