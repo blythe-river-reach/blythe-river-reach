@@ -305,7 +305,16 @@
   .ios-note{background:#3a2a10; border:2px solid #f2b64a; color:#ffe2a8; border-radius:12px; padding:12px 14px; font-size:15px; margin:10px 0 12px; line-height:1.45} .ios-note ol{margin:8px 0 0; padding-left:22px} .ios-note li{margin:3px 0} body.day .ios-note{background:#fff3d6; border-color:#d99a1a; color:#5a3d00}
   .al-recent{font-size:13px; color:var(--text); margin:6px 0 2px}
   .al-active li{display:flex; gap:8px; align-items:flex-start} .al-active li span{flex:1} .al-active .rm{background:none; border:1px solid var(--border); color:var(--muted); border-radius:8px; padding:2px 8px; font-size:12px; cursor:pointer; flex-shrink:0} .al-active .rm:hover{border-color:var(--bad, #f27b7b); color:var(--text)}
-  .al-spots{background:var(--tile); border:1px solid var(--border); border-radius:12px; padding:10px 12px; font-size:13.5px; margin-bottom:8px} .al-spots b{color:var(--text)} .al-spots ul{list-style:none; margin:4px 0 0; padding:0} .al-spots li{display:flex; gap:8px; align-items:center; padding:5px 0; border-top:1px solid var(--border)} .al-spots li:first-child{border-top:0} .al-spots li > span{flex:1} .al-spots .sp{background:none; border:0; padding:0; color:var(--water); font:inherit; font-weight:700; font-size:14px; cursor:pointer; text-align:left} .al-spots li.cur .sp{color:var(--text)} .al-spots .rm{background:none; border:1px solid var(--border); color:var(--muted); border-radius:8px; padding:2px 8px; font-size:12px; cursor:pointer; flex-shrink:0} .al-spots .rm:hover{border-color:var(--bad, #f27b7b); color:var(--text)}
+  .al-on{background:var(--tile); border:1px solid var(--border); border-radius:12px; padding:4px 12px; font-size:13.5px; margin-bottom:6px} .al-on .empty{padding:8px 0; color:var(--muted)}
+  .al-on .blk{padding:9px 0; border-top:1px solid var(--border)} .al-on .blk:first-child{border-top:0} .al-on .blk.cur{background:linear-gradient(90deg, rgba(90,170,220,0.08), transparent); margin:0 -12px; padding-left:12px; padding-right:12px}
+  .al-on .hd{display:flex; gap:8px; align-items:center} .al-on .hd > span{flex:1} .al-on .sp{background:none; border:0; padding:0; color:var(--water); font:inherit; font-weight:700; font-size:14.5px; cursor:pointer; text-align:left} .al-on .blk.cur .sp{color:var(--text)}
+  .al-on ul{margin:3px 0 0; padding-left:18px} .al-on li{display:flex; gap:8px; align-items:flex-start; margin:2px 0} .al-on li span{flex:1}
+  .al-on .rm, .al-preview .rm{background:none; border:1px solid var(--border); color:var(--muted); border-radius:8px; padding:2px 8px; font-size:12px; cursor:pointer; flex-shrink:0} .al-on .rm:hover{border-color:var(--bad, #f27b7b); color:var(--text)}
+  .al-preview{border:1.5px dashed var(--water); border-radius:12px; padding:10px 12px; font-size:13.5px; margin-bottom:6px} .al-preview b{color:var(--text)} .al-preview ul{margin:4px 0 0; padding-left:18px} .al-preview li{margin:2px 0}
+  .al-preview .foot{display:flex; gap:10px; align-items:center; margin-top:8px; flex-wrap:wrap} .al-preview .foot span{flex:1; min-width:160px} .al-preview .mini{padding:7px 12px; border-radius:9px; border:0; background:var(--water); color:#08131d; font-weight:800; cursor:pointer; font-size:13px}
+  .al-preview.same{border-style:solid; border-color:var(--border)}
+  .ios-note .foot{display:flex; gap:10px; align-items:center; margin-top:8px; flex-wrap:wrap; font-size:13px} .ios-note .foot span{flex:1; min-width:160px} .ios-note .mini{padding:7px 12px; border-radius:9px; border:0; background:var(--house); color:#1a1200; font-weight:800; cursor:pointer; font-size:13px}
+  .ios-note .lnk{background:none; border:0; padding:0; color:inherit; text-decoration:underline; cursor:pointer; font:inherit}
   .al-active{background:var(--tile); border:1px solid var(--border); border-radius:12px; padding:10px 12px; font-size:13.5px; margin-bottom:6px} .al-active b{color:var(--text)} .al-active ul{margin:4px 0 0; padding-left:18px} .al-active li{margin:2px 0}
   .mark-strip{margin-top:12px; background:var(--tile); border:1px solid var(--border); border-radius:14px; padding:11px 13px}
   .ms-hd{display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--muted)} .ms-hd b{color:var(--text)} .ms-hd .tbtn{margin-left:auto; padding:6px 10px; font-size:12.5px}
@@ -521,7 +530,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30g</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30h</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -539,12 +548,14 @@ try{
   <div class="pick-foot"><button class="tbtn" id="pick-add-place">✚ Add a place</button><button class="tbtn" id="pick-add-mark">✚ Depth mark here</button></div>
 </div>
 <div class="page" id="alerts-page" aria-hidden="true">
-  <div class="page-hd"><button class="x" id="al-back">‹ Back</button><h2>🔔 Alerts for <span id="al-spot">your spot</span></h2></div>
+  <div class="page-hd"><button class="x" id="al-back">‹ Back</button><h2>🔔 Alerts</h2></div>
   <div class="page-body">
     <div class="ios-note" id="al-ios" style="display:none"></div>
     <p class="lead" id="al-status" style="margin:6px 0 10px"></p>
-    <div class="al-spots" id="al-spots" style="display:none"></div>
-    <div class="al-active" id="al-active"></div>
+    <h3 class="al-h">On now</h3>
+    <div class="al-on" id="al-on"></div>
+    <h3 class="al-h" id="al-setup-h">Set up <span id="al-spot">your spot</span></h3>
+    <div class="al-preview" id="al-preview"></div>
     <div class="al-recent" id="al-recent" style="display:none"></div>
     <h3 class="al-h">How long</h3>
     <div class="al-dur" id="al-dur"><button type="button" data-dur="weekend">This weekend</button><button type="button" data-dur="today">Today</button><button type="button" data-dur="3d">3 days</button><button type="button" data-dur="7d">A week</button><button type="button" data-dur="always" class="on">Until I turn it off</button></div>
@@ -1141,38 +1152,57 @@ function alItems(p){
   if(p.stale) items.push({k:"stale", t:"Data outages over 8 hours"});
   return items;
 }
-// The spots this device gets alerts for, with a switch to edit each and a Remove.
-function renderAlSpots(){
-  var el=document.getElementById("al-spots"); if(!el) return;
-  var st=pushState(), keys=pushSpots(st), cur=currentPlace().key;
-  if(!st || !keys.length){ el.style.display="none"; el.innerHTML=""; return; }
-  el.style.display="block";
-  el.innerHTML='<b>Alerts are on for '+(keys.length===1?'one spot':keys.length+' spots')+'</b><ul>'+keys.map(function(k){
-      var q=(st.spots[k]&&st.spots[k].prefs)||{}, n=alItems(q).length, u=q.until?new Date(q.until).getTime():null, ended=u&&u<Date.now();
-      var thru=u?(ended?'ended '+azTime(u):'through '+azTime(u)):'until turned off';
-      return '<li'+(k===cur?' class="cur"':'')+'><span><button type="button" class="sp" data-spot="'+k+'">'+esc(spotName(k))+'</button><br><span class="muted-sm">'+n+' alert'+(n===1?'':'s')+' · '+thru+(k===cur?' · <b>editing below</b>':' · tap to edit')+'</span></span><button type="button" class="rm" data-rmspot="'+k+'" title="Turn off alerts for this spot">Remove</button></li>';
-    }).join('')+'</ul>'
-    +(st.spots[cur]?'':'<div class="muted-sm" style="margin-top:6px">'+esc(currentPlace().name)+' isn’t on the list yet — choose what you want below and tap <b>Add '+esc(currentPlace().name)+'</b>.'+(keys.length>=AL_MAX_SPOTS?' You have the most spots one phone can hold ('+AL_MAX_SPOTS+'); remove one first.':'')+'</div>');
+function prefsSummaryLines(q){
+  var items=alItems(q);
+  return items.length ? '<ul>'+items.map(function(it){ return '<li><span>'+esc(it.t)+'</span></li>'; }).join('')+'</ul>' : '<div class="muted-sm">no alerts picked</div>';
 }
-function renderAlActive(){
-  var el=document.getElementById("al-active"); if(!el) return;
-  var st=pushState(), pl=currentPlace(), on=spotSubscribed(pl.key), p=alPrefs(), items=alItems(p), thru=durLabel(p.dur, p.until?new Date(p.until).getTime():null);
-  var head=(on ? "On for "+esc(pl.name) : "You’ll get for "+esc(pl.name))+", "+thru+":";
+function quietLine(q){ return (q.quiet!==false && (q.turns||q.level)) ? '<div class="muted-sm" style="margin-top:3px">Quiet '+hourLabel(q.quietFrom!=null?q.quietFrom:22)+'–'+hourLabel(q.quietTo!=null?q.quietTo:6)+' for the high/low and level pings.</div>' : ''; }
+function thruText(q){ var u=q.until?new Date(q.until).getTime():null; if(!u) return 'until turned off'; return (u<Date.now()?'ended ':'through ')+azTime(u); }
+// ON NOW: exactly what is saved on this phone, spot by spot. Nothing here changes
+// until you save. The spot being edited is highlighted; tap another to edit it.
+function renderAlOn(){
+  var el=document.getElementById("al-on"); if(!el) return;
+  var st=pushState(), keys=pushSpots(st), cur=currentPlace().key;
+  if(!st || !keys.length){ el.innerHTML='<div class="empty">Nothing is on for this phone yet.</div>'; return; }
+  el.innerHTML=keys.map(function(k){
+    var q=(st.spots[k]&&st.spots[k].prefs)||{}, isCur=(k===cur), u=q.until?new Date(q.until).getTime():null, ended=u&&u<Date.now();
+    var items=alItems(q);
+    var list=items.length ? '<ul>'+items.map(function(it){ return '<li><span>'+esc(it.t)+'</span>'+(isCur?'<button type="button" class="rm" data-rm="'+it.k+'" title="Turn this one off">Remove</button>':'')+'</li>'; }).join('')+'</ul>' : '<div class="muted-sm">no alerts picked</div>';
+    return '<div class="blk'+(isCur?' cur':'')+'"><div class="hd"><span><button type="button" class="sp" data-spot="'+k+'">'+esc(spotName(k))+'</button> <span class="muted-sm">'+(ended?'<span style="color:var(--house)">ended '+azTime(u)+'</span>':thruText(q))+'</span></span><button type="button" class="rm" data-rmspot="'+k+'" title="Turn off every alert for this spot">Remove spot</button></div>'
+      +list+quietLine(q)
+      +'<div class="muted-sm" style="margin-top:3px">'+(isCur?'<b>Editing this one below.</b>':'Tap the name to change these.')+'</div></div>';
+  }).join('');
+}
+// WHAT YOU'D GET: the form as it stands for the current spot, and whether it is saved.
+function renderAlPreview(){
+  var el=document.getElementById("al-preview"); if(!el) return;
+  var st=pushState(), pl=currentPlace(), on=spotSubscribed(pl.key), keys=pushSpots(st), p=alPrefs(), items=alItems(p);
   var savedP=on?st.spots[pl.key].prefs:null, saved=savedP?Object.assign({},savedP):null; if(saved){ delete saved.until; } var cur=Object.assign({},p); delete cur.until;
   var changed=on && JSON.stringify(saved)!==JSON.stringify(cur);
   var expired=on && savedP.until && new Date(savedP.until).getTime()<Date.now();
-  el.innerHTML='<b>'+head+'</b>'+(items.length?'<ul>'+items.map(function(it){ return '<li><span>'+esc(it.t)+'</span><button type="button" class="rm" data-rm="'+it.k+'" title="Remove this alert">Remove</button></li>'; }).join("")+'</ul>':' <span class="muted-sm">nothing selected yet</span>')
-    +(p.quiet&&(p.turns||p.level)?'<div class="muted-sm" style="margin-top:4px">Quiet '+hourLabel(p.quietFrom)+'–'+hourLabel(p.quietTo)+' for the high/low and level pings.</div>':'')
-    +(expired?'<div class="muted-sm" style="margin-top:4px; color:var(--house)">These alerts ended '+azTime(new Date(savedP.until).getTime())+'. Pick how long and save to start them again.</div>':'')
-    +(changed?'<div class="muted-sm" style="margin-top:4px; color:var(--water)">Changes not saved yet — tap Save changes.</div>':'');
+  var h=document.getElementById("al-setup-h"); if(h) h.innerHTML=(on?'Change ':'Set up ')+'<span id="al-spot">'+esc(pl.name)+'</span>';
+  var head=on ? (changed?'After you save, '+esc(pl.name)+' gets, ':esc(pl.name)+' gets, ') : esc(pl.name)+' would get, ';
+  head+=thruText(p)+':';
+  var full=!on && keys.length>=AL_MAX_SPOTS, blocked=document.getElementById("al-save").disabled && !full; // iPhone Safari, unsupported, or blocked
+  var foot, btn='';
+  if(blocked) foot='<span style="color:var(--house)">Can’t be turned on from here'+(isIOS()&&!isStandalone()?' — open the Home Screen app (see above).':'.')+'</span>';
+  else if(full) foot='<span style="color:var(--house)">This phone already holds '+AL_MAX_SPOTS+' spots — remove one above first.</span>';
+  else if(!on){ foot='<span style="color:var(--water)"><b>Not on yet.</b> Nothing arrives until you add it.</span>'; btn='<button type="button" class="mini" id="al-save2">'+(keys.length?'Add '+esc(pl.name):'Turn on alerts')+'</button>'; }
+  else if(expired){ foot='<span style="color:var(--house)"><b>These ended '+azTime(new Date(savedP.until).getTime())+'.</b> Pick how long and save to start them again.</span>'; btn='<button type="button" class="mini" id="al-save2">Save changes</button>'; }
+  else if(changed){ foot='<span style="color:var(--house)"><b>Changes not saved yet.</b> The "On now" list above is still what you get.</span>'; btn='<button type="button" class="mini" id="al-save2">Save changes</button>'; }
+  else foot='<span class="muted-sm">Same as what is on now.</span>';
+  el.classList.toggle("same", on && !changed && !expired);
+  el.innerHTML='<b>'+head+'</b>'+prefsSummaryLines(p)+quietLine(p)+'<div class="foot">'+foot+btn+'</div>';
   var dn=document.getElementById("al-dur-note"); if(dn) dn.textContent = p.until ? "Alerts for this spot stop on their own "+durLabel(p.dur, new Date(p.until).getTime())+" (Arizona time). Come back any time to extend them." : "Alerts for this spot keep coming until you turn them off here.";
 }
+function renderAlSpots(){ renderAlOn(); }
+function renderAlActive(){ renderAlPreview(); }
 function removeAlert(k){
   var g=function(id){ return document.getElementById(id); };
   if(k==="level"){ g("al-level").checked=false; g("al-hi").value=""; g("al-lo").value=""; } else { var box=g("al-"+k); if(box) box.checked=false; }
   renderAlActive();
   var st=pushState();
-  if(st && st.sub && spotSubscribed(currentPlace().key)){ postSubscription(st.sub).then(function(){ toast("Removed and saved."); refreshAlerts(); }).catch(function(){ toast("Removed here — tap Save changes to keep it.", 4000); }); }
+  if(st && st.sub && spotSubscribed(currentPlace().key)){ postSubscription(st.sub).then(function(){ toast("Turned off and saved."); refreshAlerts(); }).catch(function(){ toast("Turned off here — tap Save changes to keep it.", 4000); refreshAlerts(); }); }
 }
 function removeSpot(k){
   var st=pushState(); if(!st) return;
@@ -1199,11 +1229,18 @@ function loadRecent(){
   fetch("/api/push/subscribe?endpoint="+encodeURIComponent(st.endpoint),{cache:"no-store"}).then(function(r){ return r.ok?r.json():null; })
     .then(function(rec){ if(rec && rec.spots) renderRecent(rec.spots[currentPlace().key]||null); }).catch(function(){});
 }
+// iPhone/iPad: web push only works from the Home Screen app. Opened from that
+// app (standalone) the notice never shows. From Safari there is no way to tell
+// whether the app has already been added (the two keep separate storage), so
+// the box explains both cases and can be collapsed to one line with "Got it".
+var IOS_NOTE_KEY="blythe_ios_note_v1";
 function iosNotice(){
   var box=document.getElementById("al-ios"); if(!box) return false;
   if(isIOS() && !isStandalone()){
     box.style.display="block";
-    box.innerHTML='<b>iPhone and iPad: one step first.</b> Alerts only work from the Home Screen app, not from Safari. Until you do this, nothing you set here will arrive.<ol><li>Tap the <b>Share</b> button (the square with the arrow).</li><li>Choose <b>Add to Home Screen</b>.</li><li>Open <b>Is The River Up?</b> from your Home Screen and turn alerts on there.</li></ol>';
+    var compact=store.get(IOS_NOTE_KEY)==="compact";
+    if(compact) box.innerHTML='<b>iPhone and iPad:</b> alerts only work from the Home Screen app. Open <b>Is The River Up?</b> from your Home Screen icon and set them up there — this Safari page can’t receive them. <button type="button" class="lnk" id="al-ios-more">Show the steps</button>';
+    else box.innerHTML='<b>iPhone and iPad: one step first.</b> Alerts only work from the Home Screen app, not from Safari. Until you do this, nothing you set here will arrive.<ol><li>Tap the <b>Share</b> button (the square with the arrow).</li><li>Choose <b>Add to Home Screen</b>.</li><li>Open <b>Is The River Up?</b> from your Home Screen and turn alerts on there.</li></ol><div class="foot"><span>Already added it? Open it from the Home Screen icon and set alerts up there — this Safari page can’t receive them.</span><button type="button" class="mini" id="al-ios-ok">Got it</button></div>';
     return true;
   }
   box.style.display="none"; return false;
@@ -1238,15 +1275,14 @@ function renderAlStatus(){
   else if(!pushSupported()){ status.innerHTML="This browser can’t receive push notifications."; save.disabled=true; }
   else if(Notification.permission==="denied"){ status.innerHTML="Notifications are <b>blocked</b> for this site in your browser settings — allow them there, then come back."; save.disabled=true; }
   else if(window._pushCfg && !window._pushCfg.enabled){ status.innerHTML="Alerts aren’t switched on for this site yet (server keys not set)."; save.disabled=true; }
-  else if(on) status.innerHTML="Alerts are <b>on</b> for <b>"+esc(pl.name)+"</b>"+(keys.length>1?" and "+(keys.length-1)+" other spot"+(keys.length>2?"s":""):"")+". Each spot keeps its own settings.";
-  else if(keys.length){ status.innerHTML="Not on for <b>"+esc(pl.name)+"</b> yet. Choose what you want below and add it."; if(keys.length>=AL_MAX_SPOTS) save.disabled=true; }
+  else if(on) status.innerHTML="Alerts are <b>on</b> for "+(keys.length===1?"<b>"+esc(pl.name)+"</b>":keys.length+" spots")+" on this phone. Each spot has its own settings.";
+  else if(keys.length){ status.innerHTML="Alerts are on for "+keys.length+" spot"+(keys.length>1?"s":"")+", but <b>not "+esc(pl.name)+"</b> yet."; if(keys.length>=AL_MAX_SPOTS) save.disabled=true; }
   else status.innerHTML="Get a notification instead of checking the page. Add as many spots as you like — each has its own settings.";
   return ios;
 }
 function refreshAlerts(){ renderAlStatus(); renderAlSpots(); renderAlActive(); }
 function openAlerts(){
   fillQuietSelects();
-  document.getElementById("al-spot").textContent=currentPlace().name;
   fillAlertsForm();
   var ios=renderAlStatus(); renderAlSpots(); renderAlActive(); loadRecent();
   document.getElementById("alerts-page").classList.add("open"); document.getElementById("alerts-page").setAttribute("aria-hidden","false"); document.body.classList.add("page-open");
@@ -1301,6 +1337,9 @@ document.getElementById("alerts-page").addEventListener("input", renderAlActive)
 document.getElementById("alerts-page").addEventListener("click", function(ev){
   var c=function(sel){ return ev.target.closest && ev.target.closest(sel); };
   var d=c("#al-dur button"); if(d){ setDur(d.getAttribute("data-dur")); return; }
+  if(c("#al-save2")){ subscribePush(); return; }
+  if(c("#al-ios-ok")){ store.set(IOS_NOTE_KEY, "compact"); iosNotice(); return; }
+  if(c("#al-ios-more")){ store.set(IOS_NOTE_KEY, null); iosNotice(); return; }
   var rm=c(".rm[data-rm]"); if(rm){ removeAlert(rm.getAttribute("data-rm")); return; }
   var rs=c(".rm[data-rmspot]"); if(rs){ removeSpot(rs.getAttribute("data-rmspot")); return; }
   var sp=c(".sp[data-spot]"); if(sp){ var k=sp.getAttribute("data-spot"); if(k!==currentPlace().key && typeof setPlace==="function") setPlace(k, {replace:true}); }
@@ -1308,7 +1347,7 @@ document.getElementById("alerts-page").addEventListener("click", function(ev){
 document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeAlerts(); });
 // Changing the spot while the page is open switches which spot is being edited.
 var _onPlaceChangePrev=window.onPlaceChange;
-window.onPlaceChange=function(k){ if(_onPlaceChangePrev) _onPlaceChangePrev(k); var pg=document.getElementById("alerts-page"); if(pg && pg.classList.contains("open")){ document.getElementById("al-spot").textContent=currentPlace().name; fillAlertsForm(); refreshAlerts(); loadRecent(); pg.scrollTop=0; } };
+window.onPlaceChange=function(k){ if(_onPlaceChangePrev) _onPlaceChangePrev(k); var pg=document.getElementById("alerts-page"); if(pg && pg.classList.contains("open")){ fillAlertsForm(); refreshAlerts(); loadRecent(); pg.scrollTop=0; } };
 if(location.pathname==="/alerts"){ try{ history.replaceState({al:1, deep:1}, "", "/alerts"); }catch(e){} setTimeout(openAlerts, 300); }
 // Links that point into the advanced view switch to it first.
 document.addEventListener("click", function(ev){
