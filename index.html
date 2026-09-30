@@ -53,9 +53,19 @@
   .tools button, #tip-link{display:inline-flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; min-width:48px; background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:12px; padding:6px 8px; font:inherit; cursor:pointer; white-space:nowrap; text-decoration:none}
   .tools button:hover, #tip-link:hover{border-color:var(--water)}
   .tools .ic{font-size:17px; line-height:1.1; position:relative} .tools .cap{font-size:10px; font-weight:700; line-height:1; letter-spacing:.02em; color:var(--muted)}
-  .tools .cap.short{display:none} @media (max-width:430px){ .tools .cap.long{display:none} .tools .cap.short{display:inline} }
+  .tools .cap.short{display:none}
+  /* Phone: title, the bell and a menu. Tablet and desktop: the full captioned toolbar. */
+  @media (max-width:699px){
+    .top{flex-wrap:wrap; align-items:center; gap:8px 10px} .brand{flex:1 1 0; min-width:0} .tools{order:2} .top > .spot-btn{order:3; flex:0 0 100%; margin-top:4px} .brand h1{font-size:18px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis} .brand .reach{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:11px}
+    .tools{flex:0 0 auto; width:auto; flex-wrap:nowrap; gap:6px}
+    .tools > button, .tools > #tip-link{display:none} .tools > #alerts-btn, .tools > #menu-btn{display:inline-flex; min-width:52px; padding:5px 6px}
+    .tools .cap.long{display:none} .tools .cap.short{display:inline}
+  }
+  @media (min-width:700px){ #menu-btn{display:none} }
+  .mrow{display:flex; align-items:center; gap:14px; width:100%; background:none; border:0; border-bottom:1px solid var(--border); padding:13px 8px; color:var(--text); font:inherit; text-align:left; cursor:pointer; text-decoration:none}
+  .mrow:last-child{border-bottom:0} .mrow:hover{background:var(--panel2)} .mrow .mi{font-size:22px; width:30px; text-align:center} .mrow .mt{display:flex; flex-direction:column; gap:2px} .mrow .mt b{font-size:15px} .mrow .mt span{font-size:12.5px; color:var(--muted)}
+  body:has(#fb-btn.has-reply) #menu-btn .ic::after{content:""; position:absolute; top:-3px; right:-7px; width:9px; height:9px; border-radius:50%; background:var(--house); border:2px solid var(--panel2)}
   #fb-btn.has-reply .ic::after{content:""; position:absolute; top:-3px; right:-7px; width:9px; height:9px; border-radius:50%; background:var(--house); border:2px solid var(--panel2)}
-  @media (max-width:560px){ .tools{width:100%; gap:3px; flex-wrap:nowrap} .tools button, #tip-link{flex:1 1 0; min-width:0; padding:5px 2px; border-radius:10px} .tools .ic{font-size:15px} .tools .cap{font-size:8.5px; letter-spacing:0; max-width:100%; overflow:hidden; text-overflow:clip} }
   .tools #refresh:disabled{opacity:.5}
   #mode-btn{border-color:var(--water); background:transparent} #mode-btn .cap{color:var(--water)}
   #tip-link{background:rgba(232,150,90,.16); border-color:var(--house)} #tip-link .cap{color:var(--house)}
@@ -335,6 +345,7 @@ try{
     <button id="share-btn" title="Share a link that opens on this spot"><span class="ic">📤</span><span class="cap long">Share</span><span class="cap short">Share</span></button>
     <button id="fb-btn" title="Tell us what you think"><span class="ic">💬</span><span class="cap long">Feedback</span><span class="cap short">Notes</span></button>
     <button id="refresh" title="Check for newer data"><span class="ic">↻</span><span class="cap long">Refresh</span><span class="cap short">Reload</span></button>
+    <button id="menu-btn" title="More" aria-haspopup="dialog"><span class="ic">☰</span><span class="cap long">Menu</span><span class="cap short">Menu</span></button>
   </div>
   <button class="spot-btn" id="spot-btn" aria-haspopup="dialog"><span class="pin">📍</span><span class="name" id="spot-name">Pick your spot</span><span class="chev">change ▾</span></button>
 </header>
@@ -497,7 +508,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30c</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30d</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -586,6 +597,18 @@ try{
     <div class="pin-chips" id="pin-chips"></div>
     <p class="note">Tap where each landmark meets the water line, bottom of the ladder first. Tap a landmark’s chip to move it. With two or more placed, anyone can report a reading by tapping the water line, and the page can draw where the water is on this photo.</p>
     <button class="btn-water" id="pin-save">Save landmarks</button>
+  </div>
+</div>
+<div class="sheet" id="menu-sheet" role="dialog" aria-modal="true" aria-label="Menu">
+  <div class="sheet-hd"><h2>Menu</h2><button class="x" id="menu-x" aria-label="Close">✕</button></div>
+  <div class="sheet-body" style="padding:0 10px 20px">
+    <button class="mrow" data-proxy="mode-btn"><span class="mi">📊</span><span class="mt"><b id="m-mode">Advanced view</b><span>Every sensor, chart and table</span></span></button>
+    <button class="mrow" data-proxy="theme-btn"><span class="mi" id="m-theme-ic">☀️</span><span class="mt"><b id="m-theme">Day colors</b><span>Switch between day and night looks</span></span></button>
+    <button class="mrow" data-proxy="alerts-btn"><span class="mi">🔔</span><span class="mt"><b>Alerts</b><span>A morning brief and heads-ups for your spot</span></span></button>
+    <button class="mrow" data-proxy="share-btn"><span class="mi">📤</span><span class="mt"><b>Share this spot</b><span>A link that opens right on it</span></span></button>
+    <button class="mrow" data-proxy="fb-btn"><span class="mi">💬</span><span class="mt"><b>Feedback</b><span id="m-fb-sub">What works, what doesn’t, what to add</span></span></button>
+    <button class="mrow" data-proxy="refresh"><span class="mi">↻</span><span class="mt"><b>Refresh data</b><span>The page already checks every 15 minutes</span></span></button>
+    <a class="mrow" href="https://ko-fi.com/IsTheRiverUp" target="_blank" rel="noopener"><span class="mi">☕</span><span class="mt"><b>Tip jar</b><span>Free to use; tips cover the domain and upkeep</span></span></a>
   </div>
 </div>
 <div class="sheet" id="fb-sheet" role="dialog" aria-modal="true" aria-label="Feedback">
@@ -1014,6 +1037,26 @@ function nearMe(){
 document.getElementById("pick-near").addEventListener("click", nearMe);
 document.getElementById("welcome-near").addEventListener("click", nearMe);
 
+// ---------- phone menu ----------
+function openMenu(){
+  var modeAdv=(currentMode()==="advanced"), day=(document.body.className.indexOf("day")>=0);
+  document.getElementById("m-mode").textContent=modeAdv?"Simple view":"Advanced view";
+  document.getElementById("m-theme").textContent=day?"Night colors":"Day colors"; document.getElementById("m-theme-ic").textContent=day?"\ud83c\udf19":"\u2600\ufe0f";
+  var fb=document.getElementById("fb-btn"); document.getElementById("m-fb-sub").textContent=(fb&&fb.classList.contains("has-reply"))?"There\u2019s a reply waiting for you":"What works, what doesn\u2019t, what to add";
+  document.getElementById("menu-sheet").classList.add("open"); document.getElementById("sheet-bg").classList.add("open");
+}
+function closeMenu(){ document.getElementById("menu-sheet").classList.remove("open"); }
+document.getElementById("menu-btn").addEventListener("click", openMenu);
+document.getElementById("menu-x").addEventListener("click", function(){ closeMenu(); document.getElementById("sheet-bg").classList.remove("open"); });
+document.getElementById("menu-sheet").addEventListener("click", function(ev){
+  var row=ev.target.closest && ev.target.closest(".mrow[data-proxy]"); if(!row) return;
+  var target=document.getElementById(row.getAttribute("data-proxy")); closeMenu();
+  var opensSheet=/^(alerts-btn|fb-btn)$/.test(row.getAttribute("data-proxy"));
+  if(!opensSheet) document.getElementById("sheet-bg").classList.remove("open");
+  if(target) setTimeout(function(){ target.click(); }, opensSheet?0:60);
+});
+document.getElementById("sheet-bg").addEventListener("click", closeMenu);
+document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeMenu(); });
 // ---------- push alerts ----------
 var PUSH_KEY="blythe_push_v1";
 function pushState(){ return store.get(PUSH_KEY)||null; }
