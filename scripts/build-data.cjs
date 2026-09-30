@@ -224,6 +224,60 @@ function xcorrPair(aPts, bPts, miles) {
   if (!(mph >= 1 && mph <= 12)) return null;
   return { lagHours: +lagH.toFixed(2), r: +best.r.toFixed(3), mph: +mph.toFixed(2) };
 }
+// Once the lag is known: how much does a pulse SPREAD over the stretch? The
+// gaussian width (hours) that best maps the upstream series onto the
+// downstream one. Smaller widths win ties so noise can't inflate it.
+function dispersionFit(aPts, bPts, lagH) {
+  const am = {}; for (const p of aPts) am[Math.round(p.t / 3600000)] = p.v;
+  const lag = Math.round(lagH); let best = null;
+  for (const sig of [0, 0.5, 1, 1.5, 2, 3, 4, 5, 6, 8, 10]) {
+    const w = Math.ceil(3 * sig); const xs = [], ys = [];
+    for (const q of bPts) {
+      const k = Math.round(q.t / 3600000) - lag;
+      if (am[k - w] == null || am[k + w] == null) continue; // whole kernel inside the data
+      let sv = 0, sw = 0;
+      for (let j = -w; j <= w; j++) { const v = am[k + j]; if (v == null) continue; const g = sig ? Math.exp(-j * j / (2 * sig * sig)) : (j === 0 ? 1 : 0); sv += v * g; sw += g; }
+      if (!sw) continue; xs.push(sv / sw); ys.push(q.v);
+    }
+    if (xs.length < 72) continue;
+    const n = xs.length, mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+    let sxy = 0, sxx = 0; for (let i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; }
+    if (!sxx) continue;
+    const b = sxy / sxx, a = my - b * mx; let se = 0; for (let i = 0; i < n; i++) se += (ys[i] - (a + b * xs[i])) ** 2;
+    const rmse = Math.sqrt(se / n);
+    if (!best || rmse < best.rmse * 0.98) best = { sigmaH: sig, gain: +b.toFixed(2), rmse: Math.round(rmse) };
+  }
+  return best;
+}
+// Does the pulse travel faster when the river is high? Cross-correlate the
+// low-flow third and the high-flow third of the upstream hours separately;
+// lag ~ (qRef / q)^beta. Small on this river (~1 h between thirds) but real.
+function flowBandLags(aPts, bPts, maxLag) {
+  const am = {}; for (const p of aPts) am[Math.round(p.t / 3600000)] = p.v;
+  const dm = {}; for (const p of bPts) dm[Math.round(p.t / 3600000)] = p.v;
+  const vs = Object.values(am).sort((p, q) => p - q), q3 = (f) => vs[Math.floor(vs.length * f)];
+  const lo = q3(0.33), hi = q3(0.67), qRef = q3(0.5);
+  const band = (sel) => {
+    let best = null; const rs = {}; let qs = [];
+    for (let lag = 0; lag <= maxLag; lag++) {
+      const xs = [], ys = [];
+      for (const k of Object.keys(am)) { const kk = +k; if (!sel(am[kk])) continue; const v = dm[kk + lag]; if (v == null) continue; xs.push(am[kk]); ys.push(v); }
+      if (xs.length < 30) continue;
+      if (!qs.length) qs = xs.slice().sort((p, q) => p - q);
+      const n = xs.length, mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+      let sxy = 0, sxx = 0, syy = 0; for (let i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; syy += (ys[i] - my) ** 2; }
+      const r = sxy / Math.sqrt((sxx * syy) || 1); rs[lag] = r; if (!best || r > best.r) best = { lag, r };
+    }
+    if (!best || best.r < 0.75 || best.lag < 1 || best.lag >= maxLag) return null;
+    let L = best.lag; const r0 = rs[L - 1], r1 = rs[L], r2 = rs[L + 1];
+    if (r0 != null && r2 != null) { const den = r0 - 2 * r1 + r2; if (den < 0) L = L + 0.5 * (r0 - r2) / den; }
+    return { lag: L, r: best.r, q: qs[Math.floor(qs.length / 2)] };
+  };
+  const L = band((v) => v < lo), Hh = band((v) => v >= hi);
+  if (!L || !Hh || !(Hh.q > L.q * 1.2)) return { qRef };
+  const beta = Math.log(L.lag / Hh.lag) / Math.log(Hh.q / L.q);
+  return { qRef, beta: +Math.max(0, Math.min(0.4, beta)).toFixed(3), lagLow: +L.lag.toFixed(1), lagHigh: +Hh.lag.toFixed(1) };
+}
 function calibrate(stations) {
   const by = {}; for (const s of stations) by[s.key] = s;
   const PAIRS = [
@@ -231,20 +285,44 @@ function calibrate(stations) {
     ["belowdavis", "bigbend", 9.5], ["bigbend", "boyscout", 11.2],
     ["boyscout", "interstate", 10.5], ["interstate", "topockg", 10.55],
     ["parkergage", "waterwheel", 23.3], ["waterwheel", "i10", 30.7],
-    ["i10", "taylor", 14.7], ["taylor", "cibola", 19.3],
+    ["i10", "taylor", 14.7], ["taylor", "oxbow", 13.0], ["oxbow", "cibola", 6.3],
     ["cibola", "picacho", 25.3], ["picacho", "martinez", 7.0]
   ];
+  // Alternates used only when a primary pair's gauge is dark (I-10 has been
+  // missing from the feed): they must not overlap a stretch already covered.
+  const ALT = [
+    ["waterwheel", "mcintyrepark", 38.25], ["mcintyrepark", "taylor", 7.15],
+    ["bigbend", "interstate", 21.7]
+  ];
+  const MILE = { davis: 276.0, belowdavis: 275.4, bigbend: 265.9, boyscout: 254.7, interstate: 244.2, topockg: 233.65, parkergage: 175.3, waterwheel: 152.0, i10: 121.3, mcintyrepark: 113.75, taylor: 106.6, oxbow: 93.6, cibola: 87.3, picacho: 62.0, martinez: 55.0 };
   const segments = [];
-  for (const [a, b, mi] of PAIRS) {
-    if (by[a] && by[b] && by[a].flow.length && by[b].flow.length) {
-      const x = xcorrPair(by[a].flow, by[b].flow, mi);
-      if (x) segments.push({ from: a, to: b, miles: mi, ...x });
-    }
-  }
+  const tryPair = (a, b, mi) => {
+    if (!(by[a] && by[b] && by[a].flow.length && by[b].flow.length)) return;
+    const x = xcorrPair(by[a].flow, by[b].flow, mi);
+    if (!x) return;
+    const df = dispersionFit(by[a].flow, by[b].flow, x.lagHours);
+    const fb = flowBandLags(by[a].flow, by[b].flow, Math.min(24, Math.ceil(x.lagHours * 2) + 2));
+    segments.push({ from: a, to: b, miles: mi, ...x, ...(df ? { sigmaH: df.sigmaH, gain: df.gain } : {}), ...(fb ? fb : {}) });
+  };
+  for (const [a, b, mi] of PAIRS) tryPair(a, b, mi);
+  const covered = (a, b) => segments.some(s => { const lo = Math.min(MILE[s.from], MILE[s.to]), hi = Math.max(MILE[s.from], MILE[s.to]); const l2 = Math.min(MILE[a], MILE[b]), h2 = Math.max(MILE[a], MILE[b]); return Math.min(hi, h2) - Math.max(lo, l2) > 0.5; });
+  for (const [a, b, mi] of ALT) if (MILE[a] != null && MILE[b] != null && !covered(a, b)) tryPair(a, b, mi);
   if (!segments.length) return null;
   const mphs = segments.map(s => s.mph).sort((p, q) => p - q);
   const waveMph = +(mphs[Math.floor(mphs.length / 2)]).toFixed(1);
-  return { waveMph, segments };
+  // River-wide spread per mile (median over stretches long enough to measure it).
+  const rates = segments.filter(s => s.sigmaH != null && s.miles >= 8).map(s => s.sigmaH / s.miles).sort((p, q) => p - q);
+  const dispHPerMile = rates.length ? +(rates[Math.floor(rates.length / 2)]).toFixed(3) : null;
+  // River-wide swing gain per mile (median of each stretch's gain^(1/miles));
+  // stretches no gauge pair covers use it.
+  const gr = segments.filter(s => s.gain > 0.3 && s.gain < 1.5 && s.miles >= 8).map(s => Math.pow(s.gain, 1 / s.miles)).sort((p, q) => p - q);
+  const gainPerMile = gr.length ? +(gr[Math.floor(gr.length / 2)]).toFixed(4) : null;
+  // River-wide flow-speed exponent and reference flow for uncalibrated stretches.
+  const betas = segments.filter(s => s.beta != null && s.r >= 0.85).map(s => s.beta).sort((p, q) => p - q);
+  const betaFlow = betas.length ? betas[Math.floor(betas.length / 2)] : null;
+  const qrs = segments.filter(s => s.qRef > 0).map(s => s.qRef).sort((p, q) => p - q);
+  const qRef = qrs.length ? Math.round(qrs[Math.floor(qrs.length / 2)]) : null;
+  return { waveMph, dispHPerMile, gainPerMile, betaFlow, qRef, segments };
 }
 
 // Fetch JSON with retries: Reclamation's generator sometimes serves a truncated
@@ -695,6 +773,201 @@ async function mergeHtmlFallback(out, reason) {
   out.errors.push("reach: " + reason + " — merged " + merged + " points from the HTML daily report" + (through ? " (through " + new Date(through).toISOString() + ")" : ""));
 }
 
+
+// ---------- 14-day outlook ----------
+// Beyond Reclamation's published schedule (~5 days) the releases follow a
+// strong weekly rhythm (power demand + irrigation orders). We learn that
+// hour-of-day x day-of-week shape from a rolling hourly archive of each dam's
+// release, anchor it to the recent level (drifting toward last year's same
+// weeks), and widen the band with lead time. Every run also logs its daily
+// predictions and scores them against what actually happened, so the page can
+// state real accuracy per lead time instead of a decorative "confidence".
+const OUTLOOK_DAYS = 14, HOURLY_KEEP_DAYS = 35, DAY = 86400000, OFF = 7 * 3600 * 1000;
+const OUTLOOK_DAMS = { davis: "davis", parker: "parker" };
+
+function mergeHourly(prevArr, pts) {
+  const m = {};
+  for (const p of prevArr || []) m[p[0]] = p[1];
+  for (const p of pts || []) { const t = Math.round(p.t / 3600000) * 3600000; if (p.v != null) m[t] = p.v; }
+  const cutoff = Date.now() - HOURLY_KEEP_DAYS * DAY;
+  return Object.keys(m).map((t) => [+t, m[t]]).filter((p) => p[0] >= cutoff).sort((a, b) => a[0] - b[0]);
+}
+function mstSlot(t) { // 0..167 = dow*24 + hour, Arizona time
+  const d = new Date(t - OFF); // shift so UTC fields read as MST
+  return d.getUTCDay() * 24 + d.getUTCHours();
+}
+function weeklyPattern(hourly) {
+  if (!hourly || hourly.length < 24 * 5) return null;
+  const mean = hourly.reduce((s, p) => s + p[1], 0) / hourly.length;
+  if (!(mean > 0)) return null;
+  const buckets = Array.from({ length: 168 }, () => []);
+  for (const p of hourly) buckets[mstSlot(p[0])].push(p[1] / mean);
+  const shape = [], sd = [], n = [];
+  for (let i = 0; i < 168; i++) {
+    const b = buckets[i];
+    if (!b.length) { shape.push(null); sd.push(null); n.push(0); continue; }
+    const m = b.reduce((a, v) => a + v, 0) / b.length;
+    const v = b.length > 1 ? b.reduce((a, x) => a + (x - m) * (x - m), 0) / (b.length - 1) : null;
+    shape.push(m); sd.push(v == null ? null : Math.sqrt(v)); n.push(b.length);
+  }
+  // fill empty slots from the nearest hour on the same day, else the overall mean
+  for (let i = 0; i < 168; i++) if (shape[i] == null) {
+    let f = null; for (let k = 1; k < 24 && f == null; k++) { const a = shape[(i + k) % 168], b = shape[(i - k + 168) % 168]; f = a != null ? a : b; }
+    shape[i] = f == null ? 1 : f;
+  }
+  const weeks = (hourly[hourly.length - 1][0] - hourly[0][0]) / (7 * DAY);
+  const pooled = sd.filter((x) => x != null);
+  const sdPooled = pooled.length ? pooled.reduce((a, x) => a + x, 0) / pooled.length : 0.12;
+  return { shape, sd, n, mean, weeks: +weeks.toFixed(2), sdPooled };
+}
+function seasonalAnchor(dailyLastYear, fromT, toT) {
+  // last year's same window from the daily archive ([t, avg, min, max])
+  if (!dailyLastYear || !dailyLastYear.length) return null;
+  const a = fromT - 365 * DAY, b = toT - 365 * DAY, vals = [];
+  for (const p of dailyLastYear) { if (p[0] >= a && p[0] <= b && p[1] != null) vals.push(p[1]); }
+  return vals.length >= 5 ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+}
+// Day-of-week factor and day-to-day spread from the DAILY archive (a year of
+// it exists), so the model isn't limited to however many hourly weeks have
+// accumulated. Uses the last 8 weeks: recent enough to reflect this season.
+function dailyPattern(dailyArchive) {
+  if (!dailyArchive || dailyArchive.length < 21) return null;
+  const cutoff = Date.now() - 56 * DAY;
+  const rows = dailyArchive.filter((p) => p[0] >= cutoff && p[1] != null && p[1] > 0);
+  if (rows.length < 21) return null;
+  const mean = rows.reduce((a, p) => a + p[1], 0) / rows.length;
+  const byDow = Array.from({ length: 7 }, () => []);
+  for (const p of rows) byDow[new Date(p[0] - OFF + 12 * 3600000).getUTCDay()].push(p[1] / mean);
+  const dow = byDow.map((b) => (b.length ? b.reduce((a, v) => a + v, 0) / b.length : 1));
+  // spread of daily means around their own weekday level
+  const res = [];
+  rows.forEach((p) => { const d = new Date(p[0] - OFF + 12 * 3600000).getUTCDay(); res.push(p[1] / mean / dow[d] - 1); });
+  const sd = Math.sqrt(res.reduce((a, x) => a + x * x, 0) / Math.max(1, res.length - 1));
+  return { dow, sdRel: Math.min(0.35, Math.max(0.06, sd)), weeks: +(rows.length / 7).toFixed(1), mean };
+}
+function buildDamOutlook(hourly, sched, dailyArchive) {
+  const pat = weeklyPattern(hourly);
+  if (!pat) return null;
+  const dp = dailyPattern(dailyArchive);
+  // Until 3+ hourly weeks exist, the 168-slot shape is really one week's
+  // noise: use hour-of-day shape (from the hourly week) x day-of-week factor
+  // (from the daily archive) instead.
+  let shape = pat.shape;
+  if (pat.weeks < 3 && dp) {
+    const hod = Array.from({ length: 24 }, () => []);
+    for (let k = 0; k < 168; k++) hod[k % 24].push(pat.shape[k] / (dp.dow[Math.floor(k / 24)] || 1));
+    const h24 = hod.map((b) => b.reduce((a, v) => a + v, 0) / b.length);
+    const hm = h24.reduce((a, v) => a + v, 0) / 24;
+    shape = Array.from({ length: 168 }, (_, k) => (h24[k % 24] / hm) * dp.dow[Math.floor(k / 24)]);
+  }
+  const now = Date.now();
+  const schedEnd = sched && sched.length ? sched[sched.length - 1].t : now;
+  const start = Math.max(now, schedEnd) + 3600000;
+  const end = now + OUTLOOK_DAYS * DAY;
+  const recent = hourly.filter((p) => p[0] >= now - 7 * DAY);
+  const recentMean = recent.length >= 24 ? recent.reduce((s, p) => s + p[1], 0) / recent.length : pat.mean;
+  const seasonal = seasonalAnchor(dailyArchive, now, end);
+  const points = [];
+  for (let t = Math.ceil(start / 3600000) * 3600000; t <= end; t += 3600000) {
+    const dAhead = (t - now) / DAY;
+    // Weight toward the seasonal level as the pattern's memory fades: 0 at
+    // day 5, 0.5 by day 14 (only when last year's window is known).
+    const w = seasonal != null ? Math.min(0.5, Math.max(0, (dAhead - 5) / 18)) : 0;
+    const anchor = recentMean * (1 - w) + (seasonal != null ? seasonal : recentMean) * w;
+    const k = mstSlot(t);
+    const v = anchor * shape[k];
+    // Spread: per-slot once 3+ hourly weeks exist; before that the day-to-day
+    // spread measured from the daily archive; last resort a fixed 20%.
+    const sdRel = pat.weeks >= 3 && pat.sd[k] != null && pat.n[k] >= 3 ? Math.min(0.35, Math.max(0.06, pat.sd[k])) : (dp ? dp.sdRel : 0.2);
+    const grow = 1 + 0.12 * Math.max(0, dAhead - 5);   // uncertainty widens past the schedule
+    const half = 1.28 * sdRel * anchor * grow;           // ~80% band
+    points.push([t, Math.round(v), Math.round(Math.max(0, v - half)), Math.round(v + half), dAhead <= 10 ? "pattern" : "seasonal"]);
+  }
+  return { schedEnd, hourly: points, recentMean: Math.round(recentMean), seasonalMean: seasonal != null ? Math.round(seasonal) : null, weeksLearned: pat.weeks, weeksDaily: dp ? dp.weeks : 0, sdRelDaily: dp ? dp.sdRel : null, sdPooled: +pat.sdPooled.toFixed(3) };
+}
+function leadBucket(lead) { return lead <= 2 ? "1-2" : lead <= 5 ? "3-5" : lead <= 9 ? "6-9" : "10-14"; }
+function scoreOutlook(prevOut, damKey, sched, damOut, accumDaily) {
+  // prevOut: previous run's outlook block (carries pending predictions + scores)
+  const st = (prevOut && prevOut.scoring && prevOut.scoring[damKey]) || { pending: [], scores: {} };
+  const todayStart = Math.floor((Date.now() - OFF) / DAY) * DAY + OFF;
+  const actual = {};
+  for (const p of accumDaily || []) if (p[4] == null || p[4] >= 20) actual[p[0]] = p[1];
+  const keep = [];
+  for (const e of st.pending) {
+    if (e.d < todayStart && actual[e.d] != null) {
+      const a = actual[e.d]; if (a > 0) { const err = +(Math.abs(e.pred - a) / a * 100).toFixed(1); const b = leadBucket(e.lead); (st.scores[b] = st.scores[b] || []).push(err); if (st.scores[b].length > 120) st.scores[b].shift(); }
+    } else if (e.d >= todayStart - 2 * DAY) keep.push(e); // drop stale entries that never got an actual
+  }
+  st.pending = keep;
+  // New predictions: daily means for the next 14 days, from schedule where it exists, else the outlook
+  const byDay = {};
+  const add = (t, v) => { const d = Math.floor((t - OFF) / DAY) * DAY + OFF; (byDay[d] = byDay[d] || []).push(v); };
+  for (const p of sched || []) if (p.t > Date.now()) add(p.t, p.v);
+  for (const p of (damOut && damOut.hourly) || []) add(p[0], p[1]);
+  for (const d of Object.keys(byDay)) {
+    const dd = +d, lead = Math.round((dd - todayStart) / DAY);
+    if (lead < 1 || lead > OUTLOOK_DAYS || byDay[d].length < 12) continue;
+    if (st.pending.some((e) => e.d === dd && e.lead === lead)) continue;
+    st.pending.push({ d: dd, lead, pred: Math.round(byDay[d].reduce((a, v) => a + v, 0) / byDay[d].length) });
+  }
+  const skill = {};
+  for (const b of Object.keys(st.scores)) {
+    const arr = st.scores[b].slice().sort((x, y) => x - y);
+    if (!arr.length) continue;
+    const q = (f) => arr[Math.min(arr.length - 1, Math.floor(f * (arr.length - 1)))];
+    skill[b] = { n: arr.length, medPct: q(0.5), p90Pct: q(0.9) };
+  }
+  return { state: st, skill };
+}
+function buildOutlook(out, prev) {
+  const prevOut = (prev && prev.outlook) || {};
+  const prevHourly = (prev && prev.history && prev.history.hourly) || {};
+  const hourly = {};
+  const byKey = {}; for (const s of out.stations || []) byKey[s.key] = s;
+  for (const dam of Object.keys(OUTLOOK_DAMS)) hourly[dam] = mergeHourly(prevHourly[dam], byKey[dam] ? byKey[dam].flow : []);
+  const dams = {}, scoring = {}, skill = {};
+  const daily = (out.history && out.history.usgs && out.history.usgs.sites) || {};
+  const accum = (out.history && out.history.accum && out.history.accum.sites) || {};
+  for (const dam of Object.keys(OUTLOOK_DAMS)) {
+    const sched = dam === "parker" ? (out.parkerSchedule && out.parkerSchedule.points) : (out.davisSchedule && out.davisSchedule.points);
+    const dayArch = daily[dam] && daily[dam].flow;
+    const o = buildDamOutlook(hourly[dam], sched || [], dayArch);
+    if (o) dams[dam] = o;
+    const sc = scoreOutlook(prevOut, dam, sched || [], o, accum[dam] && accum[dam].flow);
+    scoring[dam] = sc.state; skill[dam] = sc.skill;
+  }
+  return { hourly, outlook: { generatedAt: new Date().toISOString(), days: OUTLOOK_DAYS, dams, skill, scoring } };
+}
+
+// Live USGS instantaneous values for the gauges the page reads directly
+// (below Palo Verde Dam, the two canals, the wasteway, below Davis Dam),
+// thinned to one point an hour so the file stays small. Shipping them in the
+// relay means the page no longer has to reach waterservices.usgs.gov itself.
+const LIVE_USGS = ["09429100", "09429000", "09428510", "09428500", "09423000"];
+async function fetchUsgsLive(prev) {
+  const url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=" + LIVE_USGS.join(",") + "&parameterCd=00060,00065&period=P7D&siteStatus=all";
+  try {
+    const json = (await fetchJsonRetry(url, 2)).json;
+    const sites = {};
+    for (const ts of (json.value && json.value.timeSeries) || []) {
+      const site = ts.sourceInfo.siteCode[0].value, param = ts.variable.variableCode[0].value;
+      const raw = (ts.values[0] && ts.values[0].value) || [], best = {};
+      for (const p of raw) {
+        const v = parseFloat(p.value); if (!isFinite(v) || v <= -9999) continue;
+        const t = new Date(p.dateTime).getTime(), hk = Math.round(t / 3600000), off = Math.abs(t - hk * 3600000);
+        if (!best[hk] || off < best[hk].off) best[hk] = { t, v, off }; // the reading nearest each top of the hour
+      }
+      const pts = Object.keys(best).map((k) => ({ t: best[k].t, v: best[k].v })).sort((a, b) => a.t - b.t);
+      if (pts.length) { (sites[site] = sites[site] || {})[param] = pts; }
+    }
+    if (!Object.keys(sites).length) throw new Error("no series");
+    return { fetchedAt: new Date().toISOString(), sites };
+  } catch (e) {
+    const old = prev && prev.usgs;
+    if (old && old.fetchedAt && Date.now() - new Date(old.fetchedAt).getTime() < 6 * 3600000) return Object.assign({}, old, { carried: String(e && e.message || e).slice(0, 80) });
+    return null;
+  }
+}
 async function main() {
   const prev = loadPrevious();
   const out = { generatedAt: new Date().toISOString(), stations: [], headgate: null, errors: [] };
@@ -814,6 +1087,39 @@ async function main() {
     if (prev && prev.parkerSchedule) { out.parkerSchedule = prev.parkerSchedule; out.davisSchedule = prev.davisSchedule || null; out.errors.push("davisparker: carried forward from " + prev.generatedAt); }
   }
 
+  // Rolling archive of the PUBLISHED schedules (6 days back). Reclamation only
+  // publishes forward, but far-downstream reaches need yesterday's schedule to
+  // calibrate against what actually arrived 1-2 days later.
+  try {
+    const arc = (prev && prev.schedArchive) || {};
+    const mergeArc = (prevArr, pts) => {
+      const m = {};
+      for (const p of prevArr || []) m[p.t] = p.v;
+      for (const p of pts || []) if (p && p.t && p.v != null) m[p.t] = p.v;
+      const cutoff = Date.now() - 6 * 86400000;
+      return Object.keys(m).map((t) => ({ t: +t, v: m[t] })).filter((p) => p.t >= cutoff).sort((a, b) => a.t - b.t);
+    };
+    out.usgs = await fetchUsgsLive(prev);
+    if (!out.usgs) out.errors.push("usgs live: unavailable this run");
+    out.schedArchive = {
+      parker: mergeArc(arc.parker, out.parkerSchedule && out.parkerSchedule.points),
+      davis: mergeArc(arc.davis, out.davisSchedule && out.davisSchedule.points),
+      headgate: mergeArc(arc.headgate, out.headgate && out.headgate.downstream),
+      headgateParker: mergeArc(arc.headgateParker, out.headgate && out.headgate.parker),
+    };
+  } catch (e) { out.errors.push("schedarchive: " + (e && e.message ? e.message : e)); if (prev && prev.schedArchive) out.schedArchive = prev.schedArchive; }
+
+  try {
+    const ob = buildOutlook(out, prev);
+    out.history = out.history || {};
+    out.history.hourly = ob.hourly;
+    out.outlook = ob.outlook;
+  } catch (e) {
+    out.errors.push("outlook: " + (e && e.message ? e.message : e));
+    if (prev && prev.outlook) out.outlook = prev.outlook;
+    if (prev && prev.history && prev.history.hourly) { out.history = out.history || {}; out.history.hourly = prev.history.hourly; }
+  }
+
   fs.mkdirSync("data", { recursive: true });
   fs.writeFileSync("data/riverdata.json", JSON.stringify(out));
   const histUsgsN = out.history && out.history.usgs ? Object.keys(out.history.usgs.sites || {}).length : 0;
@@ -828,4 +1134,4 @@ async function main() {
 }
 
 if (require.main === module) main();
-module.exports = { parseHeadgate, buildStations, calibrate, xcorrPair, parseDavisParker, parseHourly7, newestReading, accumulateDaily, fetchUsgsHistory };
+module.exports = { fetchUsgsLive, buildOutlook, weeklyPattern, parseHeadgate, buildStations, calibrate, xcorrPair, parseDavisParker, parseHourly7, newestReading, accumulateDaily, fetchUsgsHistory };

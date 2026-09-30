@@ -38,7 +38,7 @@ jobs:
 
       - name: Install PDF parser
         # the registry hiccups now and then; one retry covers it
-        run: npm install pdf-parse@1.1.1 --no-save || (sleep 10 && npm install pdf-parse@1.1.1 --no-save)
+        run: npm install --no-audit --no-fund --no-save pdf-parse@1.1.1 || (sleep 10 && npm install --no-audit --no-fund --no-save pdf-parse@1.1.1)
 
       - name: Fetch and parse river data
         run: node scripts/build-data.cjs
@@ -80,3 +80,14 @@ jobs:
           done
           echo "::error::could not push river data after 5 attempts"
           exit 1
+
+      - name: Send push alerts (site evaluates subscribers against the fresh data)
+        if: always()
+        env:
+          PUSH_RUN_KEY: ${{ secrets.PUSH_RUN_KEY }}
+          SITE_URL: ${{ github.ref_name == 'main' && 'https://istheriverup.com' || format('https://{0}--blythe-river.netlify.app', github.ref_name) }}
+        run: |
+          if [ -z "$PUSH_RUN_KEY" ]; then echo "PUSH_RUN_KEY secret not set — skipping alerts"; exit 0; fi
+          curl -sS --max-time 60 -X POST "$SITE_URL/api/push/run" \
+            -H "x-run-key: $PUSH_RUN_KEY" -H "content-type: application/json" \
+            -d "{\"branch\":\"${{ github.ref_name }}\"}" || echo "alert run failed (non-fatal)"

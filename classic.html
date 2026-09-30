@@ -1,0 +1,2196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e1726'/%3E%3Ccircle cx='45' cy='19' r='8' fill='%23e8a15c'/%3E%3Cpath d='M6 38c6-9 14-9 20 0s14 9 20 0 9-7 12-5' stroke='%236fb7e0' stroke-width='5.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M6 51c6-9 14-9 20 0s14 9 20 0 9-7 12-5' stroke='%233f7ba6' stroke-width='5.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="canonical" href="https://istheriverup.com/">
+<meta name="theme-color" content="#0d1521">
+<meta name="description" content="Live Colorado River water levels, daily highs &amp; lows, and multi-day forecasts for every landmark from Davis Dam to Martinez Lake — Laughlin, Lake Havasu, the Parker Strip, Lost Lake, Water Wheel, Blythe, and beyond.">
+<meta property="og:title" content="Is The River Up? — live Colorado River levels &amp; forecast">
+<meta property="og:description" content="Is the river up or down at your spot? Live sensors, tide tables, and the dam schedule, shifted to your stretch of the Colorado.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://istheriverup.com/">
+<meta property="og:site_name" content="Is The River Up?">
+<meta property="og:image" content="https://istheriverup.com/og-image.png?v=2">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<title>Is The River Up? — Colorado River levels, Davis Dam to Martinez Lake</title>
+<style>
+  :root{
+    --bg:#0d1521; --panel:#14202f; --panel2:#1b2c3f; --border:#263b53;
+    --text:#dce7f0; --muted:#8aa2b8; --water:#35b8d6;
+    --rise:#35d6a4; --fall:#f0a63a; --steady:#8aa2b8; --house:#ff7a4d;
+  }
+  body.day{
+    --bg:#eef2f6; --panel:#ffffff; --panel2:#e3eaf1; --border:#b7c5d3;
+    --text:#0e1d2b; --muted:#43586c; --water:#075e8f;
+    --rise:#0c7a4d; --fall:#a35a00; --steady:#43586c; --house:#b34700;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; line-height:1.5; padding:20px; max-width:1040px; margin:0 auto}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  header{display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 16px}
+  h1{font-size:22px; font-weight:600; letter-spacing:-.02em; margin:0}
+  h2{font-size:16px; font-weight:600; margin:0 0 4px}
+  .coords{color:var(--muted); font-size:13px}
+  .updated{margin-left:auto; color:var(--muted); font-size:13px; display:flex; align-items:center; gap:10px}
+  button{background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:5px 12px; font-size:13px; cursor:pointer}
+  button:hover{border-color:var(--water)}
+  .strip{display:flex; align-items:center; gap:8px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin:14px 0 22px; padding:10px 14px; background:var(--panel); border:1px solid var(--border); border-radius:10px; min-height:40px}
+  .strip b{color:var(--text); font-weight:500}
+  .strip .you{color:var(--house); font-weight:500}
+  .strip .arrow{color:var(--border)}
+  .hero{background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--water); border-radius:14px; padding:20px 22px; margin-bottom:22px}
+  .hero .eyebrow{color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.08em}
+  .hero .status{font-size:clamp(22px,5.2vw,31px); font-weight:600; letter-spacing:-.02em; margin:6px 0 2px} /* inline flow: the arrow wraps WITH the text instead of stranding on its own flex line */
+  .hero .status>span:first-child{margin-right:6px}
+  .hero .sub{color:var(--muted); font-size:14px; min-height:3em} /* reserve ~2 lines so the hero doesn't jump when data lands */
+  .hero .coming{margin-top:14px; padding-top:14px; border-top:1px solid var(--border); font-size:14px; color:var(--muted); min-height:2.6em}
+  .hero .coming b{color:var(--text); font-weight:500}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px}
+  .card.primary{border-color:var(--house)}
+  body.day .card.primary{background:#fbeadb; border-width:2px}
+  .card .role{font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); display:flex; justify-content:space-between; gap:8px}
+  .card.primary .role{color:var(--house)}
+  .card .src{color:var(--muted); font-weight:400; letter-spacing:0; text-transform:none}
+  .card .name{font-size:15px; font-weight:500; margin:2px 0 12px}
+  .card .big{display:flex; align-items:baseline; gap:8px}
+  .card .cfs{font-size:30px; font-weight:600}
+  .card .unit{color:var(--muted); font-size:13px}
+  .card .trend{margin-left:auto; font-size:15px; font-weight:500; display:flex; align-items:center; gap:5px}
+  .card .meta{display:flex; justify-content:space-between; color:var(--muted); font-size:12px; margin-top:12px}
+  .card svg{display:block; width:100%; height:38px; margin-top:12px}
+  .card .stamp{color:var(--muted); font-size:11px; margin-top:8px}
+  .card .level{display:flex; align-items:center; gap:9px; margin-top:11px; font-size:12px; color:var(--muted)}
+  .lvl-bar{flex:1; height:7px; background:var(--panel2); border-radius:5px; overflow:hidden}
+  .lvl-bar>span{display:block; height:100%; border-radius:5px}
+  .lvl-word{white-space:nowrap; font-weight:500}
+  .site-link{color:var(--water); font-size:12px; text-decoration:none}
+  .site-link:hover{text-decoration:underline}
+  section{margin-top:26px}
+  .section-panel{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:18px}
+  p.lead{color:var(--muted); font-size:14px; margin:0 0 14px; max-width:74ch}
+  .fc-head{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap}
+  .fc-now{margin-left:auto; font-size:13px; color:var(--muted)}
+  .fc-now b{color:var(--text); font-weight:500}
+  #fc-chart,#hg-chart{width:100%; height:120px; display:block; margin:6px 0 4px}
+  .links{display:flex; flex-wrap:wrap; gap:10px; margin-top:14px}
+  .links a{background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:8px 14px; color:var(--text); text-decoration:none; font-size:13px}
+  .links a:hover{border-color:var(--water); color:var(--water)}
+  table.tide{width:100%; border-collapse:collapse; font-size:14px}
+  table.tide th{text-align:left; color:var(--muted); font-weight:500; font-size:12px; padding:6px 8px; border-bottom:1px solid var(--border)}
+  table.tide td{padding:8px; border-bottom:1px solid var(--border)}
+  table.tide tr:last-child td{border-bottom:none}
+  table.tide tr.dayhead td{padding:12px 8px 4px; border-bottom:none; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em; font-weight:600}
+  table.tide tr.next td{background:rgba(53,184,214,0.08)}
+  table.tide tr.next td:first-child{border-left:3px solid var(--water)}
+  table.tide .count{color:var(--water); font-weight:600; margin-left:6px; font-style:normal}
+  .pill{display:inline-block; padding:1px 9px; border-radius:20px; font-size:12px; font-weight:500}
+  .pill.high{background:#12313a; color:#7fe3d6}
+  .pill.low{background:#2a2114; color:#f2c98a}
+  .pill.mid{background:var(--panel2); color:var(--muted)}
+  body.day .pill.high{background:#d3ece4; color:#085c3b}
+  body.day .pill.low{background:#f3e4cd; color:#7a4a00}
+  body.day .pill.mid{background:#e3eaf1; color:#43586c}
+  .hero .eyebrow .pill.lvl{font-weight:700; letter-spacing:.04em; margin-left:8px; white-space:nowrap; vertical-align:baseline}
+  .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
+  .expected{color:var(--muted); font-style:italic}
+  .note{color:var(--muted); font-size:12px; margin-top:10px}
+  .banner{background:#2a1f14; border:1px solid #6b4a1e; color:#f0c98a; border-radius:10px; padding:12px 16px; font-size:13px; margin-bottom:18px; display:none}
+  body.day .banner{background:#fdf3dd; border-color:#c9a25a; color:#6b4a00}
+  select.place{background:var(--panel2); color:var(--text); border:2px solid var(--water); border-radius:14px; padding:12px 18px; font-size:18px; font-weight:700; cursor:pointer; box-shadow:0 0 0 4px rgba(127,192,232,0.14); max-width:min(62vw,360px)}
+  select.place:hover{box-shadow:0 0 0 6px rgba(127,192,232,0.28)}
+  .pick-label{font-size:17px; color:var(--text); font-weight:700; white-space:nowrap}
+  .picker-wrap{display:inline-flex; align-items:center; gap:10px; flex-wrap:nowrap}
+  .agechip{color:var(--muted); font-size:0.92em}
+  .muted-sm{color:var(--muted); font-size:11px; font-weight:400}
+  body.nochoice section:not(#welcome), body.nochoice .grid, body.nochoice .hero, body.nochoice .strip{display:none !important}
+  .chart-hold{position:relative; touch-action:pan-y; padding-left:38px} /* left gutter: y-labels live beside the plot, not on it */
+  .ylab span{position:absolute; left:0; width:32px; text-align:right; font-size:11px; font-weight:600; color:var(--muted); pointer-events:none; line-height:1.5}
+  .xh-line{position:absolute; top:0; bottom:0; width:1.5px; background:var(--text); opacity:0.5; pointer-events:none; display:none}
+  .xh-dot{position:absolute; width:9px; height:9px; border-radius:50%; background:var(--water); border:2px solid var(--bg); transform:translate(-50%,-50%); pointer-events:none; display:none}
+  .xh-chip{position:absolute; top:4px; background:rgba(10,18,28,0.88); color:#dce7f0; font-size:11.5px; font-weight:600; padding:2px 8px; border-radius:6px; pointer-events:none; white-space:nowrap; display:none}
+  body.day .xh-chip{background:rgba(255,255,255,0.94); color:#0e1d2b; border:1px solid var(--border)}
+  .yl-top{top:2px} .yl-mid{top:50%; transform:translateY(-50%)} .yl-bot{bottom:2px}
+  .range-picker{display:flex; gap:6px; margin:8px 0 2px}
+  .range-picker button{font-size:12px; padding:4px 12px; border-radius:999px; background:transparent; color:var(--muted); border:1px solid var(--border); cursor:pointer}
+  .range-picker button.on{color:var(--water); border-color:var(--water); background:rgba(127,192,232,0.10); font-weight:700}
+  @media (max-width:900px){
+    /* Stack order stays the same at every width: title → picker → buttons → status */
+    .updated{margin-left:0; width:100%; flex-wrap:wrap; justify-content:flex-start; row-gap:8px}
+    #updated{flex-basis:100%; order:9; font-size:12px}
+    #load-spin{order:9}
+  }
+  @media (max-width:680px){
+    .picker-wrap{width:100%}
+    .picker-wrap select.place{flex:1; max-width:none; min-width:0} /* min-width:0 — else the widest option name dictates the whole page's minimum width */
+    .updated #tip-link,.updated #mode-btn,.updated #refresh,.updated #share-btn,.updated #theme-btn{font-size:13px; padding:8px 12px} /* .updated prefix outranks the desktop rule */
+    .range-picker button{padding:9px 14px} /* comfortable touch targets */
+    .axis span.minor{display:none} /* noon labels collide with day labels at this width */
+    /* On phones the hero fills the first viewport — reserve its measured
+       loaded size so arriving data doesn't shove the page around (CLS). */
+    .strip{min-height:118px}
+    .hero .eyebrow{min-height:38px}
+    .hero .status{min-height:68px}
+    .hero .sub{min-height:130px}
+    .hero .coming{min-height:118px}
+  }
+  @media (prefers-reduced-motion: no-preference){
+    select.place{animation:beckon 1.3s ease-in-out 3}
+  }
+  @keyframes beckon{0%,100%{box-shadow:0 0 0 4px rgba(127,192,232,0.14)} 50%{box-shadow:0 0 0 10px rgba(127,192,232,0.38)}}
+  .spin{display:inline-block; width:12px; height:12px; border:2px solid var(--border); border-top-color:var(--water); border-radius:50%; vertical-align:-2px}
+  .skel{position:relative; overflow:hidden; background:var(--panel2); border-radius:8px}
+  .skel::after{content:""; position:absolute; top:0; left:0; right:0; bottom:0; transform:translateX(-100%); background:linear-gradient(90deg, transparent, rgba(140,170,200,0.13), transparent)}
+  body.day .skel::after{background:linear-gradient(90deg, transparent, rgba(30,60,90,0.10), transparent)}
+  .skel-card{height:252px} /* matches a populated card, so the grid doesn't grow on swap */
+  .chart-skel{height:156px; margin:6px 0 4px} /* chart (120) + axis row with the "now" label (36) */
+  .axis{position:relative; height:19px; margin-top:3px; margin-left:38px; font-size:12.5px; font-weight:600; color:var(--text); opacity:0.8; display:none} /* margin matches the chart-hold gutter */
+  .axis span{position:absolute; top:0; white-space:nowrap}
+  body.simple .adv-only{display:none}
+  #tip-link,#mode-btn,#refresh,#share-btn,#theme-btn{font-size:15px; padding:10px 18px; border-radius:12px; font-weight:700; cursor:pointer; white-space:nowrap; flex-shrink:0} /* a growing status line must never squeeze a button into wrapping */
+  #share-btn{background:transparent; color:var(--water); border:1.5px solid var(--water); white-space:nowrap}
+  #share-btn:hover{background:rgba(127,192,232,0.12)}
+  body.nochoice #share-btn{display:none}
+  #tip-link{background:rgba(232,150,90,0.18); color:var(--house); border:1.5px solid var(--house); text-decoration:none; white-space:nowrap}
+  #tip-link:hover{background:rgba(232,150,90,0.34)}
+  #mode-btn{background:transparent; color:var(--water); border:1.5px solid var(--water)}
+  #mode-btn:hover{background:rgba(127,192,232,0.12)}
+  #refresh{background:var(--water); color:#08121e; border:1.5px solid var(--water)}
+  body.day #refresh{color:#fff} /* day --water is a dark blue; near-black text on it was ~2.6:1 */
+  #refresh:hover{filter:brightness(1.12)}
+  #refresh:disabled{opacity:0.55; cursor:default}
+  .skel-row{height:14px; margin:10px 0}
+  @media (prefers-reduced-motion: no-preference){
+    .spin{animation:spin .9s linear infinite}
+    .skel::after{animation:shimmer 1.6s infinite}
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes shimmer{100%{transform:translateX(100%)}}
+  footer{color:var(--muted); font-size:12px; margin-top:28px; border-top:1px solid var(--border); padding-top:14px}
+</style>
+</head>
+<body class="nochoice simple">
+<script>
+// Pre-paint gate: decide BEFORE any content parses which big layout classes
+// apply — has this visitor picked a spot (nochoice), and are they in simple or
+// advanced mode. Flipping either after first paint was the page's biggest
+// layout shift. Keys mirror PLACE_KEY / MODE_KEY below.
+try{
+  var _cls="nochoice simple";
+  if(/^\/s\/[a-z0-9-]+\/?$/i.test(location.pathname) || /[?&]spot=/i.test(location.search) || localStorage.getItem("blythe_place_v1")) _cls=_cls.replace("nochoice","");
+  if(localStorage.getItem("blythe_mode_v1")==='"advanced"') _cls=_cls.replace("simple","");
+  document.body.className=_cls.replace(/\s+/g," ").trim();
+}catch(e){}
+</script>
+
+<header>
+  <h1>Is The River Up?</h1>
+  <span class="coords">Davis Dam &rarr; Martinez Lake</span>
+  <span class="picker-wrap"><label class="pick-label" for="place-sel">📍 Your spot:</label><select id="place-sel" class="place"></select></span>
+  <span class="updated"><span id="load-spin" class="spin" style="display:none"></span><span id="updated" aria-live="polite">Loading&hellip;</span><a href="https://ko-fi.com/IsTheRiverUp" target="_blank" rel="noopener" id="tip-link" title="This site is free — tips cover the domain and upkeep. Opens the Ko-fi tip jar in a new tab.">🛟 Tip jar</a><button id="share-btn" title="Share a link that opens right on this spot — or copy it to the clipboard.">📤 Share</button><button id="theme-btn" title="Bright-sun day mode / night mode. Auto-picks by time of day until you choose.">☀️ Day</button><button id="mode-btn">Advanced</button><button id="refresh">Refresh</button></span>
+</header>
+
+<div class="strip" id="strip"></div>
+
+<div class="banner" id="banner"></div>
+
+<div class="hero">
+  <div class="eyebrow" id="hero-eyebrow">Pick your spot to begin</div>
+  <div class="status" id="hero-status">&mdash;</div>
+  <div class="sub" id="hero-sub">Reading the closest sensor&hellip;</div>
+  <div class="coming" id="hero-coming"></div>
+</div>
+
+<div class="grid adv-only" id="grid"><div class="card skel skel-card"></div><div class="card skel skel-card"></div><div class="card skel skel-card"></div></div>
+
+<section id="welcome" style="display:none">
+  <div class="section-panel">
+    <h2>Where’s your river spot? 🌊</h2>
+    <p class="lead">Pick your stretch once — this site remembers, and next time opens right on your water. (You can switch anytime with the 📍 picker up top.)</p>
+    <div class="range-picker" id="welcome-pick" style="flex-wrap:wrap; gap:10px">
+      <button data-place="laughlin" style="font-size:14px; padding:10px 16px">🎰 Laughlin / Bullhead</button>
+      <button data-place="topock" style="font-size:14px; padding:10px 16px">🌉 Needles / Topock</button>
+      <button data-place="lhc" style="font-size:14px; padding:10px 16px">🌊 Lake Havasu</button>
+      <button data-place="roadrunner" style="font-size:14px; padding:10px 16px">🏖 Parker Strip</button>
+      <button data-place="ahaquin" style="font-size:14px; padding:10px 16px">🚜 Blythe area</button>
+      <button data-place="martinezlk" style="font-size:14px; padding:10px 16px">🏜 Cibola &amp; south</button>
+    </div>
+  </div>
+</section>
+
+<section class="adv-only">
+  <div class="section-panel">
+    <h2>Pulse-speed calibration — how good is the timing?</h2>
+    <p class="lead" id="cal-lead">Waiting for calibration data…</p>
+    <div id="cal-table"></div>
+  </div>
+</section>
+
+<section>
+  <div class="section-panel" style="border-left:3px solid var(--house)">
+    <div class="fc-head">
+      <h2>Coming toward you &mdash; next few days</h2>
+      <span class="fc-now" id="hg-next"></span>
+    </div>
+    <p class="lead" id="hg-lead">Loading Reclamation&rsquo;s dam release schedule&hellip;</p>
+    <div class="skel chart-skel" id="hg-skel"></div>
+    <svg id="hg-chart" viewBox="0 0 900 120" preserveAspectRatio="none" style="display:none" role="img" aria-label="Forecast chart: dam release schedule and measured en-route water, shifted to your spot. The next highs and lows are listed in the tide table below."></svg>
+    <div class="axis" id="hg-axis"></div>
+    <p class="note adv-only" id="hg-note"></p>
+  </div>
+</section>
+
+<section>
+  <div class="section-panel">
+    <div class="fc-head">
+      <h2 id="fc-title">Recent &mdash; nearest sensor</h2>
+      <span class="fc-now" id="fc-now"></span>
+    </div>
+    <p class="lead" id="fc-lead">Loading Reclamation&rsquo;s hourly record&hellip;</p>
+    <div class="range-picker" id="range-pick">
+      <button data-d="1">24h</button><button data-d="2">2 days</button><button data-d="4">4 days</button><button data-d="7">7 days</button>
+    </div>
+    <div class="skel chart-skel" id="fc-skel"></div>
+    <svg id="fc-chart" viewBox="0 0 900 120" preserveAspectRatio="none" style="display:none" role="img" aria-label="Recent-flow chart from the nearest sensor. The recent highs and lows are listed in the tide table below."></svg>
+    <div class="axis" id="fc-axis"></div>
+    <div class="links adv-only">
+      <a href="https://www.usbr.gov/lc/region/g4000/hourly/DavisParkerSchedules.pdf" target="_blank" rel="noopener" id="sched-link">Parker Dam projected schedule (PDF) &#8599;</a>
+      <a href="https://www.usbr.gov/lc/riverops.html" target="_blank" rel="noopener">Reclamation river operations &#8599;</a>
+    </div>
+  </div>
+</section>
+
+<section id="yr-sec" style="display:none">
+  <div class="section-panel">
+    <div class="fc-head">
+      <h2 id="yr-title">The past year &mdash; is the water actually high?</h2>
+      <span class="fc-now" id="yr-now"></span>
+    </div>
+    <p class="lead" id="yr-lead"></p>
+    <div class="range-picker" id="yr-range-pick">
+      <button data-m="3">3 months</button><button data-m="6">6 months</button><button data-m="12">12 months</button>
+    </div>
+    <svg id="yr-chart" viewBox="0 0 900 120" preserveAspectRatio="none" style="display:none" role="img" aria-label="Daily average flow over the past year at the nearest long-record gauge, with the current level marked as a dashed line."></svg>
+    <div class="axis" id="yr-axis"></div>
+    <p class="note" id="yr-note"></p>
+  </div>
+</section>
+
+<section>
+  <div class="section-panel">
+    <h2>Tide table &mdash; daily highs &amp; lows</h2>
+    <p class="lead" id="tide-lead">When the pulse peaks and bottoms out at your reach. Times are Arizona (MST).</p>
+    <table class="tide"><thead><tr><th>When (MST)</th><th><span class="sr-only">High or low</span></th><th id="tide-lvl-th">Above weekly low</th></tr></thead>
+      <tbody id="tide-body"><tr><td colspan="3" style="color:var(--muted)">Loading&hellip;</td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+
+
+<section>
+  <div class="section-panel">
+    <h2>Keep this site afloat 🛟</h2>
+    <p class="lead">This site is a free, one-person project — the data comes from public sensors, but the domain and upkeep don’t pay for themselves. If the tide table saved you a wasted trip to the ramp, you can <a class="site-link" href="https://ko-fi.com/IsTheRiverUp" target="_blank" rel="noopener"><b>toss a few bucks in the tip jar</b></a>. No account needed, and the site stays free either way.</p>
+  </div>
+</section>
+
+<footer>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-07-19h</span> &mdash; past-year history &middot; place picker &middot; GitHub data relay &middot; no server functions.<br>
+  Place timing is estimated from Reclamation river miles and the pulse travel speed (default ~4 mph, editable at the top of this file).<span id="cal-note"></span><br>
+  How the data flows: your browser fetches the five USGS gauges live on every load. Reclamation&rsquo;s servers don&rsquo;t allow browser access, so a GitHub robot gathers their river sensors (Davis Dam to Martinez Lake), Lake Havasu&rsquo;s level, and the dam-schedule PDFs about three times an hour and publishes them for this page (the header shows how fresh that data is).</span><br>
+  All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
+</footer>
+
+<script>
+// pdf.js (~350 KB) is only needed on the rare fallback path where the browser
+// parses Reclamation's PDF itself (relay down). Load it on demand, once.
+var _pdfJsP=null;
+function loadPdfJs(){
+  if(window["pdfjsLib"]) return Promise.resolve();
+  if(_pdfJsP) return _pdfJsP;
+  _pdfJsP=new Promise(function(resolve, reject){
+    var s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    s.onload=function(){
+      try{ pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }catch(e){}
+      resolve();
+    };
+    s.onerror=function(){ _pdfJsP=null; reject(new Error("PDF library did not load")); };
+    document.head.appendChild(s);
+  });
+  return _pdfJsP;
+}
+
+// ---------- sources ----------
+var USGS_ID = "09429100", CANAL_ID = "09429000", WASTE_ID = "09428510", CRIT_ID = "09428500", DAVIS_USGS = "09423000";
+var WASTE_MILE = 158.8; // Poston Wasteway: CRIT return flow re-enters the river here
+var USGS_API = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=" + USGS_ID + "," + CANAL_ID + "," + WASTE_ID + "," + CRIT_ID + "," + DAVIS_USGS + "&parameterCd=00060,00065&period=P7D&siteStatus=all";
+var BOR_JSON = "https://www.usbr.gov/lc/region/g4000/riverops/webreports/hourlyweb.json";
+var HG_PDF   = "https://www.usbr.gov/lc/region/g4000/hourly/HeadgateReport.pdf";
+var PROXIES = [
+  function(u){ return "https://api.codetabs.com/v1/proxy/?quest=" + encodeURIComponent(u); },
+  function(u){ return "https://api.allorigins.win/raw?url=" + encodeURIComponent(u); },
+  function(u){ return "https://corsproxy.io/?url=" + encodeURIComponent(u); }
+];
+
+// ============ EDIT ME ============
+// GitHub data relay: your repo, so the page reads hourly data the bot fetched server-side.
+var GH_REPO = "blythe-river-reach/blythe-river-reach";
+var DAVIS_MILE = 276.0, UPPER_MIN = 222.8; // Davis Dam; Topock Gorge stays riverine down past The Sandbar
+var GH_BRANCH = "main";
+// Netlify branch deploys are served from "branch--sitename.netlify.app" \u2014 detect it
+// so the dev site previews the dev robot\u2019s data (falling back to main automatically).
+try{
+  var _bm=(window.location && location.hostname || "").match(/^([a-z0-9-]+)--/);
+  if(_bm && _bm[1]) GH_BRANCH=_bm[1];
+  else if(/^dev\./.test(location.hostname)) GH_BRANCH="dev"; // dev.istheriverup.com serves the dev branch
+}catch(e){}
+// How fast a release pulse travels downstream. Calibrate: watch one high pass a sensor,
+// note when it reaches your dock, adjust until the times match.
+var WAVE_MPH = 4;
+// Documented Reclamation river miles (from the official river mile index, Aug 2001).
+var PARKER_MILE = 192.2, HEADGATE_MILE = 177.7, PVDAM_MILE = 133.8;
+var SENSORS = [
+  {key:"davis",        mile:276.0, label:"the Davis Dam release"},
+  {key:"belowdavisusgs", mile:275.3, label:"the USGS gauge below Davis Dam"},
+  {key:"belowdavis",   mile:275.4, label:"the Below Davis Dam sensor"},
+  {key:"bigbend",      mile:265.9, label:"the Big Bend sensor"},
+  {key:"boyscout",     mile:254.7, label:"the Boy Scout Camp sensor"},
+  {key:"interstate",   mile:244.2, label:"the Interstate Bridge sensor at Needles"},
+  {key:"topockg",      mile:233.65, label:"the Topock bridge sensor"},
+  {key:"parker",       mile:192.2, label:"the Parker release"},
+  {key:"parkergage",   mile:175.3, label:"the Parker gage (below Headgate)"},
+  {key:"waterwheel",   mile:152.0, label:"the Water Wheel sensor"},
+  {key:"belowpv",      mile:133.5, label:"the USGS gauge below the diversion dam"},
+  {key:"i10",          mile:121.3, label:"the I-10 sensor"},
+  {key:"mcintyrepark", mile:113.75, label:"the McIntyre Park sensor"},
+  {key:"taylor",       mile:106.6, label:"the Taylor Ferry sensor"},
+  {key:"oxbow",        mile:93.6,  label:"the Oxbow Bridge sensor"},
+  {key:"cibola",       mile:87.3,  label:"the Cibola gage"},
+  {key:"picacho",      mile:62.0,  label:"the Picacho Park sensor"},
+  {key:"martinez",     mile:55.0,  label:"the Martinez Lake sensor"}
+];
+// Places, upstream to downstream. mile = Reclamation river mile — documented in
+// the official river-mile index or computed from your GPS pins projected between
+// documented anchors (1 mile \u2248 15 min of pulse travel at 4 mph).
+var PLACES = [
+  {key:"davisdam",    name:"Davis Dam",                mile:276.0},
+  {key:"laughlin",    name:"Laughlin",                 mile:274.0},
+  {key:"bigbendsra",  name:"Big Bend",                 mile:265.9},
+  {key:"sbullhead",   name:"South Bullhead City",      mile:264.8},
+  {key:"avi",         name:"Avi Resort & Casino",      mile:259.8},
+  {key:"needles",     name:"Needles",                  mile:246.9},
+  {key:"moabi",       name:"Park Moabi / Pirate Cove", mile:235.5},
+  {key:"topock",      name:"Topock",                   mile:233.9},
+  {key:"sandbar",     name:"The Sandbar",              mile:223.5},
+  {key:"havasulanding", name:"Havasu Landing",         mile:214.0, seg:"lake"},
+  {key:"lhc",         name:"Lake Havasu City",         mile:209.5, seg:"lake"},
+  {key:"havasu",      name:"Lake Havasu \u2014 south basin", mile:193.5, seg:"lake"},
+  {key:"parkerdam",   name:"Parker Dam",               mile:192.2},
+  {key:"riverlodge",  name:"River Lodge Resort",       mile:189.1},
+  {key:"roadrunner",  name:"Roadrunner",               mile:185.1},
+  {key:"moovalya",    name:"Moovalya Keys",            mile:181.6},
+  {key:"bluewater",   name:"Bluewater Resort",         mile:178.2},
+  {key:"headgate",    name:"Headgate Rock Dam",        mile:177.7},
+  {key:"bigriver",    name:"Big River",                mile:170.5},
+  {key:"agneswilson", name:"Agnes Wilson Bridge",      mile:163.3},
+  {key:"lostlake",    name:"Lost Lake",                mile:159.8},
+  {key:"hidden",      name:"Hidden Valley / Rio Loco",            mile:155.7},
+  {key:"ww",          name:"Water Wheel",              mile:151.4},
+  {key:"shaggy",      name:"Shaggy Tree",              mile:148.2},
+  {key:"ahaquin",     name:"Aha Quin",                 mile:145.1},
+  {key:"twin",        name:"Twin Palms",               mile:144.1},
+  {key:"rancho",      name:"Ranchos Not So Grande",     mile:141.0},
+  {key:"villa",       name:"Villa Shores",             mile:138.2},
+  {key:"pvdam",       name:"Palo Verde Diversion Dam", mile:133.8},
+  {key:"hiddenbeach", name:"Hidden Beaches Resort",    mile:126.9},
+  {key:"i10fwy",      name:"I-10 freeway",             mile:121.3},
+  {key:"mcintyre",    name:"McIntyre",                 mile:113.8},
+  {key:"riverroad",   name:"River Road Bridge",        mile:104.1},
+  {key:"hartmine",    name:"Hart Mine Road Bridge",    mile:93.6},
+  {key:"walters",     name:"Walter's Camp",            mile:88.3},
+  {key:"picachosra",  name:"Picacho State Rec Area",   mile:62.0},
+  {key:"martinezlk",  name:"Martinez Lake / Fisher's Landing", mile:55.0}
+];
+var PLACE_KEY = "blythe_place_v1";
+// =================================
+
+function fetchT(u, ms){
+  var c = new AbortController();
+  var to = setTimeout(function(){ c.abort(); }, ms || 12000);
+  return fetch(u, {signal: c.signal}).then(function(r){ clearTimeout(to); return r; }, function(e){ clearTimeout(to); throw e; });
+}
+function currentPlace(){ var k = store.get(PLACE_KEY) || "lhc"; for(var i=0;i<PLACES.length;i++){ if(PLACES[i].key===k) return PLACES[i]; } for(var j=0;j<PLACES.length;j++){ if(PLACES[j].key==="lhc") return PLACES[j]; } return PLACES[0]; }
+function segFor(p){ if(p.seg) return p.seg; if(p.mile>UPPER_MIN) return "upper"; if(p.mile>HEADGATE_MILE) return "strip"; if(p.mile>=PVDAM_MILE) return "mid"; return "below"; }
+var SEG_REFS = { upper:["davis","belowdavisusgs","belowdavis","bigbend","boyscout","interstate","topockg"], lake:["parker"], strip:["parker"], mid:["parkergage","waterwheel"], below:["i10","belowpv","mcintyrepark","taylor","oxbow","cibola","picacho","martinez"] };
+function sensorInfo(key){ for(var i=0;i<SENSORS.length;i++){ if(SENSORS[i].key===key) return SENSORS[i]; } return null; }
+function refFor(p){
+  // Score = how stale each sensor's information is ONCE SHIFTED to this place,
+  // plus a distortion penalty per mile. An upstream sensor has already seen the
+  // water that's here now (fresh, negative lag-staleness, clamped at 0); a
+  // downstream sensor only knows this spot's past (age + travel time).
+  var cands=SEG_REFS[segFor(p)]||["waterwheel"], best=null, DIST_MIN_PER_MILE=12;
+  for(var i=0;i<cands.length;i++){
+    var sm=sensorInfo(cands[i]); if(!sm) continue;
+    var st=STATIONS.find(function(s){ return s.key===sm.key && (s.flow.length||s.stage.length); });
+    if(!st) continue;
+    var d=Math.abs(sm.mile-p.mile);
+    var pt=cur(st.flow.length?st.flow:st.stage);
+    var ageMin=pt ? Math.max(0,(Date.now()-pt.t)/60000) : 9999;
+    var lagMin=(sm.mile>=p.mile?1:-1)*stretchHours(sm.mile, p.mile)*60; // + if upstream of the place
+    var effStale=Math.max(0, ageMin - Math.max(0,lagMin) + Math.max(0,-lagMin));
+    var score=effStale + d*DIST_MIN_PER_MILE;
+    if(sm.mile < p.mile - 2.5) score += 1e6; // HARD RULE: downstream refs only as a last resort \u2014 they describe this spot's past
+    if(d<=2.5) score=-1e9 + d; // a sensor essentially AT the place always wins
+    if(!best || score<best.score) best={st:st, mile:sm.mile, label:sm.label, key:sm.key, d:d, score:score};
+  }
+  if(!best){ var g=getPrimary(); if(g){ var smx=sensorInfo(g.key); best={st:g, mile:(smx?smx.mile:p.mile), label:(smx?smx.label:g.name), key:g.key, d:0}; } }
+  return best;
+}
+// Travel time between two river miles using each stretch's OWN measured speed
+// (from the robot's gauge-pair cross-correlation); the global median covers gaps.
+function stretchHours(mA, mB){
+  var lo=Math.min(mA,mB), hi=Math.max(mA,mB), rem=hi-lo, hrs=0;
+  var segs=(relayCal && relayCal.segments) || [];
+  for(var i=0;i<segs.length;i++){
+    var s=segs[i], a=sensorInfo(s.from), b=sensorInfo(s.to);
+    if(!a || !b || !(s.mph>=1 && s.mph<=12)) continue;
+    var sl=Math.min(a.mile,b.mile), sh=Math.max(a.mile,b.mile);
+    var ol=Math.max(lo,sl), oh=Math.min(hi,sh);
+    if(oh>ol){ hrs += (oh-ol)/s.mph; rem -= (oh-ol); }
+  }
+  hrs += Math.max(0,rem)/WAVE_MPH;
+  return hrs;
+}
+function lagMsFrom(refMile, p){ return (refMile>=p.mile?1:-1) * stretchHours(refMile, p.mile) * 3600 * 1000; }
+function lagLabel2(ms, label){
+  var m = Math.round(ms/60000);
+  if(Math.abs(m) < 3) return "right at "+label;
+  return "~" + Math.abs(m) + " min " + (m>0 ? "after" : "before") + " " + label;
+}
+function avg24(series){ if(!series || !series.length) return null; var cut=Date.now()-24*3600*1000, s=0, n=0; series.forEach(function(pt){ if(pt.t>=cut){ s+=pt.v; n++; } }); return n ? s/n : null; }
+function returnEst(){
+  if(usgsData && usgsData[WASTE_ID] && usgsData[WASTE_ID]["00060"] && usgsData[WASTE_ID]["00060"].length){
+    var r=avg24(clean(usgsData[WASTE_ID]["00060"]));
+    if(r!=null && r>0) return Math.round(r);
+  }
+  return null;
+}
+function divEst(){
+  if(usgsData && usgsData[CANAL_ID] && usgsData[CANAL_ID]["00060"] && usgsData[CANAL_ID]["00060"].length){
+    var c=avg24(clean(usgsData[CANAL_ID]["00060"]));
+    if(c!=null && c>=0) return {cfs:Math.round(c), measured:true};
+  }
+  var ww=STATIONS.find(function(s){return s.key==="waterwheel";}), bp=STATIONS.find(function(s){return s.key==="belowpv";});
+  var a=ww?avg24(ww.flow):null, b=bp?avg24(bp.flow):null;
+  return (a!=null && b!=null) ? {cfs:Math.max(0, Math.round(a-b)), measured:false} : null;
+}
+// try direct first (in case of CORS), then each proxy
+function raceOk(makers){
+  return new Promise(function(resolve, reject){
+    var pending=makers.length, settled=false;
+    if(!pending){ reject(new Error("no routes")); return; }
+    makers.forEach(function(mk){
+      mk().then(function(v){ if(!settled){ settled=true; resolve(v); } },
+                function(){ if(--pending===0 && !settled) reject(new Error("all fetch routes failed")); });
+    });
+  });
+}
+function fetchVia(url, asBuffer){
+  var makers=[function(){ return fetchT(url, 8000).then(chk); }];
+  PROXIES.forEach(function(p){ makers.push(function(){ return fetchT(p(url), 8000).then(chk); }); });
+  function chk(res){ if(!res.ok) throw new Error("HTTP "+res.status); return asBuffer ? res.arrayBuffer() : res.text(); }
+  return raceOk(makers);
+}
+function b64ToBuf(b64){ var bin=atob(b64), n=bin.length, bytes=new Uint8Array(n); for(var i=0;i<n;i++) bytes[i]=bin.charCodeAt(i); return bytes.buffer; }
+function fetchPdf(url){
+  var b64=function(){
+    return fetchT("https://api.allorigins.win/get?url="+encodeURIComponent(url), 10000)
+      .then(function(r){ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
+      .then(function(j){ var c=j.contents||"", idx=c.indexOf("base64,"); if(idx<0) throw new Error("no PDF content"); return b64ToBuf(c.slice(idx+7)); });
+  };
+  return raceOk([b64, function(){ return fetchVia(url, true); }]);
+}
+function levelInfo(series){
+  if(!series || series.length < 4) return null;
+  var vals=series.map(function(p){return p.v;}), min=Math.min.apply(null,vals), max=Math.max.apply(null,vals);
+  if(max<=min) return {pct:0.5, word:"average"};
+  var pct=Math.max(0, Math.min(1, (series[series.length-1].v-min)/(max-min)));
+  return {pct:pct, word:(pct<0.34?"low":(pct>0.66?"high":"average"))};
+}
+var LEVELWORD = {low:"running low", average:"about average", high:"running high"};
+function stageAboveLow(stageSeries){
+  if(!stageSeries || !stageSeries.length) return null;
+  var c=stageSeries[stageSeries.length-1].v, min=Math.min.apply(null, stageSeries.map(function(p){return p.v;}));
+  return c-min;
+}
+function stageSwing(stageSeries){
+  if(!stageSeries || stageSeries.length<2) return null;
+  var vals=stageSeries.map(function(p){return p.v;});
+  return Math.max.apply(null,vals)-Math.min.apply(null,vals);
+}
+
+// ---------- helpers ----------
+function fmt(n){ return n==null ? "\u2014" : Math.round(n).toLocaleString(); }
+function azTime(ms){ return new Date(ms).toLocaleString([], {timeZone:"America/Phoenix", month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}); }
+var store = {
+  get:function(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } },
+  set:function(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+};
+function cur(series){ return (series && series.length) ? series[series.length-1] : null; }
+function clean(series){
+  if(!series || series.length < 5) return series || [];
+  var out = [series[0]];
+  for(var i=1;i<series.length-1;i++){
+    var a=series[i-1].v, b=series[i+1].v, p=series[i].v;
+    var mid=(a+b)/2, dev=Math.abs(p-mid), gap=Math.abs(a-b);
+    if(dev > 0.4*Math.abs(mid) && gap < 0.5*dev) continue;
+    out.push(series[i]);
+  }
+  out.push(series[series.length-1]);
+  return out;
+}
+function esc(s){ return String(s).replace(/[&<>]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]; }); }
+function trend(series){
+  if(!series || series.length < 4) return "steady";
+  var last = series[series.length-1], ref = series[0];
+  for(var i=series.length-1;i>=0;i--){ if(last.t - series[i].t >= 3*3600*1000){ ref = series[i]; break; } }
+  var vals=series.map(function(p){return p.v;});
+  var range=Math.max.apply(null,vals)-Math.min.apply(null,vals);
+  var delta = last.v - ref.v;
+  var thresh = (Math.abs(last.v) < 1000) ? Math.max(0.05, range*0.06) : Math.max(50, last.v*0.02);
+  if(delta >  thresh) return "rising";
+  if(delta < -thresh) return "falling";
+  return "steady";
+}
+var TMARK = { rising:"\u25b2", falling:"\u25bc", steady:"\u25ac" };
+var TCOLOR = { rising:"var(--rise)", falling:"var(--fall)", steady:"var(--steady)" };
+var TWORD = { rising:"rising", falling:"falling", steady:"holding steady" };
+function spark(series){
+  if(!series || series.length < 2) return "";
+  var vals=series.map(function(p){return p.v;}), min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), span=(max-min)||1;
+  var W=280,H=38,pad=2, step=(W-2*pad)/(series.length-1), d="";
+  series.forEach(function(p,i){ var x=pad+i*step, y=pad+(H-2*pad)*(1-(p.v-min)/span); d += (i?"L":"M")+x.toFixed(1)+" "+y.toFixed(1)+" "; });
+  return '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true"><path d="'+d+'" fill="none" stroke="var(--water)" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+}
+function ageShort(t){
+  var m=Math.round((Date.now()-t)/60000);
+  if(m<1) return "";
+  return " ("+(m<60 ? m+"m" : (m/60).toFixed(1).replace(/\.0$/,"")+"h")+" ago)";
+}
+function ageNote(t){
+  var m=Math.round((Date.now()-t)/60000);
+  if(m<75) return "";
+  var a=(m<120 ? m+" min" : (m/60).toFixed(1).replace(/\.0$/,"")+" h");
+  return ' <span class="agechip">('+a+' ago \u2014 '+(m>240 ? "Reclamation is running further behind than usual" : "normal publishing delay for Reclamation\u2019s feed")+')</span>';
+}
+function azClock(ms){ return new Date(ms).toLocaleTimeString([], {timeZone:"America/Phoenix", hour:"numeric", minute:"2-digit"}); }
+function azDay(ms){ return new Date(ms).toLocaleDateString([], {timeZone:"America/Phoenix", weekday:"short", month:"numeric", day:"numeric"}).replace(",", ""); }
+function clockDay(ms){
+  var OFF=7*3600000, DAY=86400000;
+  var d=Math.floor((ms-OFF)/DAY)-Math.floor((Date.now()-OFF)/DAY);
+  return azClock(ms)+(d===1?" tomorrow":(d>=2?" "+azDay(ms).split(" ")[0]:""));
+}
+function areaChart(svg, series, color, dashed, axisId, showNow, hideFutureLabels, overlay, smoothLine){
+  var _nowRef=Date.now();
+  var W=900,H=120,pad=6, vals=series.map(function(p){return p.v;});
+  if(overlay && overlay.length) vals=vals.concat(overlay.map(function(p){return p.v;}));
+  var min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), span=(max-min)||1, line="", area="";
+  var t0=series[0].t, t1=series[series.length-1].t, T=(t1-t0)||1;
+  function X(t){ return pad + (t-t0)/T*(W-2*pad); }
+  // Points are laid out by TIME, not index — series mix hourly and 15-minute
+  // readings, and index spacing shears the line off the time grid that the
+  // crosshair, day marks, and overlay all use. (Re-applied after a refactor
+  // reverted it — the crosshair-vs-line mismatch at mixed-cadence spots is
+  // the symptom.)
+  var linePts=series.map(function(p){ return {x:X(p.t), y:pad+(H-2*pad)*(1-(p.v-min)/span)}; });
+  line = smoothLine ? yrSmoothPath(linePts) : linePts.map(function(p,i){ return (i?"L":"M")+p.x.toFixed(1)+" "+p.y.toFixed(1); }).join(" ");
+  area = line + " L"+linePts[linePts.length-1].x.toFixed(1)+" "+(H-pad)+" L"+pad+" "+(H-pad)+" Z";
+  // day boundaries (MST midnights) + optional "now" marker
+  var marks="", labels=[];
+  var r=(t0 - 7*3600000) % 86400000, m=t0 + ((86400000 - r) % 86400000);
+  var days=(t1-t0)/86400000, every=days>4.5?2:1, k=0;
+  for(; m<=t1; m+=86400000, k++){
+    var x=X(m);
+    marks += '<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.55)" stroke-width="1.5" opacity="1"/>';
+    if(k%every===0 && !(hideFutureLabels && m>_nowRef)) labels.push({pct:x/W*100, txt:azDay(m)});
+    var noon=m-43200000; // the noon before this midnight
+    if(noon>t0 && noon<t1){
+      var xd=X(noon);
+      marks += '<line x1="'+xd.toFixed(1)+'" y1="'+(H*0.45).toFixed(0)+'" x2="'+xd.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.30)" stroke-width="1" opacity="1"/>';
+      if(days<=4.5 && every===1 && !(hideFutureLabels && noon>_nowRef)) labels.push({pct:xd/W*100, txt:"noon", minor:true});
+    }
+  }
+  var lastNoon=m-43200000; // noon after the final midnight, if in range
+  if(lastNoon>t0 && lastNoon<t1){
+    var xl=X(lastNoon);
+    marks += '<line x1="'+xl.toFixed(1)+'" y1="'+(H*0.45).toFixed(0)+'" x2="'+xl.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.30)" stroke-width="1" opacity="1"/>';
+    if(days<=4.5 && every===1 && !(hideFutureLabels && lastNoon>_nowRef)) labels.push({pct:xl/W*100, txt:"noon", minor:true});
+  }
+  var nowT=Date.now();
+  if(showNow && nowT>t0 && nowT<t1){
+    var xn=X(nowT);
+    marks += '<line x1="'+xn.toFixed(1)+'" y1="0" x2="'+xn.toFixed(1)+'" y2="'+H+'" stroke="var(--water)" stroke-width="2" opacity="0.95"/>';
+    labels.push({pct:xn/W*100, txt:"now \u00b7 "+azClock(nowT), now:true});
+  }
+  marks += '<line x1="0" y1="'+(H/2).toFixed(0)+'" x2="'+W+'" y2="'+(H/2).toFixed(0)+'" stroke="rgba(150,185,215,0.16)" stroke-width="1"/>';
+  var ovPath="";
+  if(overlay && overlay.length>1){
+    var ovPts=overlay.map(function(p){
+      return {x:pad+(p.t-t0)/T*(W-2*pad), y:pad+(H-2*pad)*(1-(p.v-min)/span)};
+    });
+    ovPath='<path d="'+yrSmoothPath(ovPts)+'" fill="none" stroke="var(--water)" stroke-width="2.2" stroke-linejoin="round"/>';
+  }
+  svg.innerHTML = marks + '<path d="'+area+'" fill="'+color+'" opacity="0.11"/><path d="'+line+'" fill="none" stroke="'+color+'" stroke-width="1.5"'+(dashed?' stroke-dasharray="5 4"':'')+'/>'+ovPath;
+  svg._series=series; svg._t0=t0; svg._t1=t1; svg._min=min; svg._max=max;
+  try{
+    var host=svg.parentNode;
+    if(host && document.createElement){
+      var hold=svg._hold;
+      if(!hold){
+        hold=document.createElement("div"); hold.className="chart-hold";
+        host.insertBefore(hold, svg); hold.appendChild(svg); svg._hold=hold;
+        var yl=document.createElement("div"); yl.className="ylab"; hold.appendChild(yl); svg._ylab=yl;
+        initCrosshair(hold, svg);
+      }
+      var fmtY=function(v){ return (Math.abs(max)<1000) ? v.toFixed(1) : (Math.abs(v)>=9500 ? Math.round(v/1000)+"k" : (v/1000).toFixed(1)+"k"); };
+      svg._ylab.innerHTML='<span class="yl-top">'+fmtY(max)+'</span><span class="yl-mid">'+fmtY((max+min)/2)+'</span><span class="yl-bot">'+fmtY(min)+'</span>';
+    }
+  }catch(e){}
+  svg.style.display="block";
+  var ax = axisId ? document.getElementById(axisId) : null;
+  if(ax){
+    ax.style.height = labels.some(function(L){return L.now;}) ? "36px" : "19px";
+    ax.innerHTML = labels.map(function(L){
+      var tr = L.pct<4 ? "translateX(0)" : (L.pct>96 ? "translateX(-100%)" : "translateX(-50%)");
+      return '<span'+(L.minor?' class="minor"':'')+' style="left:'+L.pct.toFixed(2)+'%; transform:'+tr+';'+(L.now?' color:var(--water); font-weight:700; top:16px;':'')+(L.minor?' font-size:10.5px; opacity:0.65; font-weight:400;':'')+'">'+L.txt+'</span>';
+    }).join("");
+    ax.style.display = labels.length ? "block" : "none";
+  }
+  return {min:min, max:max};
+}
+// Finger/mouse readout: drag across a chart to read the exact time and value.
+function initCrosshair(hold, svg){
+  var line=document.createElement("div"); line.className="xh-line";
+  var dot=document.createElement("div"); dot.className="xh-dot";
+  var chip=document.createElement("div"); chip.className="xh-chip";
+  hold.appendChild(line); hold.appendChild(dot); hold.appendChild(chip);
+  function hide(){ line.style.display=dot.style.display=chip.style.display="none"; }
+  function show(ev){
+    var s=svg._series;
+    if(!s || s.length<2 || svg.style.display==="none"){ hide(); return; }
+    var rect=svg.getBoundingClientRect();
+    if(!rect.width){ hide(); return; }
+    var W=900,H=120,pad=6, t0=svg._t0, t1=svg._t1, T=(t1-t0)||1;
+    var min=svg._min, max=svg._max, span=(max-min)||1;
+    var frac=(ev.clientX-rect.left)/rect.width;
+    var t=t0 + Math.max(0,Math.min(1,(frac*W-pad)/(W-2*pad)))*T;
+    var best=s[0], bd=Math.abs(s[0].t-t);
+    for(var i=1;i<s.length;i++){ var d=Math.abs(s[i].t-t); if(d<bd){ bd=d; best=s[i]; } }
+    var _off=rect.left-hold.getBoundingClientRect().left; // hold has a left gutter; positions are hold-relative
+    var xp=_off+rect.width*(pad+(best.t-t0)/T*(W-2*pad))/W;
+    var _yv=svg._yVal ? svg._yVal(best) : best.v; // charts drawing a smoothed line pin the dot to the curve
+    if(_yv==null) _yv=best.v;
+    var yp=rect.height*(pad+(H-2*pad)*(1-(_yv-min)/span))/H;
+    var val=(Math.abs(max)<1000) ? best.v.toFixed(2)+" ft" : fmt(best.v)+" cfs";
+    var tag=(best.t>Date.now()+60000) ? " · expected" : "";
+    chip.textContent=svg._chip ? svg._chip(best) : (azClock(best.t)+" "+azDay(best.t)+" · "+val+tag);
+    line.style.left=xp.toFixed(1)+"px";
+    dot.style.left=xp.toFixed(1)+"px"; dot.style.top=yp.toFixed(1)+"px";
+    // Clamp by the chip's real width so the timestamp never clips off-screen
+    // on narrow charts (percent thresholds alone let long chips overflow).
+    line.style.display=dot.style.display=chip.style.display="block";
+    var _half=(chip.offsetWidth||0)/2;
+    chip.style.transform="translateX(-50%)";
+    chip.style.left=Math.max(_off+_half+2, Math.min(_off+rect.width-_half-2, xp)).toFixed(1)+"px";
+  }
+  hold.addEventListener("pointermove", show);
+  hold.addEventListener("pointerdown", show);
+  hold.addEventListener("pointerleave", hide);
+  hold.addEventListener("pointercancel", hide);
+}
+
+// ---------- Reclamation reach parsing (was the serverless function) ----------
+function borToEpoch(s){
+  var m = String(s).match(/(\d+)\/(\d+)\/(\d+)\s+(\d+):(\d+):(\d+)\s+(AM|PM)/i);
+  if(!m) return null;
+  var mo=+m[1], d=+m[2], y=+m[3], h=+m[4], mi=+m[5], ap=m[7].toUpperCase();
+  if(ap==="PM" && h<12) h+=12;
+  if(ap==="AM" && h===12) h=0;
+  return Date.UTC(y, mo-1, d, h, mi, 0) + 7*3600*1000;
+}
+function findSeries(series, names, typePart){
+  for(var i=0;i<series.length;i++){
+    var n=(series[i].SiteName||"").toLowerCase();
+    var match=false;
+    for(var j=0;j<names.length;j++){ if(n.indexOf(names[j])>=0){ match=true; break; } }
+    if(match && (series[i].DataTypeName||"").toLowerCase().indexOf(typePart)>=0) return series[i];
+  }
+  return null;
+}
+function toPoints(s){
+  if(!s || !s.Data) return [];
+  return s.Data.map(function(d){ return {t:borToEpoch(d.t), v:(d.v===""?null:parseFloat(d.v))}; })
+    .filter(function(p){ return p.t && p.v!=null && !isNaN(p.v); })
+    .sort(function(a,b){ return a.t-b.t; });
+}
+var REACH = [
+  { key:"davis",        name:"Davis Dam release", role:"Release upstream \u00b7 top of the map", order:-10, names:["mohave"], releaseType:"release" },
+  { key:"belowdavis",   name:"Below Davis Dam", role:"Reclamation sensor \u00b7 Laughlin reach", order:-8, names:["below davis"] },
+  { key:"bigbend",      name:"Big Bend", role:"Reclamation sensor \u00b7 below Laughlin", order:-7, names:["big bend"] },
+  { key:"boyscout",     name:"Boy Scout Camp", role:"Reclamation sensor \u00b7 Mohave Valley", order:-6, names:["boy scout"] },
+  { key:"interstate",   name:"Interstate Bridge (Needles)", role:"Reclamation sensor \u00b7 at Needles", order:-5, names:["interstate bridge"] },
+  { key:"topockg",      name:"Topock Bridge", role:"Reclamation sensor \u00b7 head of Havasu", order:-4, names:["topock","river section 41"] },
+  { key:"parker",       name:"Parker Dam release", role:"Release upstream \u00b7 early warning", order:0, names:["havasu"], releaseType:"release" },
+  { key:"parkergage",   name:"Parker gage",   role:"Below Headgate \u00b7 upper reach", order:1, names:["parker gage"] },
+  { key:"waterwheel",   name:"Water Wheel",   role:"Reclamation sensor \u00b7 mid reach", order:2, primary:true, names:["water wheel"] },
+  { key:"i10",          name:"Blythe (I-10 bridge)", role:"Reclamation sensor \u00b7 at Blythe", order:3, names:["interstate 10","interstate-10","i-10","i 10","i10"] },
+  { key:"mcintyrepark", name:"McIntyre Park", role:"Reclamation sensor \u00b7 south of Blythe", order:5, names:["mcintyre"] },
+  { key:"taylor",       name:"Taylor Ferry",  role:"Reclamation sensor \u00b7 below Blythe", order:6, names:["taylor"] },
+  { key:"oxbow",        name:"Oxbow Bridge",  role:"Reclamation sensor \u00b7 Cibola reach", order:7, names:["oxbow"] },
+  { key:"cibola",       name:"Cibola gage",   role:"Reclamation sensor \u00b7 Cibola reach", order:8, names:["cibola"] },
+  { key:"picacho",      name:"Picacho Park",  role:"Reclamation sensor \u00b7 Picacho reach", order:12, names:["picacho"] },
+  { key:"martinez",     name:"Martinez Lake", role:"Reclamation sensor \u00b7 above Imperial Dam", order:13, names:["martinez"] }
+];
+function parseBor(json){
+  var series = json.Series || [];
+  var hav = toPoints(findSeries(series, ["havasu"], "elevation"));
+  var stations = [];
+  REACH.forEach(function(def){
+    var flow, stage=[];
+    if(def.releaseType){ flow = toPoints(findSeries(series, def.names, def.releaseType) || findSeries(series, def.names, "flow")); }
+    else { flow = toPoints(findSeries(series, def.names, "flow")); stage = toPoints(findSeries(series, def.names, "gage height")); }
+    if(flow.length || stage.length){ stations.push({ key:def.key, name:def.name, role:def.role, order:def.order, primary:!!def.primary, source:"USBR", flow:flow, stage:stage }); }
+  });
+  return { stations: stations, havasu: hav };
+}
+
+// ---------- Headgate PDF parsing (client-side via pdf.js) ----------
+var MONTHS = { january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11 };
+function mstEpoch(mn, day, year, hour){ var mo=MONTHS[String(mn).toLowerCase()]; if(mo==null) return null; return Date.UTC(year, mo, day, hour, 0, 0) + 7*3600*1000; }
+function pdfToLines(buf){
+  if(typeof pdfjsLib === "undefined") return Promise.reject(new Error("PDF library did not load"));
+  return pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise.then(function(pdf){
+    var lines=[], chain=Promise.resolve();
+    for(var p=1;p<=pdf.numPages;p++){
+      (function(pn){
+        chain = chain.then(function(){ return pdf.getPage(pn); }).then(function(page){ return page.getTextContent(); }).then(function(tc){
+          var rows={};
+          tc.items.forEach(function(it){ var y=Math.round(it.transform[5]); (rows[y]=rows[y]||[]).push({x:it.transform[4], s:it.str}); });
+          Object.keys(rows).map(Number).sort(function(a,b){return b-a;}).forEach(function(y){
+            var line=rows[y].sort(function(a,b){return a.x-b.x;}).map(function(o){return o.s;}).join(" ").replace(/\s+/g," ").trim();
+            if(line) lines.push(line);
+          });
+        });
+      })(p);
+    }
+    return chain.then(function(){ return lines; });
+  });
+}
+function parseHeadgate(lines){
+  var text=lines.join("\n");
+  // First table (no weekday header before it) belongs to the publication date.
+  var pub=null, pm=text.match(/Date of Publication:\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/i);
+  if(pm) pub={y:+pm[3], mo:+pm[1]-1, d:+pm[2]};
+  // Weekday headers PRECEDE their table; record positions.
+  var dates=[], dateRe=/(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\s*,\s+([a-z]+)\s+(\d{1,2})\s*,\s+(\d{4})/gi, dm;
+  while((dm=dateRe.exec(text))) dates.push({idx:dm.index, month:dm[2], day:+dm[3], year:+dm[4]});
+  // hour + 4 flows + decimal MWH; leading non-digit guard blocks matches starting inside longer numbers.
+  var rowRe=/(^|[^\d.])(\d{1,2})\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+\.\d+)/g;
+  var tables=[], curr=null, rm;
+  while((rm=rowRe.exec(text))){
+    var hr=+rm[2]; if(hr<1||hr>24) continue;
+    if(hr===1){ if(curr && curr.rows.length) tables.push(curr); curr={idx:rm.index, rows:[]}; }
+    if(!curr) curr={idx:rm.index, rows:[]};
+    curr.rows.push({hr:hr, parker:+rm[3], crit:+rm[4]});
+  }
+  if(curr && curr.rows.length) tables.push(curr);
+  var downstream=[], critSum=0, critN=0;
+  tables.forEach(function(tb){
+    var best=null;
+    dates.forEach(function(d){ if(d.idx<tb.idx && (!best || d.idx>best.idx)) best=d; });
+    var t0=null;
+    if(best) t0=mstEpoch(best.month,best.day,best.year,0);
+    else if(pub) t0=Date.UTC(pub.y,pub.mo,pub.d,0,0,0)+7*3600*1000;
+    if(t0==null) return;
+    tb.rows.forEach(function(r){ downstream.push({t:t0+(r.hr-1)*3600*1000, v:r.parker-r.crit}); critSum+=r.crit; critN++; });
+  });
+  var seen={}; downstream.forEach(function(p){ seen[p.t]=p.v; });
+  var out=Object.keys(seen).map(function(t){ return {t:+t, v:seen[t]}; }).sort(function(a,b){ return a.t-b.t; });
+  return { downstream:out, note:(out.length? "Downstream flow = Parker inflow minus the CRIT canal diversion (avg ~"+Math.round(critSum/critN)+" cfs pulled out at Headgate)." : "") };
+}
+
+// ---------- state ----------
+var borData=null, borTried=false, borErr=null, usgsData=null, hgData=null, hgTried=false, hgErr=null;
+var STATIONS=[];
+
+function rebuild(){
+  document.body.className = document.body.className.replace(/ ?nochoice/,"") + (store.get(PLACE_KEY) ? "" : " nochoice");
+  var _wel=document.getElementById("welcome");
+  if(_wel) _wel.style.display = store.get(PLACE_KEY) ? "none" : "block";
+  var st=[];
+  if(borData && borData.stations){ borData.stations.forEach(function(s){ st.push({ key:s.key, name:s.name, role:s.role, order:s.order, primary:!!s.primary, source:"USBR", link:null, flow:clean(s.flow||[]), stage:clean(s.stage||[]) }); }); }
+  if(usgsData && usgsData[DAVIS_USGS]){
+    var fD=clean(usgsData[DAVIS_USGS]["00060"]||[]), gD=clean(usgsData[DAVIS_USGS]["00065"]||[]);
+    if(fD.length||gD.length) st.push({ key:"belowdavisusgs", name:"Below Davis Dam (USGS)", role:"Live USGS \u00b7 15-min \u00b7 Laughlin reach", order:-9, primary:false, source:"USGS", link:"https://waterdata.usgs.gov/monitoring-location/USGS-"+DAVIS_USGS+"/", flow:fD, stage:gD });
+  }
+  if(usgsData && usgsData[USGS_ID]){ st.push({ key:"belowpv", name:"Below Palo Verde Dam", role:"Live USGS \u00b7 below the diversion", order:3, primary:false, source:"USGS", link:"https://waterdata.usgs.gov/monitoring-location/USGS-"+USGS_ID+"/", flow:clean(usgsData[USGS_ID]["00060"]||[]), stage:clean(usgsData[USGS_ID]["00065"]||[]) }); }
+  // plumbing gauges: the water leaving and returning to the river
+  [ {id:CRIT_ID,  key:"critcanal", name:"CRIT Main Canal",   role:"Live USGS \u00b7 water OUT at Headgate",       order:1.7},
+    {id:WASTE_ID, key:"wasteway",  name:"Poston Wasteway",   role:"Live USGS \u00b7 water RETURNING to the river", order:2.5},
+    {id:CANAL_ID, key:"pvcanal",   name:"Palo Verde Canal",  role:"Live USGS \u00b7 water OUT at the diversion dam", order:4.5}
+  ].forEach(function(g){
+    if(usgsData && usgsData[g.id]){
+      var f=clean(usgsData[g.id]["00060"]||[]), gs=clean(usgsData[g.id]["00065"]||[]);
+      if(f.length || gs.length){
+        st.push({ key:g.key, name:g.name, role:g.role, order:g.order, primary:false, source:"USGS", link:"https://waterdata.usgs.gov/monitoring-location/USGS-"+g.id+"/", flow:f, stage:gs });
+      }
+    }
+  });
+  var RIVER_ORDER={davis:-10, belowdavisusgs:-9, belowdavis:-8, bigbend:-7, boyscout:-6, interstate:-5, topockg:-4, parker:0, critcanal:1, parkergage:2, wasteway:3, waterwheel:4, pvcanal:5, belowpv:6, i10:7, mcintyrepark:8, taylor:9, oxbow:10, cibola:11, picacho:12, martinez:13};
+  st.forEach(function(s){ if(RIVER_ORDER[s.key]!=null) s.order=RIVER_ORDER[s.key]; });
+  st.sort(function(a,b){ return (a.order==null?99:a.order)-(b.order==null?99:b.order); });
+  STATIONS=st;
+  renderCards(); renderHero(); renderHeadgate(); renderReach(); renderYear(); renderTide(); renderCal();
+  var _sl=document.getElementById("sched-link");
+  if(_sl) _sl.textContent=(segFor(currentPlace())==="upper" ? "Davis Dam" : "Parker Dam")+" projected schedule (PDF) \u2197";
+  (function staleCheck(){
+    var newest=0;
+    STATIONS.forEach(function(s){ if(s.source!=="USGS"){ var c=cur(s.flow); if(c && c.t>newest) newest=c.t; } });
+    var b=document.getElementById("banner");
+    if(b && newest && Date.now()-newest > 12*3600*1000 && b.style.display!=="block"){
+      b.style.display="block";
+      b.innerHTML='Heads up: Reclamation\u2019s live sensor feed looks stale \u2014 newest reading '+azTime(newest)+' MST. Their data generator pauses sometimes; this page picks it back up automatically. The dam schedules (forecast) are usually still current.';
+    }
+  })();
+}
+function getPrimary(){
+  return STATIONS.find(function(s){ return s.primary && s.flow.length; })
+      || STATIONS.find(function(s){ return s.key==="belowpv" && (s.flow.length||s.stage.length); })
+      || STATIONS.find(function(s){ return s.flow.length||s.stage.length; }) || null;
+}
+function renderCal(){
+  var lead=document.getElementById("cal-lead"), tbl=document.getElementById("cal-table");
+  if(!lead || !tbl) return;
+  var segs=(relayCal && relayCal.segments) || [];
+  if(!segs.length){ lead.textContent="No calibration yet \u2014 the robot measures pulse speed by cross-correlating neighboring gauges; using the ~"+WAVE_MPH+" mph default meanwhile."; tbl.innerHTML=""; return; }
+  var mphs=segs.map(function(s){return s.mph;}).filter(function(v){return v>=1&&v<=12;});
+  var spread=(Math.max.apply(null,mphs)/Math.min.apply(null,mphs));
+  var pl=currentPlace(), ref=refFor(pl), applied="";
+  if(ref && Math.abs(ref.mile-pl.mile)>=0.5){
+    var hrs=stretchHours(ref.mile, pl.mile), mi=Math.abs(ref.mile-pl.mile);
+    applied=' For <b style="color:var(--text)">'+esc(pl.name)+'</b>: '+mi.toFixed(1)+' mi from '+ref.label+' at the local measured speed \u2192 <b style="color:var(--text)" class="mono">~'+Math.round(hrs*60)+' min</b> of travel.';
+  }
+  lead.innerHTML='Each row is an independent measurement: the robot slides one gauge\u2019s week of readings against its neighbor\u2019s until the wiggles line up \u2014 that offset over that distance is the pulse speed. Agreement between rows = confidence.'
+    + (spread>1.7 ? ' <b style="color:var(--house)">Heads up: the stretches disagree today (\u00d7'+spread.toFixed(1)+' between fastest and slowest) \u2014 treat arrival times as rough.</b>' : ' The stretches currently agree well, so the timings are trustworthy.')
+    + applied;
+  var rows=segs.map(function(s){
+    var a=sensorInfo(s.from), b=sensorInfo(s.to);
+    var nm=(a?a.label.replace(/^the /,""):s.from)+" \u2192 "+(b?b.label.replace(/^the /,""):s.to);
+    var conf=s.r>=0.85?"strong":(s.r>=0.7?"good":"weak");
+    return '<tr><td>'+esc(nm)+'</td><td class="mono">'+s.miles.toFixed(1)+' mi</td><td class="mono">'+s.lagHours.toFixed(1)+' h</td><td class="mono"><b>'+s.mph.toFixed(1)+' mph</b></td><td>'+conf+' (r='+s.r.toFixed(2)+')</td></tr>';
+  }).join("");
+  tbl.innerHTML='<table class="tide"><thead><tr><th>Gauge pair</th><th>Distance</th><th>Measured lag</th><th>Speed</th><th>Match quality</th></tr></thead><tbody>'+rows+'</tbody></table>'
+    + '<p class="note">River-wide median: <b class="mono">'+((relayCal&&relayCal.waveMph)||WAVE_MPH)+' mph</b> \u2014 used for stretches no gauge pair covers. <b style="color:var(--text)">These are pulse speeds</b> \u2014 how fast a rise or fall travels downriver. The water itself drifts slower, about 60% of that (~<b class="mono">'+(((relayCal&&relayCal.waveMph)||WAVE_MPH)*0.6).toFixed(1)+' mph</b> right now \u2014 the \u201criver current\u201d up top): a wave outruns the water that carries it, the way ocean swell outruns the sea. Ground truth check: places with their own gauge (McIntyre, Oxbow, Cibola) let you compare predicted arrivals against direct readings any day.</p>';
+}
+function renderCards(){
+  var _pl=currentPlace(), _ref=refFor(_pl);
+  var grid=document.getElementById("grid");
+  if(!STATIONS.length){
+    if(!loadingNow) grid.innerHTML='<div class="card" style="color:var(--muted)">No sensors reporting \u2014 try Refresh.</div>';
+    return;
+  }
+  grid.innerHTML = STATIONS.map(function(s){
+    var f=cur(s.flow), g=cur(s.stage), tr=trend(s.flow.length?s.flow:s.stage);
+    var vals=s.flow.map(function(p){return p.v;});
+    var lo=vals.length?Math.min.apply(null,vals):null, hi=vals.length?Math.max.apply(null,vals):null;
+    var _cp=(s.flow.length||s.stage.length)?(cur(s.flow)||cur(s.stage)):null;
+    var when=_cp?azTime(_cp.t):"no data";
+    var siteNo=s.link?(s.link.match(/USGS-(\d+)/)||[])[1]:null;
+    var link=s.link?('<a class="site-link" href="'+s.link+'" target="_blank" rel="noopener">USGS '+(siteNo||"")+' \u2197</a>'):s.source;
+    var lv=levelInfo(s.flow.length?s.flow:s.stage);
+    var levelHtml="";
+    if(lv){
+      var fill = lv.word==="high" ? "var(--house)" : (lv.word==="low" ? "var(--muted)" : "var(--water)");
+      levelHtml = '<div class="level"><span class="lvl-bar"><span style="width:'+Math.round(lv.pct*100)+'%; background:'+fill+'"></span></span><span class="lvl-word" style="color:'+fill+'">'+LEVELWORD[lv.word]+'</span></div>';
+    }
+    var abl=stageAboveLow(s.stage), sw=stageSwing(s.stage);
+    var metaHtml;
+    if(abl!=null){ metaHtml='<span>water <span class="mono">+'+abl.toFixed(1)+'</span> ft above wk low</span><span>swings <span class="mono">~'+(sw!=null?sw.toFixed(1):'\u2014')+'</span> ft/wk</span>'; }
+    else { metaHtml='<span>release flow</span><span>7-day <span class="mono">'+fmt(lo)+'\u2013'+fmt(hi)+'</span> cfs</span>'; }
+    // Year line for any site that keeps (or has grown) a year of history
+    var yrHtml="", _hk="flow", _hs=histSeries(s.key, "flow", 300);
+    if(!_hs){ _hs=histSeries(s.key, "stage", 300); _hk="stage"; }
+    if(_hs && (s[_hk]||[]).length){
+      var _ys2=yearStats(_hs), _nv=avg24(s[_hk]);
+      if(_nv==null && cur(s[_hk])) _nv=cur(s[_hk]).v;
+      if(_ys2 && _nv!=null) yrHtml='<div class="meta"><span>past year: above <span class="mono">'+Math.round(_ys2.pctOf(_nv)*100)+'%</span> of days</span><span class="adv-only">typical <span class="mono">'+histRange(_ys2.p25, _ys2.p75, _hk)+'</span></span></div>';
+    }
+    return '<div class="card'+((_ref && s.key===_ref.key)?' primary':'')+'">'+
+      '<div class="role"><span>'+((_ref && s.key===_ref.key)?('Reference for '+esc(_pl.name)):s.role)+'</span><span class="src">'+s.source+'</span></div>'+
+      '<div class="name">'+s.name+'</div>'+
+      '<div class="big"><span class="cfs mono">'+fmt(f?f.v:null)+'</span><span class="unit">cfs</span>'+
+        '<span class="trend" style="color:'+TCOLOR[tr]+'">'+TMARK[tr]+' '+TWORD[tr]+'</span></div>'+
+      levelHtml+
+      spark(s.flow.length?s.flow:s.stage)+
+      '<div class="meta">'+metaHtml+'</div>'+yrHtml+
+      '<div class="stamp">reading '+when+' MST'+(_cp?ageShort(_cp.t):'')+' \u00b7 '+link+(s.source==="USGS"?' \u00b7 fetched live by your browser':' \u00b7 via the data robot')+'</div></div>';
+  }).join("");
+}
+function buildRating(key){
+  var ww=STATIONS.find(function(s){ return s.key===key && s.flow.length>=10 && s.stage.length>=10; });
+  if(!ww) return null;
+  var sm={}; ww.stage.forEach(function(p){ sm[p.t]=p.v; });
+  var pairs=[]; ww.flow.forEach(function(p){ if(sm[p.t]!=null) pairs.push({q:p.v, h:sm[p.t]}); });
+  if(pairs.length<10) return null;
+  pairs.sort(function(a,b){ return a.q-b.q; });
+  var wkLow=Math.min.apply(null, ww.stage.map(function(p){return p.v;}));
+  return function(q){
+    if(q<=pairs[0].q) return pairs[0].h-wkLow;
+    if(q>=pairs[pairs.length-1].q) return pairs[pairs.length-1].h-wkLow;
+    for(var i=1;i<pairs.length;i++){ if(pairs[i].q>=q){ var a=pairs[i-1], b=pairs[i]; var f=(q-a.q)/((b.q-a.q)||1); return a.h+f*(b.h-a.h)-wkLow; } }
+    return null;
+  };
+}
+// ONE 5-bucket level scale for the whole page: the eyebrow pill AND every
+// destination the hero names use it, so "low water" can only ever mean water
+// that is actually low for this week — never just the bottom of a cycle.
+function bucketOf(pct){
+  pct=Math.max(0, Math.min(1, pct));
+  if(pct<0.15) return {label:"LOW", cls:"low", phrase:"low water", hold:"Holding low"};
+  if(pct<0.38) return {label:"BELOW AVG", cls:"low", phrase:"below average", hold:"Holding below average"};
+  if(pct<0.62) return {label:"AVG", cls:"mid", phrase:"about average", hold:"Holding near average"};
+  if(pct<0.85) return {label:"ABOVE AVG", cls:"high", phrase:"above average", hold:"Holding above average"};
+  return {label:"HIGH", cls:"high", phrase:"high water", hold:"Holding high"};
+}
+// Words-only level badge: where the water sits vs THIS WEEK's range at the
+// spot. Prefers the physical stage (ft above weekly low / weekly swing);
+// falls back to flow percentile. Null when there's no meaningful range.
+function levelWord(abl, sw, flowP){
+  var pct=null;
+  if(abl!=null && sw!=null && sw>0.3) pct=abl/sw;
+  else if(flowP && flowP.length>=8){
+    var vals=flowP.map(function(p){ return p.v; });
+    var lo=Math.min.apply(null,vals), hi=Math.max.apply(null,vals);
+    if(hi>lo && hi-lo>=0.08*Math.abs(hi)) pct=(flowP[flowP.length-1].v-lo)/(hi-lo);
+  }
+  return pct==null ? null : bucketOf(pct);
+}
+// "Is today's peak a big one?" — rank today's peak (measured so far, plus
+// water already en route today) against each prior day's peak at this spot.
+// Peaks arrive morning, midday, or night depending on travel time, so the
+// "do we know today's peak yet?" check learns this spot's usual peak hour.
+function dayRankPhrase(flowP, comp){
+  if(!flowP || flowP.length<8) return "";
+  var DAY=86400000, OFF=7*3600000, now=Date.now(); // MST midnights
+  function dk(t){ return Math.floor((t-OFF)/DAY); }
+  var todayK=dk(now), byDay={};
+  flowP.forEach(function(p){ var k=dk(p.t); (byDay[k]=byDay[k]||[]).push(p); });
+  var todayPts=(byDay[todayK]||[]).slice();
+  var lastT=flowP[flowP.length-1].t;
+  if(comp){
+    comp.points.forEach(function(p){ if(p.t>now && dk(p.t)===todayK) todayPts.push({t:p.t, v:p.v}); });
+    if(comp.horizon>lastT) lastT=comp.horizon;
+  }
+  var priorHighs=[], peakOffs=[];
+  for(var k in byDay){
+    if(+k===todayK || byDay[k].length<12) continue;
+    var best=byDay[k][0];
+    byDay[k].forEach(function(p){ if(p.v>best.v) best=p; });
+    priorHighs.push(best.v);
+    peakOffs.push((best.t-OFF)%DAY); // time-of-day the peak arrives at THIS spot
+  }
+  if(priorHighs.length<3 || todayPts.length<4) return "";
+  var todayBest=todayPts[0];
+  todayPts.forEach(function(p){ if(p.v>todayBest.v) todayBest=p; });
+  var todayHigh=todayBest.v;
+  var below=0; priorHighs.forEach(function(v){ if(v<todayHigh) below++; });
+  var n=priorHighs.length;
+  // claiming a smaller peak needs today's peak to be known — either already
+  // seen, or measured en route past this spot's usual peak hour (+2 h margin)
+  peakOffs.sort(function(a,b){ return a-b; });
+  var usualPeak=peakOffs[Math.floor(peakOffs.length/2)];
+  var knowsPeak = lastT >= todayK*DAY+OFF+Math.min(DAY, usualPeak+2*3600000);
+  // Sentence form — leads the hero detail text. Tense follows whether today's
+  // peak is still coming, arriving, or behind us.
+  var phase = todayBest.t>now+45*60000 ? "ahead" : (todayBest.t<now-45*60000 ? "past" : "now");
+  if(below===n) return phase==="ahead" ? "Today brings the week’s biggest peak — still on the way." : (phase==="past" ? "Today brought the week’s biggest peak." : "Today’s peak is arriving — the biggest of the week.");
+  if(below>=n*0.66) return phase==="ahead" ? "Today’s peak is on the way — higher than most days this week." : (phase==="past" ? "Today’s peak was higher than most days this week." : "Today’s peak is arriving — higher than most days this week.");
+  if(below<=n*0.34) return knowsPeak ? "Today’s peak is lower than most days this week." : "";
+  return "A typical peak today for this week.";
+}
+// ---------- Past-year context ----------
+// The robot ships two kinds of history in riverdata.json: a year+ of USGS
+// daily stats for the five gauges on this reach that publish one, and a
+// day-by-day archive it accumulates from Reclamation's hourly sensors (those
+// build up over time). Points are compact arrays [tMstMidnight, avg, min, max].
+var histData=null;
+function histVal(p){ return p[1]!=null ? p[1] : (p[2]!=null&&p[3]!=null ? (p[2]+p[3])/2 : (p[2]!=null?p[2]:p[3])); }
+function histSeries(key, kind, minDays){
+  if(!histData) return null;
+  kind=kind||"flow"; minDays=minDays||300;
+  var u=histData.usgs && histData.usgs.sites && histData.usgs.sites[key];
+  var a=histData.accum && histData.accum.sites && histData.accum.sites[key];
+  var uu=(u&&u[kind])||null, aa=(a&&a[kind])||null;
+  // prefer whichever record is longer — the USGS backfill wins until the
+  // robot's own archive outgrows it
+  var pick=((uu&&uu.length)||0)>=((aa&&aa.length)||0) ? uu : aa;
+  if(!pick || pick.length<minDays) return null;
+  return { pts:pick, usgsId:(pick===uu && u.id)||null, srcName:(pick===uu ? u.name : "the data robot’s day-by-day archive") };
+}
+// Which long-record gauge best describes this spot? Its own, if it keeps a
+// year of history; otherwise walk toward the nearest year-keeping gauge on
+// the river (same water system, so "high for the year" carries over — the
+// text always names the gauge it used). USGS retains no history for its
+// upstream gauges, so the robot backfills Davis and Parker daily releases
+// from Reclamation's water accounting (accumweb) — those anchor the upper,
+// lake, strip, and mid reaches.
+var HIST_PROXY={ upper:["davis","belowdavisusgs","parker","belowpv"], lake:["parker","belowpv"], strip:["parker","belowpv"], mid:["parker","belowpv"], below:["belowpv","martinez"] };
+function histFor(pl, ref){
+  var tried=[];
+  if(ref && ref.key) tried.push(ref.key);
+  var seg=segFor(pl);
+  if(seg==="below" && pl.mile<75) tried.push("martinez"); // Picacho / Martinez Lake reach sits far below the Blythe gauge
+  (HIST_PROXY[seg]||["belowpv"]).forEach(function(k){ if(tried.indexOf(k)<0) tried.push(k); });
+  for(var i=0;i<tried.length;i++){
+    // flow history first; the regulated upper-river gauges publish only gage
+    // height, and a year of stage answers "is the water high" just as well
+    var h=histSeries(tried[i], "flow", 300), kind="flow";
+    if(!h){ h=histSeries(tried[i], "stage", 300); kind="stage"; }
+    if(h){ h.kind=kind; h.key=tried[i]; h.exact=!!(ref && tried[i]===ref.key); return h; }
+  }
+  return null;
+}
+function histFmt(v, kind){ return kind==="stage" ? (v.toFixed(1)+" ft") : (fmt(v)+" cfs"); }
+function histRange(a, b, kind){ return kind==="stage" ? (a.toFixed(1)+"–"+b.toFixed(1)+" ft") : (fmt(a)+"–"+fmt(b)+" cfs"); }
+function yearStats(h){
+  var cutY=Date.now()-370*86400000, vals=[];
+  h.pts.forEach(function(p){ if(p[0]>=cutY){ var v=histVal(p); if(v!=null) vals.push(v); } });
+  if(vals.length<200) return null;
+  vals.sort(function(a,b){ return a-b; });
+  function q(f){ return vals[Math.min(vals.length-1, Math.floor(f*(vals.length-1)))]; }
+  return { n:vals.length, min:vals[0], max:vals[vals.length-1], p25:q(0.25), p50:q(0.5), p75:q(0.75),
+    pctOf:function(v){ var b=0; for(var i=0;i<vals.length;i++){ if(vals[i]<v) b++; else break; } return b/vals.length; } };
+}
+function yearPhrase(pct){
+  if(pct>=0.97) return "about as high as it’s been all year";
+  if(pct>=0.85) return "genuinely high for the year";
+  if(pct>=0.6)  return "on the high side of the past year";
+  if(pct>=0.4)  return "a typical level for the past year";
+  if(pct>=0.15) return "on the low side of the past year";
+  return "low for the year";
+}
+// The year verdict for a spot: the best history gauge, its year stats, and
+// where that gauge's CURRENT water (last 24 h average — apples-to-apples with
+// daily averages) sits in the year. Compares a gauge only against ITSELF, so
+// canal diversions between gauges can't skew the percentile.
+function yearContext(pl, ref){
+  // Lake spots grade the LAKE's elevation against its own year — Reclamation's
+  // water accounting keeps a daily elevation record for Lake Havasu.
+  if(segFor(pl)==="lake"){
+    var hl=histSeries("havasu","stage",300);
+    if(!hl) return null;
+    hl.kind="stage"; hl.key="havasu"; hl.exact=true;
+    var ysl=yearStats(hl); if(!ysl) return null;
+    var nvl=(havasuData&&havasuData.length)?havasuData[havasuData.length-1].v:histVal(hl.pts[hl.pts.length-1]);
+    if(nvl==null) return null;
+    return { h:hl, ys:ysl, kind:"stage", nowV:nvl, pct:ysl.pctOf(nvl), phrase:yearPhrase(ysl.pctOf(nvl)), gaugeLabel:"Lake Havasu", lake:true };
+  }
+  var h=histFor(pl, ref); if(!h) return null;
+  var ys=yearStats(h); if(!ys) return null;
+  var kind=h.kind||"flow", live=null;
+  for(var i=0;i<STATIONS.length;i++){ if(STATIONS[i].key===h.key && (STATIONS[i][kind]||[]).length){ live=STATIONS[i]; break; } }
+  var nowV=live ? (avg24(live[kind])!=null ? avg24(live[kind]) : (cur(live[kind])?cur(live[kind]).v:null)) : null;
+  if(nowV==null){ var lp=h.pts[h.pts.length-1]; nowV=histVal(lp); } // gauge quiet — use its newest archived day
+  if(nowV==null) return null;
+  var si=sensorInfo(h.key);
+  return { h:h, ys:ys, kind:kind, nowV:nowV, pct:ys.pctOf(nowV), phrase:yearPhrase(ys.pctOf(nowV)), gaugeLabel:(si?si.label:h.key) };
+}
+// Monotone-cubic path (harmonic-mean tangents): passes through every point
+// and can never overshoot an extreme — smooth without inventing water.
+function yrSmoothPath(pts){
+  if(pts.length<3){ return pts.map(function(p,i){ return (i?"L":"M")+p.x.toFixed(1)+" "+p.y.toFixed(1); }).join(" "); }
+  var n=pts.length, d=[], m=[];
+  for(var i=0;i<n-1;i++){ var h=pts[i+1].x-pts[i].x; d.push(h>0 ? (pts[i+1].y-pts[i].y)/h : 0); }
+  m.push(d[0]);
+  for(var j=1;j<n-1;j++){ m.push((d[j-1]*d[j]<=0) ? 0 : 2*d[j-1]*d[j]/(d[j-1]+d[j])); }
+  m.push(d[n-2]);
+  var out="M"+pts[0].x.toFixed(1)+" "+pts[0].y.toFixed(1);
+  for(var k=0;k<n-1;k++){
+    var hx=(pts[k+1].x-pts[k].x)/3;
+    out+=" C"+(pts[k].x+hx).toFixed(1)+" "+(pts[k].y+m[k]*hx).toFixed(1)
+       +" "+(pts[k+1].x-hx).toFixed(1)+" "+(pts[k+1].y-m[k+1]*hx).toFixed(1)
+       +" "+pts[k+1].x.toFixed(1)+" "+pts[k+1].y.toFixed(1);
+  }
+  return out;
+}
+// Centered rolling mean — a year of daily averages carries a weekday sawtooth
+// (irrigation schedules) that reads as noise at this scale; a few-day window
+// keeps the seasonal shape and drops the jitter.
+function yrRoll(vals, w){
+  var out=[], half=Math.floor(w/2);
+  for(var i=0;i<vals.length;i++){
+    var s=0, n=0;
+    for(var j=Math.max(0,i-half); j<=Math.min(vals.length-1,i+half); j++){ if(vals[j]!=null){ s+=vals[j]; n++; } }
+    out.push(n?s/n:null);
+  }
+  return out;
+}
+// The 12-month chart: smoothed daily-average line, shaded daily low–high
+// band, month grid, and a dashed "you are here" line at the current level.
+var YR_RANGE_KEY="blythe_yrrange_v1";
+function yrRangeMonths(){ var m=parseInt(store.get(YR_RANGE_KEY)||"12",10); return [3,6,12].indexOf(m)>=0 ? m : 12; }
+function syncYrRange(){
+  var rp=document.getElementById("yr-range-pick");
+  if(!rp) return;
+  for(var i=0;i<rp.children.length;i++){ var b=rp.children[i]; var on=(parseInt(b.getAttribute("data-m"),10)===yrRangeMonths()); b.className=on?"on":""; b.setAttribute("aria-pressed", on?"true":"false"); }
+}
+(function initYrRange(){
+  var rp=document.getElementById("yr-range-pick");
+  if(rp) rp.addEventListener("click", function(ev){
+    var m=ev.target && ev.target.getAttribute && ev.target.getAttribute("data-m");
+    if(m){ store.set(YR_RANGE_KEY, m); setTimeout(renderYear, 0); }
+  });
+})();
+function yearChart(svg, yc, axisId){
+  var W=900,H=120,pad=6, DAY=86400000;
+  // The range buttons only ZOOM the chart — the verdict text stays a full
+  // 12-month comparison, so "typical for the past year" always means the year.
+  var cutY=Date.now()-Math.round(yrRangeMonths()*30.44)*DAY;
+  var pts=yc.h.pts.filter(function(p){ return p[0]>=cutY; })
+    .map(function(p){ return {t:p[0], v:histVal(p), lo:p[2], hi:p[3]}; })
+    .filter(function(p){ return p.v!=null; });
+  if(pts.length<30){ svg.style.display="none"; return null; }
+  var smooth=yrRoll(pts.map(function(p){ return p.v; }), 7);
+  var loS=yrRoll(pts.map(function(p){ return p.lo; }), 7);
+  var hiS=yrRoll(pts.map(function(p){ return p.hi; }), 7);
+  var vals=[];
+  pts.forEach(function(p,i){
+    if(smooth[i]!=null) vals.push(smooth[i]);
+    if(p.lo!=null && loS[i]!=null) vals.push(loS[i]);
+    if(p.hi!=null && hiS[i]!=null) vals.push(hiS[i]);
+  });
+  if(yc.nowV!=null) vals.push(yc.nowV);
+  var min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), span=(max-min)||1;
+  var t0=pts[0].t, t1=Math.max(pts[pts.length-1].t, Date.now()), T=(t1-t0)||1;
+  function X(t){ return pad+(t-t0)/T*(W-2*pad); }
+  function Y(v){ return pad+(H-2*pad)*(1-(v-min)/span); }
+  var marks="", labels=[];
+  var d0=new Date(t0-7*3600000), yy=d0.getUTCFullYear(), mm=d0.getUTCMonth(), k=0;
+  for(;;){
+    mm++; if(mm>11){ mm=0; yy++; }
+    var mT=Date.UTC(yy, mm, 1)+7*3600000;
+    if(mT>=t1) break;
+    var x=X(mT);
+    marks+='<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.35)" stroke-width="1"/>';
+    if(k%(yrRangeMonths()<=6?1:2)===0) labels.push({pct:x/W*100, txt:new Date(mT).toLocaleDateString([], {timeZone:"America/Phoenix", month:"short"})});
+    k++;
+  }
+  marks+='<line x1="0" y1="'+(H/2).toFixed(0)+'" x2="'+W+'" y2="'+(H/2).toFixed(0)+'" stroke="rgba(150,185,215,0.16)" stroke-width="1"/>';
+  // band: contiguous stretches of days that have a low–high; split on gaps so
+  // a partially-covered year doesn't get bridged with made-up shade
+  var band="", seg=[];
+  function flushSeg(){
+    if(seg.length>=3){ // 3+ days is a legit band; 8 kept main's fresh 7-day archive invisible
+      var top=yrSmoothPath(seg.map(function(s){ return {x:X(s.t), y:Y(s.hi)}; }));
+      var bot=yrSmoothPath(seg.slice().reverse().map(function(s){ return {x:X(s.t), y:Y(s.lo)}; })).replace(/^M/, "L");
+      band+='<path d="'+top+" "+bot+' Z" fill="var(--water)" opacity="0.16"/>';
+    }
+    seg=[];
+  }
+  pts.forEach(function(p,i){
+    if(p.lo!=null && p.hi!=null && loS[i]!=null && hiS[i]!=null){
+      if(seg.length && p.t-seg[seg.length-1].t>3*DAY) flushSeg();
+      seg.push({t:p.t, lo:loS[i], hi:hiS[i]});
+    } else flushSeg();
+  });
+  flushSeg();
+  var linePts=[];
+  pts.forEach(function(p,i){ p.sv=smooth[i]; if(smooth[i]!=null) linePts.push({x:X(p.t), y:Y(smooth[i])}); });
+  var line=yrSmoothPath(linePts);
+  var nowMark="";
+  if(yc.nowV!=null){
+    var yn=Y(yc.nowV);
+    nowMark='<line x1="0" y1="'+yn.toFixed(1)+'" x2="'+W+'" y2="'+yn.toFixed(1)+'" stroke="var(--house)" stroke-width="1.6" stroke-dasharray="6 5" opacity="0.9"/>'
+      +'<circle cx="'+X(t1).toFixed(1)+'" cy="'+yn.toFixed(1)+'" r="4.5" fill="var(--house)"/>';
+  }
+  svg.innerHTML=marks+band+'<path d="'+line+'" fill="none" stroke="var(--water)" stroke-width="1.6"/>'+nowMark;
+  svg._series=pts; svg._t0=t0; svg._t1=t1; svg._min=min; svg._max=max;
+  // Crosshair hooks: the dot rides the DRAWN (smoothed) curve, but the chip
+  // states the day's real numbers — true daily average plus the measured
+  // low–high swing where the archive has it.
+  svg._yVal=function(p){ return p.sv!=null ? p.sv : p.v; };
+  var _kind=yc.kind;
+  svg._chip=function(p){
+    var d=new Date(p.t).toLocaleDateString([], {timeZone:"America/Phoenix", month:"short", day:"numeric", year:"numeric"});
+    var s=d+" · avg "+histFmt(p.v, _kind);
+    if(p.lo!=null && p.hi!=null) s+=" · swing "+histRange(p.lo, p.hi, _kind);
+    return s;
+  };
+  try{
+    var host=svg.parentNode;
+    if(host && document.createElement){
+      var hold=svg._hold;
+      if(!hold){
+        hold=document.createElement("div"); hold.className="chart-hold";
+        host.insertBefore(hold, svg); hold.appendChild(svg); svg._hold=hold;
+        var yl=document.createElement("div"); yl.className="ylab"; hold.appendChild(yl); svg._ylab=yl;
+        initCrosshair(hold, svg);
+      }
+      var fmtY=function(v){ return (Math.abs(max)<1000) ? v.toFixed(1) : (Math.abs(v)>=9500 ? Math.round(v/1000)+"k" : (v/1000).toFixed(1)+"k"); };
+      svg._ylab.innerHTML='<span class="yl-top">'+fmtY(max)+'</span><span class="yl-mid">'+fmtY((max+min)/2)+'</span><span class="yl-bot">'+fmtY(min)+'</span>';
+    }
+  }catch(e){}
+  svg.style.display="block";
+  var ax=axisId ? document.getElementById(axisId) : null;
+  if(ax){
+    ax.style.height="19px";
+    ax.innerHTML=labels.map(function(L){
+      var tr=L.pct<4 ? "translateX(0)" : (L.pct>96 ? "translateX(-100%)" : "translateX(-50%)");
+      return '<span style="left:'+L.pct.toFixed(2)+'%; transform:'+tr+';">'+L.txt+'</span>';
+    }).join("");
+    ax.style.display=labels.length ? "block" : "none";
+  }
+  return {min:min, max:max};
+}
+function renderYear(){
+  var sec=document.getElementById("yr-sec"); if(!sec) return;
+  var pl=currentPlace(), ref=refFor(pl);
+  var yc=yearContext(pl, ref);
+  if(!yc){ sec.style.display="none"; return; }
+  sec.style.display="";
+  var svg=document.getElementById("yr-chart"), lead=document.getElementById("yr-lead"), nowEl=document.getElementById("yr-now"), note=document.getElementById("yr-note");
+  nowEl.innerHTML=(yc.lake?'lake now ':'last 24 h avg ')+'<b class="mono">'+histFmt(yc.nowV, yc.kind)+'</b>';
+  syncYrRange();
+  yearChart(svg, yc, "yr-axis");
+  var pctW=Math.round(yc.pct*100);
+  var cmp=yc.lake?"sits higher than":(yc.kind==="stage"?"sat higher than":"averaged more water than");
+  var nowClause=yc.lake?'today’s lake level':'the last 24 hours';
+  lead.innerHTML='The last 12 months at '+esc(yc.gaugeLabel)+(yc.h.exact?'':' — the closest gauge to '+esc(pl.name)+' with a year of records')+'. Right now the '+(yc.lake?'lake is sitting':'river is running')+' <b style="color:var(--text)">'+yc.phrase+'</b>: '+nowClause+' '+cmp+' <b style="color:var(--text)" class="mono">'+pctW+'%</b> of the year’s days. A typical day this past year ran <b class="mono" style="color:var(--text)">'+histRange(yc.ys.p25, yc.ys.p75, yc.kind)+'</b>; the year’s full range was <b class="mono" style="color:var(--text)">'+histRange(yc.ys.min, yc.ys.max, yc.kind)+'</b>.';
+  var hasBand=yc.h.pts.some(function(p){ return p[2]!=null && p[3]!=null; });
+  note.innerHTML='Blue line: each day’s average '+(yc.lake?'lake elevation (ft above sea level)':(yc.kind==="stage"?'water level (gauge height, ft)':'flow'))+', lightly smoothed'+(hasBand?' · shaded band: that day’s low–high swing':'')+' · dashed line: where '+(yc.lake?'the lake sits today':'the last 24 hours sit')+'. <span class="adv-only">Source: '+esc(yc.h.srcName)+(yc.h.usgsId?' (USGS site '+yc.h.usgsId+')':'')+'. Reclamation-only sensors are also building their own archive — the robot saves each day’s stats as it runs, so those charts grow over time.</span>';
+}
+function renderStrip(pl){
+  var el=document.getElementById("strip"); if(!el) return;
+  var anchors=[
+    {n:"Davis Dam", m:276.0}, {n:"Laughlin", m:274.0}, {n:"Needles", m:246.2},
+    {n:"Topock", m:233.9}, {n:"Lake Havasu", m:210.0}, {n:"Parker Dam", m:192.2},
+    {n:"Headgate", m:177.7}, {n:"Water Wheel", m:152.0}, {n:"I-10", m:121.3},
+    {n:"Walter\u2019s Camp", m:88.3}, {n:"Martinez Lake", m:55.0}
+  ];
+  var merged=false;
+  anchors.forEach(function(a){ if(Math.abs(a.m-pl.mile)<0.6){ a.you=true; a.n=pl.name; merged=true; } });
+  if(!merged) anchors.push({n:pl.name, m:pl.mile, you:true});
+  anchors.sort(function(a,b){ return b.m-a.m; });
+  el.innerHTML=anchors.map(function(a){
+    return a.you ? '<span class="you">'+esc(a.n)+'</span>' : '<span>'+esc(a.n)+'</span>';
+  }).join('<span class="arrow">\u25b8</span>');
+}
+function renderHero(){
+  var pl=currentPlace(), seg=segFor(pl), ref=refFor(pl);
+  var elE=document.getElementById("hero-eyebrow"), elS=document.getElementById("hero-status"), elSub=document.getElementById("hero-sub"), elC=document.getElementById("hero-coming");
+  elE.textContent="Near "+pl.name+" right now";
+  renderStrip(pl);
+  if(!ref || !ref.st){ elS.textContent="No reading"; elSub.textContent="No sensor is reporting yet \u2014 try Refresh."; elC.innerHTML=""; return; }
+  var p=ref.st, _lagP=lagMsFrom(ref.mile, pl);
+  // Shift the sensor's record onto THIS place's clock and read it up to "now":
+  // with an upstream reference, the sensor's newest points describe this spot's
+  // FUTURE, so the present lives lag-minutes back in its record.
+  function toPlace(arr){
+    if(!arr || !arr.length || Math.abs(_lagP)<3*60000) return arr;
+    var out=arr.map(function(q){ return {t:q.t+_lagP, v:q.v}; }).filter(function(q){ return q.t<=Date.now()+60000; });
+    return out.length>=4 ? out : arr;
+  }
+  var flowP=toPlace(p.flow), stageP=toPlace(p.stage);
+  var series=flowP.length?flowP:stageP, tr=trend(series), c=cur(series), f=cur(flowP);
+  var detail=(f?'<span class="mono">'+fmt(f.v)+' cfs</span>':'')+' \u00b7 as of '+azTime(c.t)+' MST'+ageNote(c.t);
+  if(seg==="lake"){
+    if(havasuData && havasuData.length){
+      var last=havasuData[havasuData.length-1], eN=last.v;
+      var cut=last.t-24*3600*1000, prev=null;
+      for(var q=0;q<havasuData.length;q++){ if(havasuData[q].t<=cut) prev=havasuData[q]; }
+      var d24=prev?(eN-prev.v):0;
+      var word=Math.abs(d24)<0.05?"holding steady":(d24>0?"rising slowly":"falling slowly");
+      var mark=Math.abs(d24)<0.05?TMARK.steady:(d24>0?TMARK.rising:TMARK.falling);
+      var col=Math.abs(d24)<0.05?TCOLOR.steady:(d24>0?TCOLOR.rising:TCOLOR.falling);
+      var eLo=Math.min.apply(null, havasuData.map(function(x){return x.v;})), eHi=Math.max.apply(null, havasuData.map(function(x){return x.v;}));
+      elS.innerHTML='<span style="color:'+col+'">'+mark+'</span> Lake at <span class="mono">'+eN.toFixed(2)+' ft</span> \u00b7 '+word;
+      elSub.innerHTML='Lake elevation as of '+azTime(last.t)+' MST \u2014 it has moved only ~<b style="color:var(--text)" class="mono">'+(eHi-eLo).toFixed(2)+' ft</b> all week (no daily river tide up here). What matters downstream is the release: '+detail+'.';
+      var _ycL=yearContext(pl, ref);
+      if(_ycL){
+        var _pbL=bucketOf(_ycL.pct);
+        elE.innerHTML='Near '+esc(pl.name)+' right now <span class="pill lvl '+_pbL.cls+'" title="Lake elevation vs the PAST YEAR \u2014 today\u2019s level against 12 months of daily readings. low \u00b7 below average \u00b7 average \u00b7 above average \u00b7 high.">'+_pbL.label+'</span>';
+        elSub.innerHTML+=' Today\u2019s level sits higher than <b style="color:var(--text)" class="mono">'+Math.round(_ycL.pct*100)+'%</b> of the past year\u2019s days \u2014 <b style="color:var(--text)">'+_ycL.phrase+'</b>.';
+      }
+    } else {
+      elS.innerHTML='<span style="color:'+TCOLOR[tr]+'">'+TMARK[tr]+'</span> Dam release is '+TWORD[tr];
+      elSub.innerHTML='Lake Havasu sits <b style="color:var(--text)">above</b> Parker Dam, so it doesn\u2019t get the daily river tide. (Lake elevation appears once the data robot updates.) Release: '+detail+'.';
+    }
+    elC.innerHTML=""; elC.style.display="none"; // no "coming" block on the lake \u2014 an empty one shows a stray divider + reserved blank space
+    return;
+  }
+  var abl=stageAboveLow(stageP), sw=stageSwing(stageP);
+  var _comp=measuredArrival(pl);
+  var weekCtx=dayRankPhrase(flowP, _comp);
+  var readAge=Date.now()-c.t;
+  var lag=lagMsFrom(ref.mile, pl);
+  // Level bucket for ANY value, on the same weekly scale as the eyebrow pill —
+  // so a cycle bottom that lands at an average level is called "about
+  // average", never "low water".
+  var _toFtH=tideRating(pl);
+  function bucketPhrase(v){
+    var pct=null, ftv=_toFtH?_toFtH(v):null;
+    if(ftv!=null && sw!=null && sw>0.3) pct=ftv/sw;
+    else if(flowP.length>=8){
+      var _vals=flowP.map(function(p3){ return p3.v; });
+      var _lo=Math.min.apply(null,_vals), _hi=Math.max.apply(null,_vals);
+      if(_hi>_lo && _hi-_lo>=0.08*Math.abs(_hi)) pct=(v-_lo)/(_hi-_lo);
+    }
+    return pct==null ? null : bucketOf(pct);
+  }
+  var timing='<span class="adv-only">'+((Math.abs(lag)>=3*60000) ? ' \u00b7 pulses arrive at '+esc(pl.name)+' '+lagLabel2(lag, ref.label) : ' \u00b7 from '+ref.label)+'</span>';
+  // The headline is the 3-second answer: what's happening now + what's next,
+  // with a time. Hero, forecast-chart header, and tide table all read the SAME
+  // blended outlook (see blendedOutlook), so the panels can't disagree \u2014 and
+  // within the hero, headline (_head) and sentence (turn) come from one branch.
+  var turn="", _head=null;
+  var _ol=blendedOutlook(pl);
+  var _cv=f?f.v:null;
+  if(_ol && _ol.events.length && flowP.length>=6 && _cv!=null){
+    var _wk=flowP.map(function(q){return q.v;});
+    var _thr=0.15*((Math.max.apply(null,_wk)-Math.min.apply(null,_wk))||1);
+    var e0=_ol.events[0], e1=_ol.events[1]||null;
+    var _up=(e0.type==="high");
+    var ftM=_toFtH?_toFtH(e0.v):null;
+    var lvlM=(ftM!=null?'~+'+ftM.toFixed(1)+' ft':'~'+fmt(Math.round(e0.v))+' cfs');
+    var _bk=bucketPhrase(e0.v);
+    var _dst=_bk?_bk.phrase:null;                                  // headline destination, e.g. "about average"
+    var _dstFull=(_dst?_dst+' ('+lvlM+')':'about '+lvlM);          // sentence destination with the number
+    // attribution: event inside the measured window = water already in the river
+    var _meas=(_ol.horizon && e0.t<=_ol.horizon);
+    var _srcL=ref.label;
+    if(_meas && _ol.futM.length){ var _bd=1e18; _ol.futM.forEach(function(p3){ var dd=Math.abs(p3.t-e0.t); if(dd<_bd && p3.src){ _bd=dd; _srcL=p3.src; } }); }
+    var _tail=_meas ? ' That water is already past '+_srcL+' \u2014 measured, on its way.'
+                    : ' From the dam schedule, trued to the local sensor.';
+    // Sanity guard: a coming "low" ABOVE the current level (or "high" below it)
+    // means today's extreme is already behind us \u2014 say that instead.
+    var mism=null;
+    if(ftM!=null && abl!=null){
+      if(!_up && ftM>abl+0.5) mism="low-above";
+      else if(_up && ftM<abl-0.5) mism="high-below";
+    } else {
+      if(!_up && e0.v>_cv+_thr) mism="low-above";
+      else if(_up && e0.v<_cv-_thr) mism="high-below";
+    }
+    // When does the move start? End of the plateau the water is on now.
+    var _pre=_ol.blend.filter(function(q){ return q.t<=e0.t; });
+    var _ts=null, _pext=null;
+    if(_pre.length){
+      var _pv=_pre.map(function(q){ return q.v; });
+      _pext=_up ? Math.min.apply(null,_pv) : Math.max.apply(null,_pv);
+      for(var _p2=_pre.length-1;_p2>=0;_p2--){
+        if(_up ? (_pre[_p2].v<=_pext+_thr*0.25) : (_pre[_p2].v>=_pext-_thr*0.25)){ _ts=_pre[_p2]; break; }
+      }
+    }
+    var _tT=clockDay(e0.t);
+    var hrsM=(e0.t-Date.now())/3600000;
+    var whenM=hrsM<1?'within the hour':(hrsM<1.75?'in about an hour':'in ~'+Math.round(hrsM)+' h');
+    if(mism==="low-above"){
+      turn=' <b style="color:var(--text)">Right now looks like the bottom</b> \u2014 nothing lower ahead soon: even the next dip ('+lvlM+' around '+azTime(e0.t)+') sits above where the water is now.';
+      _head={m:'falling', t:'At the bottom \u2014 nothing lower ahead today'};
+    }
+    else if(mism==="high-below"){
+      turn=' <b style="color:var(--text)">Right now looks like the top</b> \u2014 nothing higher ahead soon: even the next peak ('+lvlM+' around '+azTime(e0.t)+') sits under where the water is now.';
+      _head={m:'rising', t:'At the top \u2014 nothing higher ahead today'};
+    }
+    else {
+      var startLater=(_ts && _ts.t-Date.now()>45*60000);
+      // Only call it a real intermediate peak/dip if the plateau actually sits
+      // meaningfully above/below the CURRENT level \u2014 otherwise we're already on
+      // the plateau and the honest phrase is "holding until".
+      var interMove=startLater && (_up ? (_pext<_cv-_thr*0.35) : (_pext>_cv+_thr*0.35));
+      var _sT=_ts?clockDay(_ts.t):null;
+      var hrsS=_ts?(_ts.t-Date.now())/3600000:0;
+      var whenS=hrsS<1?'within the hour':(hrsS<1.75?'in about an hour':'in ~'+Math.round(hrsS)+' h');
+      var _bkNow=bucketPhrase(_cv);
+      var _holdW=_bkNow?_bkNow.hold:'Holding steady';
+      if(!_up){ // heading to the cycle bottom at e0
+        if(interMove){
+          turn=' <b style="color:var(--text)">Expect it to peak '+whenS+'</b> (~'+azClock(_ts.t)+') \u2014 then down to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
+          _head = tr==="falling" ? {m:'falling', t:'Dipping \u2014 peaks ~'+_sT+', then '+(_dst?'down to '+_dst:'drops')}
+                : {m:'rising', t:'Rising \u2014 tops out ~'+_sT+', then '+(_dst?'down to '+_dst:'drops')};
+        }
+        else if(startLater && tr!=="falling"){ // a measured fall overrules the schedule's plateau \u2014 never "holding" while the river is visibly dropping
+          turn=' <b style="color:var(--text)">Holding near the top until ~'+azClock(_ts.t)+'</b> \u2014 then down to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
+          _head={m:'steady', t:_holdW+' \u2014 drops after ~'+_sT};
+        }
+        else if(tr==="rising"){
+          turn=' <b style="color:var(--text)">Peaking about now</b> \u2014 then down to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
+          _head={m:'rising', t:'Peaking now \u2014 down to '+(_dst||'the daily low')+' by ~'+_tT};
+        }
+        else {
+          var _pause=startLater?'easing off around ~'+azClock(_ts.t)+', then ':'';
+          turn=' <b style="color:var(--text)">Expect the dip '+whenM+'</b> \u2014 '+_pause+'down to '+_dstFull+' around '+azTime(e0.t)+(e1&&e1.type==="high"?', then back up':'')+'.'+_tail;
+          _head={m:'falling', t:'Dropping \u2014 down to '+(_dst||'the daily low')+' ~'+_tT+(e1&&e1.type==="high"?', then back up':'')};
+        }
+      } else { // heading to the cycle top at e0
+        if(interMove){
+          turn=' <b style="color:var(--text)">Expect it to bottom out '+whenS+'</b> (~'+azClock(_ts.t)+') \u2014 then up to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
+          _head = tr==="rising" ? {m:'rising', t:'Rising \u2014 dips ~'+_sT+', then '+(_dst?'up to '+_dst:'higher')}
+                : {m:'falling', t:'Dropping \u2014 turns back up ~'+_sT};
+        }
+        else if(startLater && tr!=="rising"){ // mirror: a measured rise overrules "holding near the bottom"
+          turn=' <b style="color:var(--text)">Holding near the bottom until ~'+azClock(_ts.t)+'</b> \u2014 then up to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
+          _head={m:'steady', t:_holdW+' \u2014 comes up ~'+_sT};
+        }
+        else if(tr==="falling"){
+          turn=' <b style="color:var(--text)">Bottoming out about now</b> \u2014 then up to '+_dstFull+' by '+azTime(e0.t)+'.'+_tail;
+          _head={m:'falling', t:'At today\u2019s low \u2014 up to '+(_dst||'the daily high')+' by ~'+_tT};
+        }
+        else {
+          var _pause2=startLater?'leveling off around ~'+azClock(_ts.t)+', then ':'';
+          turn=' <b style="color:var(--text)">Expect the peak '+whenM+'</b> \u2014 '+_pause2+'up to '+_dstFull+' around '+azTime(e0.t)+(e1&&e1.type==="low"?', then easing back':'')+'.'+_tail;
+          _head={m:'rising', t:'Rising \u2014 up to '+(_dst||'the daily high')+' by ~'+_tT+(e1&&e1.type==="low"?', then easing back':'')};
+        }
+      }
+    }
+  }
+  if(!_head){
+    _head={m:tr, t:'Water '+(readAge>90*60*1000?'has been ':'is ')+TWORD[tr]}; // the eyebrow pill carries the level
+  }
+  // The badge states the CURRENT level, so it lives in the eyebrow — right
+  // beside "right now" — not in the sentence, where it read as if it described
+  // the forecast time. It grades against the PAST YEAR when a year of history
+  // exists (so "AVG" means average for the year), else this week's range.
+  var _lw=levelWord(abl, sw, flowP);
+  var _yc=yearContext(pl, ref);
+  var _pillB=_yc ? bucketOf(_yc.pct) : _lw;
+  if(_pillB){
+    var _pillTip=_yc
+      ? 'Current level vs the PAST YEAR — the last 24 h average against 12 months of daily averages'+(_yc.h.exact?'':' at '+_yc.gaugeLabel)+'. low · below average · average · above average · high.'
+      : 'Current level vs this week’s range at this spot (a year comparison appears once a year of history is available) — low · below average · average · above average · high.';
+    elE.innerHTML='Near '+esc(pl.name)+' right now <span class="pill lvl '+_pillB.cls+'" title="'+_pillTip+'">'+_pillB.label+'</span>';
+  }
+  elS.innerHTML='<span style="color:'+TCOLOR[_head.m]+'">'+TMARK[_head.m]+'</span> '+_head.t;
+  // The past-year reality check: is the water actually high, or just high for
+  // this week? Weekly level and year percentile, reconciled in one sentence.
+  var yrTxt="";
+  if(_yc){
+    var _pctW=Math.round(_yc.pct*100), vs="";
+    if(_lw){
+      var wkHigh=_lw.cls==="high", wkLow=_lw.cls==="low";
+      var yrHigh=_yc.pct>=0.6, yrLow=_yc.pct<0.4;
+      if(wkHigh && yrHigh) vs="Not just a big week \u2014 the river really is up.";
+      else if(wkHigh && yrLow) vs="High for this week, but still less water than a typical day this past year.";
+      else if(wkHigh) vs="High for this week, but about normal for the year.";
+      else if(wkLow && yrLow) vs="Low for this week and for the year.";
+      else if(wkLow && yrHigh) vs="A low moment this week \u2014 yet still more water than most of the past year.";
+    }
+    yrTxt=' <b style="color:var(--text)">Past-year check:</b> the last 24 h averaged <span class="mono">'+histFmt(_yc.nowV, _yc.kind)+'</span>'+(_yc.h.exact?'':' at '+esc(_yc.gaugeLabel))+' \u2014 '+(_yc.kind==="stage"?"higher":"more water")+' than '+_pctW+'% of days in the last 12 months. '+(vs||('That\u2019s '+_yc.phrase+'.'))+' <a href="#yr-sec" style="color:var(--water)">See the year \u2193</a>';
+  }
+  var _lead=weekCtx?weekCtx+' ':'';
+  if(abl!=null){ elSub.innerHTML=_lead+'The water is about <b style="color:var(--text)" class="mono">+'+abl.toFixed(1)+' ft</b> above this week\u2019s low'+(sw!=null?' (it rises and falls ~'+sw.toFixed(1)+' ft over the week)':'')+' \u2014 '+detail+timing+'.'+turn+yrTxt; }
+  else { elSub.innerHTML=_lead+'Closest live source reads '+detail+timing+'.'+turn+yrTxt; }
+  var parker=STATIONS.find(function(s){ return s.key==="parker" && s.flow.length; });
+  var curMph=Math.max(0.5, Math.min(8, WAVE_MPH*0.6));
+  var curLine='River current: roughly <b style="color:var(--text)">~'+curMph.toFixed(1)+' mph</b> \u2014 about the speed a stick drifts by.<span class="adv-only"> (Estimated as ~60% of the measured pulse speed; actual current varies with depth and spot.)</span>';
+  var _aKey=(seg==="upper")?"davis":"parker", _aMile=(seg==="upper")?DAVIS_MILE:PARKER_MILE, _aName=(seg==="upper")?"Davis":"Parker";
+  var _anch=null; for(var _ai=0;_ai<STATIONS.length;_ai++){ if(STATIONS[_ai].key===_aKey && STATIONS[_ai].flow.length){ _anch=STATIONS[_ai]; break; } }
+  elC.style.display="";
+  if(_anch && ref.key!==_aKey){
+    var lagH=stretchHours(_aMile, pl.mile);
+    var eta=lagH<1.5 ? "~"+Math.round(lagH*60)+" min" : "~"+Math.round(lagH)+" h";
+    elC.innerHTML=curLine+'<br>Upstream at '+_aName+', release is <b>'+TWORD[trend(_anch.flow)]+'</b> ('+fmt(cur(_anch.flow).v)+' cfs) \u2014 that water reaches '+esc(pl.name)+' in '+eta+'.';
+  } else { elC.innerHTML=curLine; }
+}
+function renderReach(){
+  var lead=document.getElementById("fc-lead"), now=document.getElementById("fc-now"), svg=document.getElementById("fc-chart"), skel=document.getElementById("fc-skel"), title=document.getElementById("fc-title");
+  var pl=currentPlace(), ref=refFor(pl);
+  if(segFor(pl)==="lake" && havasuData && havasuData.length){
+    if(skel) skel.style.display="none";
+    if(title) title.textContent="Recent \u2014 Lake Havasu elevation";
+    var lc=havasuData[havasuData.length-1];
+    now.innerHTML='Lake now <b class="mono">'+lc.v.toFixed(2)+' ft</b> \u00b7 '+azTime(lc.t)+' MST';
+    var lr=areaChart(svg, rangeCut(havasuData), "var(--water)", false, "fc-axis", true, true, null, true);
+    lead.innerHTML='The lake\u2019s elevation over the last '+rangeLabel()+' \u2014 it ranged just <b class="mono" style="color:var(--text)">'+lr.min.toFixed(2)+'</b>\u2013<b class="mono" style="color:var(--text)">'+lr.max.toFixed(2)+' ft</b> while the river below swings several feet a day.';
+    return;
+  }
+  var st=(ref && ref.st && ref.st.flow.length) ? ref.st : null;
+  if(skel) skel.style.display = (st || borTried) ? "none" : "block";
+  if(title){
+    var _lagT=(st && ref) ? lagMsFrom(ref.mile, pl) : 0;
+    title.textContent = "Recent \u2014 " + (st ? (Math.abs(_lagT)>=3*60000 ? "near "+pl.name : st.name+" sensor") : "nearest sensor");
+  }
+  syncRangeButtons();
+  var rp=document.getElementById("range-pick"); if(rp) rp.style.display = st ? "flex" : "none";
+  if(st){
+    var c=cur(st.flow);
+    var lagR=lagMsFrom(ref.mile, pl), shiftedR=(Math.abs(lagR)>=3*60000);
+    now.innerHTML='Latest at '+esc(st.name)+' <b class="mono">'+fmt(c.v)+' cfs</b> \u00b7 '+azTime(c.t)+(shiftedR ? ' \u00b7 '+(lagR>0?'reaches ':'passed ')+esc(pl.name)+' ~'+azTime(c.t+lagR) : ' MST');
+    // History + the measured en-route future (same blended outlook as the other
+    // panels), so the Recent chart also shows what's already on its way.
+    var olR=blendedOutlook(pl);
+    var seriesR=(olR && olR.flowP.length) ? olR.flowP.concat(olR.futM)
+              : (shiftedR ? st.flow.map(function(p){ return {t:p.t+lagR, v:p.v}; }) : st.flow);
+    var r=areaChart(svg, rangeCut(seriesR), "var(--water)", false, "fc-axis", true, true, null, true);
+    var d=Math.abs(ref.mile-pl.mile);
+    lead.innerHTML='The last '+rangeLabel()+' near '+esc(pl.name)+', from '+ref.label+(shiftedR ? ' \u2014 clock reads arrival at '+esc(pl.name)+(lagR>0 ? '; the stretch past \u201cnow\u201d is water already released upstream, on its way here' : '') : '')+(d>=0.5 ? ' \u2014 the closest live sensor to '+esc(pl.name) : ' \u2014 right at '+esc(pl.name))+'.<span class="adv-only"> ('+(d>=0.5?d.toFixed(0)+' river mi away. ':'')+'Flow swings between <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b> and <b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs in a daily rhythm.)</span>';
+  } else {
+    svg.style.display="none"; now.innerHTML="";
+    var fax=document.getElementById("fc-axis"); if(fax) fax.style.display="none";
+    if(!borTried){ lead.innerHTML='Loading Reclamation&rsquo;s hourly record\u2026'; }
+    else if(borErr){ lead.innerHTML='Reach feed error &mdash; <span class="mono">'+esc(borErr)+'</span>. The relay or proxy may be busy; try Refresh in a minute.'; }
+    else { lead.innerHTML='No nearby sensor is reporting for this spot right now.'; }
+  }
+}
+function forecastSeriesFor(pl){
+  var seg=segFor(pl);
+  var d=null, srcNote="", originMile=HEADGATE_MILE, originName="Headgate Rock Dam";
+  var hg=(hgData && hgData.downstream && hgData.downstream.length) ? hgData : null;
+  if(seg==="strip" || seg==="lake"){
+    originMile=PARKER_MILE; originName="Parker Dam";
+    if(psData && psData.length){ d=clean(psData); srcNote=" Parker Dam\u2019s own published schedule \u2014 full release, straight from the source."; }
+    else if(hg && hg.parker && hg.parker.length){ d=clean(hg.parker); srcNote=" Full Parker release \u2014 this stretch is above the CRIT canal turnout."; }
+    else if(hg && hg.critAvg!=null){ d=clean(hg.downstream).map(function(p){ return {t:p.t, v:p.v+hg.critAvg}; }); srcNote=" Approximated by adding the CRIT diversion (~"+fmt(hg.critAvg)+" cfs) back in."; }
+    else if(hg){ d=clean(hg.downstream); srcNote=" Note: this stretch actually carries ~1,200 cfs more (it\u2019s above the CRIT turnout)."; }
+  } else if(seg==="upper"){
+    originMile=DAVIS_MILE; originName="Davis Dam";
+    if(dsData && dsData.length){ d=clean(dsData); srcNote=" Davis Dam\u2019s own published schedule \u2014 full release, straight from the source."; }
+    else return null;
+  } else {
+    if(!hg) return null;
+    d=clean(hg.downstream);
+    if(pl.mile < WASTE_MILE){
+      var ret=returnEst();
+      if(ret){
+        d=d.map(function(p){ return {t:p.t, v:p.v+ret}; });
+        srcNote+=" Plus the Poston Wasteway return (~"+fmt(ret)+" cfs \u00b7 USGS) that re-enters the river above Lost Lake.";
+      }
+    }
+    if(seg==="below"){
+      var dv=divEst();
+      if(dv && dv.cfs>0){
+        var clamped=0;
+        d=d.map(function(p){ if(p.v-dv.cfs<0) clamped++; return {t:p.t, v:Math.max(0, p.v-dv.cfs)}; });
+        srcNote+=dv.measured ? " Minus the measured Palo Verde Canal diversion (~"+fmt(dv.cfs)+" cfs \u00b7 USGS canal gauge)." : " Minus roughly what Palo Verde is diverting lately (~"+fmt(dv.cfs)+" cfs, estimated from the sensors).";
+        if(clamped>0) srcNote += " During the deepest lows this simple subtraction bottoms out near zero \u2014 the real channel keeps some water (drains return flow), so treat those hours as \u201cvery low,\u201d not dry.";
+      }
+      else { srcNote+=" Levels here run lower than shown \u2014 Palo Verde diverts water above this point."; }
+    }
+  }
+  if(!d || !d.length) return null;
+  // Self-truing heights: the schedule predicts TIMING well, but by a distant
+  // reach both its absolute level (diversion estimates, drains, seepage) and
+  // its swing (an 80-mile run flattens the daily pulse) drift from what the
+  // local gauge actually reads. Match the forecast's typical level and swing
+  // width to the sensor's last daily cycle — never point-by-point, so a couple
+  // hours of travel-time error can't poison it.
+  var tru=scheduleTrue(d, pl);
+  if(tru){
+    d=d.map(function(p){ return {t:p.t, v:Math.max(0, tru.mMed+(p.v-tru.sMed)*tru.scale)}; });
+    var bits=[];
+    if(Math.abs(tru.sMed-tru.mMed)>=Math.max(120,0.04*tru.mMed)) bits.push('the raw schedule math has run ~'+fmt(Math.abs(tru.sMed-tru.mMed))+' cfs '+(tru.sMed>tru.mMed?'high':'low')+' vs its readings lately');
+    if(tru.scale<1) bits.push('the daily swing flattens ~'+Math.round((1-tru.scale)*100)+'% over the long run to here');
+    if(tru.scale>1) bits.push('the daily swing runs ~'+Math.round((tru.scale-1)*100)+'% bigger here');
+    srcNote+=' Heights auto-trued to '+tru.label+' ('+bits.join('; ')+').';
+  }
+  var shift=(seg==="lake") ? 0 : lagMsFrom(originMile, pl);
+  return { arrival:d.map(function(p){ return {t:p.t+shift, v:p.v}; }), srcNote:srcNote, originMile:originMile, originName:originName, seg:seg };
+}
+function scheduleTrue(d, pl){
+  var ref=refFor(pl);
+  if(!ref || !ref.st || !ref.st.flow || ref.st.flow.length<8) return null;
+  // The strip/lake/upper forecasts ARE the dam's own release schedule and their
+  // reference sensor IS that release — nothing to true, and "correcting" the
+  // plan to match yesterday's cycle would just distort it.
+  if(ref.key==="parker" || ref.key==="davis") return null;
+  function q(a,f){ var s=a.slice().sort(function(x,y){return x-y;}); return s[Math.max(0,Math.min(s.length-1,Math.floor(s.length*f)))]; }
+  var now=Date.now();
+  // The sensor's last full daily cycle — what the river is actually running.
+  var mv=ref.st.flow.filter(function(p){ return p.t>=now-26*3600*1000; }).map(function(p){ return p.v; });
+  if(mv.length<8) return null;
+  // Regime-change guard: if the schedule TRENDS to a new level across its days
+  // (not just the usual day-to-day wiggle), a static true-up would erase a real
+  // change — skip and let the schedule speak for itself.
+  var t0=d[0].t, blocks={};
+  d.forEach(function(p){ var b=Math.floor((p.t-t0)/86400000); (blocks[b]=blocks[b]||[]).push(p.v); });
+  var keys=Object.keys(blocks).map(Number).sort(function(a,b){return a-b;}), bmeds=[];
+  keys.forEach(function(k){ if(blocks[k].length>=12){ var bm=q(blocks[k],0.5); if(bm>0) bmeds.push(bm); } });
+  if(bmeds.length>=2){ var trd=bmeds[bmeds.length-1]/bmeds[0]; if(trd>1.3 || trd<0.77) return null; }
+  var sv=d.map(function(p){ return p.v; });
+  var sMed=q(sv,0.5), mMed=q(mv,0.5);
+  var sSpan=q(sv,0.85)-q(sv,0.15), mSpan=q(mv,0.85)-q(mv,0.15);
+  var scale=1;
+  if(sSpan>500 && mSpan>0){
+    scale=Math.max(0.25, Math.min(1.5, mSpan/sSpan));
+    if(scale>0.85 && scale<1.15) scale=1; // within noise — don't fiddle
+  }
+  if(scale===1 && Math.abs(sMed-mMed)<Math.max(120,0.04*mMed)) return null; // already true
+  return {sMed:sMed, mMed:mMed, scale:scale, label:ref.label};
+}
+// Measured future: water that already passed the gauges upstream of this spot
+// is en route — no schedule needed. Chain every in-zone gauge above the place
+// (nearest first; each farther gauge's tail is trued to the nearest one's
+// level and swing over their overlap), shifted by the measured travel time.
+// The farther the chain reaches, the more hours of forecast are MEASUREMENT.
+function measuredArrival(pl){
+  var keys=SEG_REFS[segFor(pl)]||[], gs=[];
+  keys.forEach(function(k){
+    var sm=sensorInfo(k); if(!sm || sm.mile<pl.mile-0.5) return; // at-or-above only
+    var st=STATIONS.find(function(s){ return s.key===k && s.flow.length>=6; }); if(!st) return;
+    gs.push({mile:sm.mile, label:sm.label, flow:st.flow});
+  });
+  if(!gs.length) return null;
+  gs.sort(function(a,b){ return a.mile-b.mile; }); // nearest upstream first
+  function q(a,f){ var s=a.slice().sort(function(x,y){return x-y;}); return s[Math.max(0,Math.min(s.length-1,Math.floor(s.length*f)))]; }
+  var base=null, out=[], coverEnd=0, srcs=[];
+  gs.forEach(function(g){
+    var lag=stretchHours(g.mile, pl.mile)*3600000;
+    var pts=g.flow.map(function(p){ return {t:p.t+lag, v:p.v, src:g.label}; });
+    if(!base){ base=pts; out=pts.slice(); coverEnd=pts[pts.length-1].t; srcs.push(g.label); return; }
+    var tail=pts.filter(function(p){ return p.t>coverEnd+60000; });
+    if(!tail.length) return;
+    // true this gauge to the nearest gauge over their overlap at this spot's clock
+    var lo=Math.max(base[0].t, pts[0].t), hi=Math.min(base[base.length-1].t, pts[pts.length-1].t);
+    if(hi-lo>24*3600000){
+      var bv=base.filter(function(p){ return p.t>=lo&&p.t<=hi; }).map(function(p){ return p.v; });
+      var gv=pts.filter(function(p){ return p.t>=lo&&p.t<=hi; }).map(function(p){ return p.v; });
+      if(bv.length>=8 && gv.length>=8){
+        var bMed=q(bv,0.5), gMed=q(gv,0.5), bSp=q(bv,0.85)-q(bv,0.15), gSp=q(gv,0.85)-q(gv,0.15);
+        var sc=1;
+        if(gSp>300 && bSp>0){ sc=Math.max(0.25, Math.min(1.5, bSp/gSp)); if(sc>0.85&&sc<1.15) sc=1; }
+        if(sc!==1 || Math.abs(bMed-gMed)>=Math.max(120,0.04*bMed)){
+          tail=tail.map(function(p){ return {t:p.t, v:Math.max(0, bMed+(p.v-gMed)*sc), src:p.src}; });
+        }
+      }
+    }
+    // Seam continuity: the true-up matches WEEKLY stats, not the instant this
+    // gauge takes over — the handoff can step >1,000 cfs and paint a phantom
+    // peak. Fade the residual step out over ~6 h of the tail.
+    if(out.length){
+      var _sd=out[out.length-1].v - tail[0].v;
+      if(Math.abs(_sd)>1){
+        var _st0=tail[0].t, _FADE=6*3600000;
+        tail=tail.map(function(p){
+          var w=1-Math.min(1,(p.t-_st0)/_FADE);
+          return {t:p.t, v:Math.max(0, p.v+_sd*w), src:p.src};
+        });
+      }
+    }
+    out=out.concat(tail);
+    coverEnd=tail[tail.length-1].t;
+    srcs.push(g.label);
+  });
+  out.sort(function(a,b){ return a.t-b.t; });
+  return {points:out, horizon:coverEnd, srcs:srcs};
+}
+// ONE source of truth for "what's next": the measured en-route water, anchored
+// to the current reading, with the trued dam schedule appended beyond the
+// measured horizon. The hero, the forecast chart header, and the tide table
+// all read THIS list, so no two panels can tell different stories.
+// Anchoring: the composite future comes from farther gauges trued on weekly
+// statistics, so at any given moment it can sit a couple thousand cfs off the
+// near gauge's present reading (attenuation varies with flow). We shift the
+// measured window by that seam gap, fading the correction to zero by the
+// horizon, so the outlook starts at reality and ends where the schedule picks up.
+function blendedOutlook(pl){
+  var ref=refFor(pl);
+  if(!ref || !ref.st) return null;
+  var now=Date.now(), lag=lagMsFrom(ref.mile, pl);
+  function toP(arr){
+    if(!arr || !arr.length || Math.abs(lag)<3*60000) return arr;
+    var o=arr.map(function(q){ return {t:q.t+lag, v:q.v}; }).filter(function(q){ return q.t<=now+60000; });
+    return o.length>=4 ? o : arr;
+  }
+  var flowP=toP(ref.st.flow);
+  var cv=flowP.length ? flowP[flowP.length-1].v : null;
+  var comp=measuredArrival(pl), fc=forecastSeriesFor(pl);
+  var horizon=comp ? comp.horizon : 0;
+  var futM=[];
+  if(comp){
+    var raw=comp.points.filter(function(p){ return p.t>now; });
+    // Anchor ONLY when the composite disagrees with the reference sensor at
+    // the SAME moment (comparing across an hour of real change smears steep
+    // dam ramps into phantom shelves). With the handoff fades above this is
+    // normally ~0.
+    var delta=0;
+    if(raw.length>=2 && cv!=null && flowP.length){
+      var tc=flowP[flowP.length-1].t, bd=1e18, atTc=null;
+      for(var ci=0; ci<comp.points.length; ci++){
+        var dd=Math.abs(comp.points[ci].t-tc);
+        if(dd<bd){ bd=dd; atTc=comp.points[ci]; }
+      }
+      if(atTc && bd<=90*60000) delta=cv-atTc.v; // same-instant gap only
+    }
+    if(raw.length>=2 && Math.abs(delta)>1){
+      var span=Math.max(1, horizon-now);
+      futM=raw.map(function(p){
+        var w=1-Math.min(1,(p.t-now)/span);
+        return {t:p.t, v:Math.max(0, p.v+delta*w), src:p.src};
+      });
+    } else futM=raw;
+  }
+  var futS=fc ? fc.arrival.filter(function(p){ return p.t>Math.max(now, horizon); }) : [];
+  // Same continuity treatment where measurement hands off to the schedule —
+  // independent estimates can disagree by thousands of cfs at the horizon;
+  // fade the step into the schedule's first ~6 h.
+  if(futM.length && futS.length){
+    var dS=futM[futM.length-1].v - futS[0].v;
+    if(Math.abs(dS)>1){
+      var s0=futS[0].t, FADE2=6*3600000;
+      futS=futS.map(function(p){
+        var w=1-Math.min(1,(p.t-s0)/FADE2);
+        return {t:p.t, v:Math.max(0, p.v+dS*w)};
+      });
+    }
+  }
+  var blend=futM.concat(futS);
+  var events=blend.length>=6 ? findTides(blend).filter(function(e){ return e.t>now; }) : [];
+  return { ref:ref, lag:lag, flowP:flowP, cv:cv, comp:comp, fc:fc, horizon:horizon, futM:futM, blend:blend, events:events };
+}
+function tideRating(pl){
+  var seg=segFor(pl);
+  if(seg==="mid" || seg==="below" || seg==="upper"){
+    var ref=refFor(pl);
+    var r=ref ? buildRating(ref.key) : null;
+    return r || (seg==="mid" ? buildRating("waterwheel") : null);
+  }
+  return null;
+}
+function renderHeadgate(){
+  var lead=document.getElementById("hg-lead"), nextEl=document.getElementById("hg-next"), svg=document.getElementById("hg-chart"), noteEl=document.getElementById("hg-note"), skel=document.getElementById("hg-skel");
+  var pl=currentPlace();
+  var fc=forecastSeriesFor(pl);
+  if(skel) skel.style.display = (fc || hgTried) ? "none" : "block";
+  if(!fc){
+    svg.style.display="none"; nextEl.innerHTML=""; noteEl.textContent="";
+    var hax=document.getElementById("hg-axis"); if(hax) hax.style.display="none";
+    // Name the dam that actually feeds THIS reach \u2014 telling a Laughlin user to
+    // read the Headgate PDF points them at the wrong river segment.
+    var _sg=segFor(pl), _upperOrStrip=(_sg==="upper"||_sg==="strip"||_sg==="lake");
+    var _dam=_sg==="upper" ? "Davis Dam" : (_upperOrStrip ? "Parker Dam" : "Headgate Rock Dam");
+    var _pdf=_upperOrStrip ? "https://www.usbr.gov/lc/region/g4000/hourly/DavisParkerSchedules.pdf" : HG_PDF;
+    var _pdfName=_upperOrStrip ? "Davis/Parker PDF" : "Headgate PDF";
+    if(!hgTried){ lead.innerHTML='Loading Reclamation&rsquo;s '+_dam+' schedule\u2026'; }
+    else { lead.innerHTML='The live '+_dam+' schedule couldn&rsquo;t be pulled this time. Your next highs and lows are in the <b style="color:var(--text)">tide table below</b>, projected from the recent rhythm. Official schedule: <a class="site-link" href="'+_pdf+'" target="_blank" rel="noopener">'+_pdfName+' \u2197</a>.'; }
+    return;
+  }
+  // Show ~5 h of context before "now" so the solid measured line has some
+  // history to stand on instead of hugging the left edge.
+  var now=Date.now(), fut=fc.arrival.filter(function(p){ return p.t >= now - 5*3600*1000; }), series=fut.length>=4?fut:fc.arrival;
+  // Solid line = ACTUAL readings for the past 5 h, then the measured en-route
+  // water, drawn over the dashed schedule — so you can also see how well the
+  // schedule has been tracking reality. Same blended outlook as hero and tide.
+  var ol=blendedOutlook(pl);
+  var ovPts=null;
+  if(ol){
+    var _past=ol.flowP.filter(function(p2){ return p2.t>=now-5*3600*1000; });
+    var _ov=_past.concat(ol.futM);
+    if(_ov.length>=3) ovPts=_ov;
+  }
+  var r=areaChart(svg, series, "var(--house)", true, "hg-axis", true, false, ovPts);
+  var _blend=ovPts ? ovPts.concat(series.filter(function(p2){ return p2.t>ol.horizon; })) : series;
+  svg._series=_blend; // crosshair reads measured values inside the horizon, schedule beyond
+  var toFt=tideRating(pl);
+  function lvlTxt(v){
+    var ft=toFt?toFt(v):null;
+    return (ft!=null ? '~<b class="mono">+'+ft.toFixed(1)+' ft</b> ('+fmt(v)+' cfs)' : '~<b class="mono">'+fmt(v)+'</b> cfs');
+  }
+  var ex=(ol && ol.events.length) ? ol.events : findTides(_blend).filter(function(e2){ return e2.t>now; });
+  var nh=ex.find(function(e2){return e2.type==="high";}), nl=ex.find(function(e2){return e2.type==="low";}), bits=[];
+  if(nh) bits.push('next high '+lvlTxt(nh.v)+' around '+azTime(nh.t));
+  if(nl) bits.push('next low '+lvlTxt(nl.v)+' around '+azTime(nl.t));
+  nextEl.innerHTML=bits.join(" \u00b7 ");
+  var ftLo=toFt?toFt(r.min):null, ftHi=toFt?toFt(r.max):null;
+  var milesUp=Math.round(Math.abs(fc.originMile-pl.mile));
+  var whereBit=(fc.seg==="lake")?'released into the river just below the lake':(milesUp<1?'right here at the dam':milesUp+' river miles upstream');
+  lead.innerHTML='The dam\u2019s published release schedule, shifted to when that water reaches <b style="color:var(--text)">'+esc(pl.name)+'</b>. '+
+    (ovPts ? '<b style="color:var(--text)">Solid = water already measured at the gauges upstream, en route here</b> (good through ~'+azClock(ol.horizon)+'); the dashed line beyond is the schedule.' : 'Dashed = forecast, not a reading.')+
+    '<span class="adv-only"> From '+fc.originName+' ('+whereBit+'), assuming a ~'+WAVE_MPH+' mph pulse. Range ahead: <b class="mono" style="color:var(--text)">'+fmt(r.min)+'</b>\u2013<b class="mono" style="color:var(--text)">'+fmt(r.max)+'</b> cfs'+((ftLo!=null&&ftHi!=null)?' (about <b class="mono" style="color:var(--text)">+'+ftLo.toFixed(1)+'</b> to <b class="mono" style="color:var(--text)">+'+ftHi.toFixed(1)+' ft</b> above the weekly low)':'')+'.'+fc.srcNote+'</span>';
+  noteEl.textContent=(fc.seg==="strip"||fc.seg==="lake"||fc.seg==="upper") ? "" : ((hgData&&hgData.note)||"");
+}
+
+// ---------- tide ----------
+function findTides(points){
+  if(points.length<6) return [];
+  var vals=points.map(function(p){return p.v;});
+  var amp=Math.max(0.08,(Math.max.apply(null,vals)-Math.min.apply(null,vals))*0.18);
+  var ex=[], dir=0, ext=points[0];
+  for(var i=1;i<points.length;i++){
+    var p=points[i];
+    if(dir>=0 && p.v>ext.v){ ext=p; if(dir===0)dir=1; }
+    else if(dir<=0 && p.v<ext.v){ ext=p; if(dir===0)dir=-1; }
+    if(dir>0 && p.v<ext.v-amp){ ex.push({type:"high",t:ext.t,v:ext.v}); dir=-1; ext=p; }
+    else if(dir<0 && p.v>ext.v+amp){ ex.push({type:"low",t:ext.t,v:ext.v}); dir=1; ext=p; }
+  }
+  return ex;
+}
+function medianPeriod(ex, type){
+  var ts=ex.filter(function(e){return e.type===type;}).map(function(e){return e.t;});
+  if(ts.length<2) return null;
+  var gaps=[]; for(var i=1;i<ts.length;i++) gaps.push(ts[i]-ts[i-1]);
+  gaps.sort(function(a,b){return a-b;});
+  return gaps[Math.floor(gaps.length/2)];
+}
+function ftLbl(v){
+  return (v<0.05) ? '0.0 ft <span class="muted-sm">\u00b7 the weekly low</span>' : '+'+v.toFixed(1)+' ft';
+}
+function countdown(t){
+  var m=Math.round((t-Date.now())/60000);
+  if(m<1) return "about now";
+  if(m<60) return "in "+m+" min";
+  var h=Math.floor(m/60), r=m%60;
+  return "in "+h+" h"+(r?" "+r+" m":"");
+}
+function renderTide(){
+  var body=document.getElementById("tide-body"), lead=document.getElementById("tide-lead");
+  var pl=currentPlace(), seg=segFor(pl), ref=refFor(pl);
+  var lvlTh=document.getElementById("tide-lvl-th");
+  if(lvlTh) lvlTh.textContent = (seg==="strip") ? "Flow (cfs)" : "Above weekly low";
+  if(seg==="lake"){
+    lead.textContent="Lake Havasu is a reservoir \u2014 no daily tide up there. Pick a river spot to see highs and lows.";
+    body.innerHTML='<tr><td colspan="3" style="color:var(--muted)">The river tide starts below Parker Dam.</td></tr>';
+    return;
+  }
+  if(!ref || !ref.st){ body.innerHTML = loadingNow ? '<tr><td colspan="3"><div class="skel skel-row"></div><div class="skel skel-row" style="width:70%"></div></td></tr>' : '<tr><td colspan="3" style="color:var(--muted)">Waiting for data\u2026</td></tr>'; return; }
+  var p=ref.st, useStage=p.stage.length>=6, series=useStage?p.stage:p.flow;
+  if(lvlTh) lvlTh.textContent = useStage ? "Above weekly low" : "Flow (cfs)"; // header must match what the rows actually print
+  var shift=lagMsFrom(ref.mile, pl);
+  var wkLow=useStage ? Math.min.apply(null, series.map(function(x){return x.v;})) : null;
+  var toFt=tideRating(pl);
+  var now=Date.now(), rows=[];
+  // recent actual highs & lows, from the sensor, shifted to this place
+  var ex=findTides(series);
+  ex.filter(function(e2){ return e2.t>now-30*3600*1000 && e2.t<=now; }).slice(-3).forEach(function(e2){
+    rows.push({type:e2.type, t:e2.t+shift, lvl:(useStage ? ftLbl(e2.v-wkLow) : fmt(e2.v)+" cfs"), tag:""});
+  });
+  // upcoming: the SAME blended outlook the hero and forecast chart use \u2014 one
+  // event list, tagged by whether it falls inside the measured window
+  var _tol=blendedOutlook(pl), horizon=_tol?_tol.horizon:0;
+  var upcoming=_tol?_tol.events.slice(0,6):[];
+  var enrouteN=0, fromSchedule=false;
+  upcoming.forEach(function(e2){
+    var ft=toFt?toFt(e2.v):null;
+    var isM=(horizon && e2.t<=horizon); if(isM) enrouteN++; else fromSchedule=true;
+    rows.push({type:e2.type, t:e2.t, lvl:(ft!=null ? ftLbl(ft) : fmt(e2.v)+" cfs"), tag:isM?" \u00b7 en route":" \u00b7 scheduled"});
+  });
+  if(!upcoming.length && ex.length>=2){
+    ["high","low"].forEach(function(type){
+      var per=medianPeriod(ex,type), last=ex.slice().reverse().find(function(e2){return e2.type===type;});
+      if(per && last){ var t=last.t; for(var k=0;k<3;k++){ t+=per; if(t>now) rows.push({type:type, t:t+shift, lvl:(useStage ? ftLbl(last.v-wkLow) : fmt(last.v)+" cfs"), tag:" \u00b7 expected"}); } }
+    });
+  }
+  if(!rows.length){ body.innerHTML='<tr><td colspan="3" style="color:var(--muted)">Not enough variation to detect a clear tide right now.</td></tr>'; return; }
+  lead.innerHTML=(segFor(pl)==="strip") ? ("At "+esc(pl.name)+" \u2014 levels shown as flow (cfs): the Strip rides the Lake Moovalya pool, which holds a near-steady height while release pulses pass through \u2014 no public height gauge up here. Times are Arizona (MST).") : ("At "+esc(pl.name)+" \u2014 heights are above this week\u2019s low \u2014 so \u201c0.0 ft\u201d means the week\u2019s lowest water, not a dry river; "+(enrouteN?"\u201cen route\u201d rows are already measured at the gauges upstream \u2014 that water is on its way"+(fromSchedule?"; \u201cscheduled\u201d rows come from the dam schedule":""):(fromSchedule?"upcoming rows come straight from the dam schedule":"upcoming rows are projected from the recent rhythm"))+".<span class=\"adv-only\"> Recent rows from "+ref.label+(Math.abs(shift)>=3*60000?", times shifted "+lagLabel2(shift, ref.label):"")+".</span> Times are Arizona (MST).");
+  rows.sort(function(a,b){ return a.t-b.t; });
+  var list=rows.slice(0,9), now2=Date.now(), nextIdx=-1;
+  for(var ni=0;ni<list.length;ni++){ if(list[ni].t>now2){ nextIdx=ni; break; } }
+  var lastDay=null, todayD=azDay(now2), tomD=azDay(now2+86400000), html="";
+  list.forEach(function(r2, i){
+    var d2=azDay(r2.t);
+    if(d2!==lastDay){
+      lastDay=d2;
+      html+='<tr class="dayhead"><td colspan="3">'+(d2===todayD?"Today · ":(d2===tomD?"Tomorrow · ":""))+d2+'</td></tr>';
+    }
+    html+='<tr class="'+(r2.tag?"expected":"")+(i===nextIdx?" next":"")+'"><td>'+azClock(r2.t)+r2.tag+(i===nextIdx?' <b class="count">'+countdown(r2.t)+'</b>':'')+'</td>'+
+      '<td><span class="pill '+r2.type+'">'+(r2.type==="high"?"High":"Low")+'</span></td>'+
+      '<td class="mono">'+r2.lvl+'</td></tr>';
+  });
+  body.innerHTML=html;
+}
+
+
+
+// ---------- loaders ----------
+function parseUsgs(json){
+  var out={};
+  (json.value && json.value.timeSeries || []).forEach(function(ts){
+    var site=ts.sourceInfo.siteCode[0].value, param=ts.variable.variableCode[0].value;
+    var raw=(ts.values[0] && ts.values[0].value)||[];
+    var pts=raw.map(function(p){ return {t:new Date(p.dateTime).getTime(), v:parseFloat(p.value)}; }).filter(function(p){ return !isNaN(p.v) && p.v>-9999; }).sort(function(a,b){return a.t-b.t;});
+    if(!out[site]) out[site]={};
+    out[site][param]=pts;
+  });
+  return out;
+}
+function loadUsgs(){
+  var banner=document.getElementById("banner"); banner.style.display="none";
+  document.getElementById("updated").textContent="Checking\u2026";
+  return fetchT(USGS_API, 12000).then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return res.json(); })
+    .then(function(json){ usgsData=parseUsgs(json); document.getElementById("updated").textContent="Checked "+new Date().toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}); })
+    .catch(function(e){ document.getElementById("updated").textContent="Couldn\u2019t update"; banner.style.display="block"; banner.innerHTML="Couldn\u2019t reach the USGS service. The gauge link in the card opens it directly."; });
+}
+function loadBor(){
+  return fetchVia(BOR_JSON, false).then(function(txt){ borData=parseBor(JSON.parse(txt)); if(!havasuData && borData.havasu) havasuData=borData.havasu; borErr=null; borTried=true; })
+    .catch(function(e){ borErr=(e&&e.message?e.message:String(e)); borData=null; borTried=true; });
+}
+function loadHeadgate(){
+  return Promise.all([loadPdfJs(), fetchPdf(HG_PDF)]).then(function(rs){ return pdfToLines(rs[1]); }).then(function(lines){ hgData=parseHeadgate(lines); hgErr=null; hgTried=true; })
+    .catch(function(e){ hgErr=(e&&e.message?e.message:String(e)); hgData=null; hgTried=true; });
+}
+// GitHub relay: hourly data the Action committed, served with CORS from raw.githubusercontent
+var relayInfo=null, loadingNow=false, psData=null, dsData=null, havasuData=null, relayCal=null;
+function setLoading(on){
+  loadingNow=on;
+  var s=document.getElementById("load-spin"); if(s) s.style.display=on?"inline-block":"none";
+  var b=document.getElementById("refresh"); if(b) b.disabled=on;
+}
+function loadRelay(){
+  var urls=[];
+  if(GH_REPO){
+    if(GH_BRANCH!=="main"){
+      // The API resolves branch names in real time; raw.githubusercontent lags pushes by ~5 min.
+      urls.push({u:"https://api.github.com/repos/"+GH_REPO+"/contents/data/riverdata-"+GH_BRANCH+".json?ref="+GH_BRANCH, b:GH_BRANCH, api:true});
+      urls.push({u:"https://raw.githubusercontent.com/"+GH_REPO+"/"+GH_BRANCH+"/data/riverdata-"+GH_BRANCH+".json?t="+Date.now(), b:GH_BRANCH});
+    }
+    urls.push({u:"https://raw.githubusercontent.com/"+GH_REPO+"/main/data/riverdata.json?t="+Date.now(), b:"main"});
+  }
+  urls.push({u:"/data/riverdata.json?t="+Date.now(), b:null}); // absolute: relative would break under /s/<spot> paths
+  var i=0;
+  function next(){
+    if(i>=urls.length) return Promise.resolve(null);
+    var it=urls[i++];
+    var p = it.api
+      ? (function(){
+          var c=new AbortController(); var to=setTimeout(function(){c.abort();}, 10000);
+          return fetch(it.u, {signal:c.signal, headers:{"Accept":"application/vnd.github.raw"}})
+            .then(function(r){ clearTimeout(to); return r; }, function(err){ clearTimeout(to); throw err; });
+        })()
+      : fetchT(it.u, 10000);
+    return p.then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(j){
+        var age=Date.now()-new Date(j.generatedAt).getTime();
+        if(!(age>=-10*60*1000 && age<6*3600*1000)) throw 0; // tolerate a visitor clock a few minutes slow
+        j._branch=it.b;
+        return j;
+      }).catch(next);
+  }
+  return next();
+}
+var prevRelayT=null;
+function loadAll(){
+  if(loadingNow) return;
+  prevRelayT = relayInfo ? relayInfo.t : null;
+  var _u=document.getElementById("updated"); if(_u) _u._relayLabeled=false;
+  setLoading(true);
+  var pU=loadUsgs().then(rebuild);
+  var pR=loadRelay().then(function(j){
+    if(j){
+      relayInfo={t:new Date(j.generatedAt).getTime(), branch:j._branch};
+      if(j.calibration) relayCal=j.calibration;
+      if(j.calibration && j.calibration.waveMph>=1 && j.calibration.waveMph<=12){
+        WAVE_MPH=j.calibration.waveMph;
+        var cn=document.getElementById("cal-note");
+        if(cn) cn.textContent=" Currently auto-measured at ~"+WAVE_MPH+" mph by cross-checking the live sensors.";
+      }
+      if(j.stations && j.stations.length){ borData={stations:j.stations}; borErr=null; borTried=true; }
+      if(j.headgate && j.headgate.downstream && j.headgate.downstream.length){ hgData=j.headgate; hgErr=null; hgTried=true; }
+      if(j.parkerSchedule && j.parkerSchedule.points && j.parkerSchedule.points.length){ psData=j.parkerSchedule.points; }
+      if(j.davisSchedule && j.davisSchedule.points && j.davisSchedule.points.length){ dsData=j.davisSchedule.points; }
+      if(j.havasu && j.havasu.elev && j.havasu.elev.length){ havasuData=j.havasu.elev; }
+      if(j.history && (j.history.usgs || j.history.accum)){ histData=j.history; }
+    }
+    rebuild(); // paint whatever we have right now
+    var tasks=[];
+    if(!borData) tasks.push(loadBor().then(rebuild));
+    if(!hgData) tasks.push(loadHeadgate().then(rebuild));
+    return Promise.all(tasks);
+  });
+  function done(){
+    setLoading(false);
+    lastLoadT=Date.now();
+    rebuild();
+    if(relayInfo){
+      var mm=Math.max(0, Math.round((Date.now()-relayInfo.t)/60000));
+      var u=document.getElementById("updated");
+      if(u && !u._relayLabeled){
+        u._relayLabeled=true;
+        var fresh = mm<90 ? "\u2713 data up to date" : "data from "+(mm<60? mm+"m" : (mm/60).toFixed(1)+"h")+" ago";
+        var verdict = "";
+        if(manualRefresh){
+          verdict = (prevRelayT && relayInfo.t>prevRelayT+60*1000) ? " \u00b7 fresh data just loaded" : " \u00b7 nothing newer yet \u2014 sensors report hourly";
+        }
+        u.textContent += " \u00b7 "+fresh+verdict+((relayInfo.branch && relayInfo.branch!=="main") ? " ("+relayInfo.branch+")" : "");
+        manualRefresh=false; // one-shot: only the click that asked gets the verdict text
+        u.title="\u2018Up to date\u2019 means the newest data the government has published is already on screen \u2014 sensors only report hourly, so Refresh can\u2019t make new readings exist.\n\nHow the data flows:\n\u2022 Checked = when this page last pulled fresh data.\n\u2022 \u2018Data up to date\u2019 / \u2018data from X ago\u2019 = how fresh the robot\u2019s last gathering is. Reclamation\u2019s servers don\u2019t allow browser access, so a GitHub robot collects their river sensors (Davis Dam to Martinez Lake), Lake Havasu, and the dam-schedule PDFs ~3x/hour and publishes them for this page.\n\u2022 The five USGS gauges are fetched live by your browser on every load.\n\u2022 Each card\u2019s \u2018reading\u2019 time = the sensor\u2019s own newest measurement (Reclamation posts hourly, often 1\u20133 h behind).";
+      }
+    }
+  }
+  Promise.all([pU,pR]).then(done, done);
+}
+(function initPlaces(){
+  // The body ships as .nochoice (nothing but the welcome panel can paint), and
+  // we lift it here — before first paint — when a spot is already stored.
+  // Doing this async (in rebuild) let skeletons flash and then vanish: the
+  // page's biggest layout shift.
+  try{ if(store.get(PLACE_KEY)) document.body.className=document.body.className.replace(/ ?nochoice/,""); }catch(e){}
+  var sel=document.getElementById("place-sel");
+  var groups=[{seg:"upper",label:"Davis Dam \u2192 Topock (upper river)"},{seg:"lake",label:"Lake Havasu"},{seg:"strip",label:"Parker Strip (full release)"},{seg:"mid",label:"Headgate \u2192 diversion dam"},{seg:"below",label:"Below the diversion dam"}];
+  sel.innerHTML=groups.map(function(g){
+    var opts=PLACES.filter(function(p){ return segFor(p)===g.seg; }).map(function(p){
+      return '<option value="'+p.key+'">'+p.name+(p.est?" (est.)":"")+'</option>';
+    }).join("");
+    return opts ? '<optgroup label="'+g.label+'">'+opts+'</optgroup>' : "";
+  }).join("");
+  if(!store.get(PLACE_KEY)){
+    sel.innerHTML='<option value="" disabled selected>\u2014 pick a spot \u2014</option>'+sel.innerHTML;
+    sel.value="";
+  } else { sel.value=currentPlace().key; }
+  // setTimeout lets the tap's own frame paint before the heavy full re-render
+  // (rebuild redraws every panel) — this was the page's slowest interaction.
+  sel.addEventListener("change", function(){ store.set(PLACE_KEY, sel.value); pushSpot(sel.value); setTimeout(rebuild, 0); });
+})();
+var RANGE_KEY="blythe_range_v1";
+function rangeDays(){ var d=parseInt(store.get(RANGE_KEY)||"7",10); return [1,2,4,7].indexOf(d)>=0 ? d : 7; }
+function rangeCut(series){
+  var d=rangeDays();
+  if(d>=7 || !series || !series.length) return series;
+  var cut=Date.now() - d*86400000; // anchor at NOW: the en-route future stays visible at every range
+  var out=series.filter(function(p){ return p.t>=cut; });
+  return out.length>=6 ? out : series;
+}
+function rangeLabel(){ var d=rangeDays(); return d===1 ? "24 hours" : d+" days"; }
+function syncRangeButtons(){
+  var rp=document.getElementById("range-pick");
+  if(!rp || !rp.children) return;
+  for(var i=0;i<rp.children.length;i++){ var b=rp.children[i]; var on=(parseInt(b.getAttribute("data-d"),10)===rangeDays()); b.className = on ? "on" : ""; b.setAttribute("aria-pressed", on?"true":"false"); }
+}
+(function initRange(){
+  var rp=document.getElementById("range-pick");
+  if(rp) rp.addEventListener("click", function(ev){
+    var d=ev.target && ev.target.getAttribute && ev.target.getAttribute("data-d");
+    if(d){ store.set(RANGE_KEY, d); setTimeout(rebuild, 0); }
+  });
+})();
+var MODE_KEY="blythe_mode_v1";
+(function initMode(){
+  var btn=document.getElementById("mode-btn");
+  function apply(m){
+    document.body.className = document.body.className.replace(/ ?simple/,"") + ((m==="advanced") ? "" : " simple");
+    btn.textContent = (m==="advanced") ? "Simple view" : "Advanced";
+  }
+  var mode=store.get(MODE_KEY)||"simple";
+  apply(mode);
+  btn.addEventListener("click", function(){
+    mode = (mode==="advanced") ? "simple" : "advanced";
+    store.set(MODE_KEY, mode);
+    apply(mode);
+  });
+})();
+function spotFromUrl(){
+  // Accepts both the pretty path (/s/<key>, what we publish now — Cloudflare
+  // Web Analytics only sees paths) and the legacy ?spot=<key> query links.
+  try{
+    var m=location.pathname.match(/^\/s\/([a-z0-9-]+)\/?$/i) || location.search.match(/[?&]spot=([a-z0-9-]+)/i);
+    if(!m) return null;
+    var k=m[1].toLowerCase();
+    for(var i=0;i<PLACES.length;i++){ if(PLACES[i].key===k) return k; }
+    return null;
+  }catch(e){ return null; }
+}
+function pushSpot(k, replace){
+  try{
+    if(!window.history || !history.pushState) return;
+    var url="/s/"+k+(location.hash||"");
+    (replace ? history.replaceState : history.pushState).call(history, {spot:k}, "", url);
+  }catch(e){}
+}
+(function initSpotUrl(){
+  var k=spotFromUrl();
+  if(k){
+    store.set(PLACE_KEY, k); var ps0=document.getElementById("place-sel"); if(ps0) ps0.value=k;
+    pushSpot(k, true); // canonicalize legacy ?spot= links to /s/<key>
+    try{ document.body.className=document.body.className.replace(/ ?nochoice/,""); }catch(e){} // shared-link first visit: unhide pre-paint
+  }
+  else { var cur0=store.get(PLACE_KEY); if(cur0) pushSpot(cur0, true); } // entry pageview carries the spot
+  window.addEventListener("popstate", function(){
+    var k2=spotFromUrl();
+    if(k2){ store.set(PLACE_KEY, k2); var ps=document.getElementById("place-sel"); if(ps) ps.value=k2; rebuild(); }
+  });
+})();
+(function initWelcome(){
+  var w=document.getElementById("welcome");
+  if(!w) return;
+  if(!store.get(PLACE_KEY)){ w.style.display="block"; }
+  var wp=document.getElementById("welcome-pick");
+  if(wp) wp.addEventListener("click", function(ev){
+    var k=ev.target && ev.target.getAttribute && ev.target.getAttribute("data-place");
+    if(k){ store.set(PLACE_KEY, k); pushSpot(k); w.style.display="none"; var ps=document.getElementById("place-sel"); if(ps) ps.value=k; setTimeout(rebuild, 0); }
+  });
+})();
+var manualRefresh=false;
+document.getElementById("refresh").addEventListener("click", function(){ manualRefresh=true; loadAll(); });
+(function initShare(){
+  var b=document.getElementById("share-btn");
+  if(!b) return;
+  b.addEventListener("click", function(){
+    var pl=currentPlace();
+    var url=location.origin+"/s/"+pl.key;
+    function copied(){ var old=b.textContent; b.textContent="Link copied ✓"; setTimeout(function(){ b.textContent=old; }, 1600); }
+    if(navigator.share){ navigator.share({title:"Is The River Up? — "+pl.name, url:url}).catch(function(){}); return; }
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(copied, function(){}); return; }
+    try{
+      var ta=document.createElement("textarea"); ta.value=url;
+      document.body.appendChild(ta); ta.select(); document.execCommand("copy");
+      document.body.removeChild(ta); copied();
+    }catch(e){}
+  });
+})();
+var THEME_KEY="blythe_theme_v1";
+function themeNow(){
+  var t=store.get(THEME_KEY);
+  if(t==="day"||t==="night") return t;
+  var h=new Date().getHours();
+  return (h>=6 && h<19) ? "day" : "night";
+}
+function applyTheme(){
+  var day=(themeNow()==="day");
+  document.body.className=document.body.className.replace(/ ?day/,"")+(day?" day":"");
+  var b=document.getElementById("theme-btn");
+  if(b) b.textContent=day ? "\uD83C\uDF19 Night" : "\u2600\uFE0F Day";
+  var mt=document.querySelector('meta[name="theme-color"]');
+  if(mt) mt.setAttribute("content", day ? "#eef2f6" : "#0d1521");
+}
+(function(){
+  var b=document.getElementById("theme-btn");
+  if(b) b.addEventListener("click", function(){
+    store.set(THEME_KEY, themeNow()==="day" ? "night" : "day");
+    applyTheme();
+  });
+  applyTheme();
+})();
+loadAll();
+setInterval(loadAll, 15*60*1000);
+setInterval(function(){ try{ renderTide(); }catch(e){} }, 60*1000); // keep the "next high/low" countdown ticking between refreshes
+// Phones suspend timers in background tabs — refresh on return if the data is stale.
+var lastLoadT=Date.now();
+document.addEventListener("visibilitychange", function(){
+  if(document.visibilityState==="visible" && Date.now()-lastLoadT > 5*60*1000) loadAll();
+});
+
+// Cloudflare Web Analytics (privacy-first, cookie-free). Injected only on the
+// real domain so dev-branch and test visits never pollute the numbers.
+(function(){
+  var DEV_CF_TOKEN=""; // optional: paste a token from a second Cloudflare Web Analytics
+                       // property (hostname dev--blythe-river.netlify.app) to measure raw dev
+  var tok=null;
+  if(/(^|\.)istheriverup\.com$/.test(location.hostname)) tok="3fa0ff4c71b34ffb8b64243da155705c";
+  else if(location.hostname==="dev--blythe-river.netlify.app" && /^[a-f0-9]{32}$/.test(DEV_CF_TOKEN)) tok=DEV_CF_TOKEN;
+  if(!tok) return;
+  var s=document.createElement("script");
+  s.type="module";
+  s.src="https://static.cloudflareinsights.com/beacon.min.js";
+  s.setAttribute("data-cf-beacon", JSON.stringify({token:tok, spa:true}));
+  document.head.appendChild(s);
+})();
+</script>
+</body>
+</html>
