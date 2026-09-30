@@ -27,10 +27,14 @@ export default async (req) => {
   if (!r.ok) return json({ error: "data fetch " + r.status }, 502);
   const data = await r.json();
 
-  const store = getStore("push-subs");
+  const store = getStore({ name: "push-subs", consistency: "strong" });
   const { blobs } = await store.list();
-  const subs = [];
-  for (const b of blobs) { const rec = await store.get(b.key, { type: "json" }).catch(() => null); if (rec && rec.subscription) subs.push(Object.assign(rec, { _key: b.key })); }
+  const subs = []; let expired = 0;
+  for (const b of blobs) {
+    const rec = await store.get(b.key, { type: "json" }).catch(() => null); if (!(rec && rec.subscription)) continue;
+    if (rec.prefs && rec.prefs.until && Date.now() - new Date(rec.prefs.until).getTime() > 7 * 86400000) { await store.delete(b.key).catch(() => {}); expired++; continue; }
+    subs.push(Object.assign(rec, { _key: b.key }));
+  }
 
   const due = alerts.evaluate(data, subs, Date.now());
   let sent = 0, failed = 0, removed = 0;
@@ -50,7 +54,7 @@ export default async (req) => {
       const { _key, _gone, ...rec } = sub; await store.setJSON(_key, rec).catch(() => {});
     }
   }
-  return json({ ok: true, branch, subscribers: subs.length, due: due.length, sent, failed, removed, generatedAt: data.generatedAt });
+  return json({ ok: true, branch, subscribers: subs.length, due: due.length, sent, failed, removed, expired, generatedAt: data.generatedAt });
 };
 
 export const config = { path: "/api/push/run" };

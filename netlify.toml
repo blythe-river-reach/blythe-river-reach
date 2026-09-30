@@ -11,6 +11,11 @@
 # Analytics groups by path (it drops query strings), so this is what makes
 # per-spot page views visible in the dashboard.
 [[redirects]]
+  from = "/alerts"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
   from = "/s/*"
   to = "/index.html"
   status = 200

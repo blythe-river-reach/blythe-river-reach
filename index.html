@@ -295,6 +295,15 @@
   .al-row input{width:20px; height:20px; margin-top:2px; flex-shrink:0; accent-color:var(--water)}
   .al-row span{flex:1}
   .al-sub{display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:0 0 12px 32px; border-bottom:1px solid var(--border); font-size:13px; color:var(--muted)} .al-sub label{display:flex; gap:6px; align-items:center} .al-sub input{width:76px}
+  .page{position:fixed; inset:0; background:var(--bg); z-index:45; display:none; flex-direction:column} .page.open{display:flex} body.page-open{overflow:hidden}
+  .page-hd{display:flex; align-items:center; gap:10px; padding:12px 16px 8px; border-bottom:1px solid var(--border); background:var(--panel)} .page-hd h2{margin:0; flex:1; font-size:18px} .page-hd .x{background:var(--panel2); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:7px 12px; cursor:pointer; font-size:14px}
+  .page-body{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:8px 16px calc(40px + env(safe-area-inset-bottom)); width:100%; max-width:760px; margin:0 auto; box-sizing:border-box}
+  .al-h{font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:20px 0 4px}
+  .al-dur{display:flex; gap:6px; flex-wrap:wrap} .al-dur button{font:inherit; font-size:13px; padding:8px 12px; border-radius:999px; border:1px solid var(--border); background:var(--panel2); color:var(--muted); cursor:pointer} .al-dur button.on{color:var(--water); border-color:var(--water); background:rgba(56,189,224,.10); font-weight:700}
+  .al-actions{display:flex; gap:8px; margin-top:16px; flex-wrap:wrap} .al-actions .btn-water{flex:1 1 200px}
+  .ios-note{background:#3a2a10; border:2px solid #f2b64a; color:#ffe2a8; border-radius:12px; padding:12px 14px; font-size:15px; margin:10px 0 12px; line-height:1.45} .ios-note ol{margin:8px 0 0; padding-left:22px} .ios-note li{margin:3px 0} body.day .ios-note{background:#fff3d6; border-color:#d99a1a; color:#5a3d00}
+  .al-recent{font-size:13px; color:var(--text); margin:6px 0 2px}
+  .al-active li{display:flex; gap:8px; align-items:flex-start} .al-active li span{flex:1} .al-active .rm{background:none; border:1px solid var(--border); color:var(--muted); border-radius:8px; padding:2px 8px; font-size:12px; cursor:pointer; flex-shrink:0} .al-active .rm:hover{border-color:var(--bad, #f27b7b); color:var(--text)}
   .al-active{background:var(--tile); border:1px solid var(--border); border-radius:12px; padding:10px 12px; font-size:13.5px; margin-bottom:6px} .al-active b{color:var(--text)} .al-active ul{margin:4px 0 0; padding-left:18px} .al-active li{margin:2px 0}
   .mark-strip{margin-top:12px; background:var(--tile); border:1px solid var(--border); border-radius:14px; padding:11px 13px}
   .ms-hd{display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--muted)} .ms-hd b{color:var(--text)} .ms-hd .tbtn{margin-left:auto; padding:6px 10px; font-size:12.5px}
@@ -510,7 +519,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30e</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30f</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -527,24 +536,33 @@ try{
   <div class="sheet-body" id="pick-list"></div>
   <div class="pick-foot"><button class="tbtn" id="pick-add-place">✚ Add a place</button><button class="tbtn" id="pick-add-mark">✚ Depth mark here</button></div>
 </div>
-<div class="sheet" id="al-sheet" role="dialog" aria-modal="true" aria-label="Alerts">
-  <div class="sheet-hd"><h2>🔔 Alerts for <span id="al-spot">your spot</span></h2><button class="x" id="al-x" aria-label="Close">✕</button></div>
-  <div class="sheet-body" style="padding:0 16px 24px">
+<div class="page" id="alerts-page" aria-hidden="true">
+  <div class="page-hd"><button class="x" id="al-back">‹ Back</button><h2>🔔 Alerts for <span id="al-spot">your spot</span></h2></div>
+  <div class="page-body">
+    <div class="ios-note" id="al-ios" style="display:none"></div>
     <p class="lead" id="al-status" style="margin:6px 0 10px"></p>
     <div class="al-active" id="al-active"></div>
-    <label class="al-row"><input type="checkbox" id="al-brief"><span><b>Daily brief</b><br><span class="muted-sm">One notification each morning: where the water sits, the next high and low, and the year context.</span></span><select id="al-hour" class="al-sel"><option value="5">5 AM</option><option value="6">6 AM</option><option value="7" selected>7 AM</option><option value="8">8 AM</option><option value="9">9 AM</option></select></label>
-    <label class="al-row"><input type="checkbox" id="al-heads"><span><b>Heads-up on changes</b><br><span class="muted-sm">When tomorrow’s peak will be noticeably bigger or smaller than today’s.</span></span></label>
+    <div class="al-recent" id="al-recent" style="display:none"></div>
+    <h3 class="al-h">How long</h3>
+    <div class="al-dur" id="al-dur"><button type="button" data-dur="weekend">This weekend</button><button type="button" data-dur="today">Today</button><button type="button" data-dur="3d">3 days</button><button type="button" data-dur="7d">A week</button><button type="button" data-dur="always" class="on">Until I turn it off</button></div>
+    <p class="note" id="al-dur-note" style="margin-top:6px"></p>
+    <h3 class="al-h">Which alerts</h3>
+    <label class="al-row"><input type="checkbox" id="al-brief"><span><b>Daily brief</b><br><span class="muted-sm">One notification each morning: where the water sits, the next high and low, and the year context.</span></span><select id="al-hour" class="al-sel"><option value="5">5 AM</option><option value="6">6 AM</option><option value="7" selected>7 AM</option><option value="8">8 AM</option><option value="9">9 AM</option><option value="10">10 AM</option></select></label>
     <label class="al-row"><input type="checkbox" id="al-turns"><span><b>High and low water</b><br><span class="muted-sm">A ping as the water reaches its next high and its next low, or a little before.</span></span><select id="al-lead" class="al-sel"><option value="0">as it turns</option><option value="30">30 min before</option><option value="60" selected>1 h before</option><option value="120">2 h before</option></select></label>
+    <label class="al-row"><input type="checkbox" id="al-heads"><span><b>Heads-up on changes</b><br><span class="muted-sm">When tomorrow’s peak will be noticeably bigger or smaller than today’s.</span></span></label>
     <label class="al-row"><input type="checkbox" id="al-level"><span><b>Above or below a level</b><br><span class="muted-sm">When the water climbs past or drops past a level you set, in feet vs this week’s average (0.0 = a normal moment this week). Leave one empty to use just the other.</span></span></label>
     <div class="al-sub"><label>above <input id="al-hi" type="number" step="0.5" min="-15" max="15" placeholder="+1.5" class="al-sel"></label><label>below <input id="al-lo" type="number" step="0.5" min="-15" max="15" placeholder="-2.0" class="al-sel"></label><span class="muted-sm">ft vs average</span></div>
     <label class="al-row"><input type="checkbox" id="al-weekend"><span><b>Weekend outlook</b><br><span class="muted-sm">Friday afternoon: Saturday’s and Sunday’s highs and lows at your spot.</span></span></label>
-    <label class="al-row"><input type="checkbox" id="al-quiet" checked><span><b>Quiet hours</b><br><span class="muted-sm">Hold the high/low and level pings between 10 PM and 6 AM (Arizona time).</span></span></label>
     <label class="al-row"><input type="checkbox" id="al-stale"><span><b>Data outages</b><br><span class="muted-sm">If Reclamation’s feed stops for more than 8 hours.</span></span></label>
-    <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap">
-      <button class="btn-water" id="al-save" style="margin:0; flex:1">Turn on alerts</button>
-      <button class="tbtn" id="al-off" style="display:none">Turn off</button>
+    <h3 class="al-h">Quiet hours</h3>
+    <label class="al-row"><input type="checkbox" id="al-quiet" checked><span><b>Hold pings at night</b><br><span class="muted-sm">High/low and level pings wait until quiet hours end (Arizona time). The morning brief has its own hour.</span></span></label>
+    <div class="al-sub"><label>from <select id="al-qfrom" class="al-sel"></select></label><label>to <select id="al-qto" class="al-sel"></select></label></div>
+    <div class="al-actions">
+      <button class="btn-water" id="al-save" style="margin:0">Turn on alerts</button>
+      <button class="tbtn" id="al-test" style="display:none">Send a test</button>
+      <button class="tbtn" id="al-off" style="display:none">Turn off all</button>
     </div>
-    <p class="note" id="al-note">Alerts arrive as normal phone/desktop notifications, checked every 10 minutes as new sensor data lands. On iPhone, first add this site to your Home Screen (Share → Add to Home Screen), then open it from there.</p>
+    <p class="note" id="al-note">Alerts arrive as normal phone or desktop notifications, checked about every 10 minutes as new sensor data lands. They follow the spot you have picked on the main page.</p>
   </div>
 </div>
 <div class="sheet" id="pl-sheet" role="dialog" aria-modal="true" aria-label="Add a place">
@@ -850,15 +868,22 @@ function renderToday(M){
   // never stretch with the SVG; each row skips a label that would overlap.
   var topRow=[], botRow=[], lastTop=-1e9, lastBot=-1e9, MINGAP=0.19; // fraction of width
   var xnP=X(now)/W;
+  // A label near an edge is pushed inward by CSS, so its footprint is one-sided.
+  var span=function(xp){ return xp<0.08?[xp,xp+0.28]:(xp>0.92?[xp-0.28,xp]:[xp-0.14,xp+0.14]); };
   labels.forEach(function(l){
     var xp=X(l.t)/W, up=(l.type==="high");
     g+='<circle cx="'+X(l.t).toFixed(1)+'" cy="'+Y(l.v).toFixed(1)+'" r="4" fill="'+(up?"var(--rise)":"var(--fall)")+'"/>';
     var txt=(up?"▲ ":"▼ ")+"<b>"+lvlOf(M,l.v)+"</b> "+azClock(l.t).replace(/:00 /," ");
-    if(up){ if(xp-lastTop<MINGAP || Math.abs(xp-xnP)<0.16) return; lastTop=xp; topRow.push({xp:xp, cls:"hi", txt:txt}); }
+    if(up){ if(xp-lastTop<MINGAP) return; lastTop=xp; topRow.push({xp:xp, cls:"hi", txt:txt}); }
     else { if(xp-lastBot<MINGAP) return; lastBot=xp; botRow.push({xp:xp, cls:"lo", txt:txt}); }
   });
   g+='<line x1="'+X(now).toFixed(1)+'" y1="0" x2="'+X(now).toFixed(1)+'" y2="'+H+'" stroke="var(--house)" stroke-width="2"/>';
-  topRow.push({xp:xnP, cls:"now", txt:"now"});
+  // The "now" word goes above the bar when nothing sits there, below it when
+  // a high label does, and stays off when both rows are busy (the bar itself
+  // is unmistakable). Highs and lows are never dropped for it.
+  var clear=function(row){ return !row.some(function(it){ var sp=span(it.xp); return xnP>sp[0]-0.05 && xnP<sp[1]+0.05; }); };
+  if(clear(topRow)) topRow.push({xp:xnP, cls:"now", txt:"now"});
+  else if(clear(botRow)) botRow.push({xp:xnP, cls:"now", txt:"now"});
   var rowHtml=function(items){ return items.map(function(it){ var edge=it.xp<0.08?" edge-l":(it.xp>0.92?" edge-r":""); return '<span class="'+it.cls+edge+'" style="left:'+(it.xp*100).toFixed(1)+'%">'+it.txt+'</span>'; }).join(""); };
   document.getElementById("today-top").innerHTML=rowHtml(topRow);
   document.getElementById("today-bot").innerHTML=rowHtml(botRow);
@@ -1065,58 +1090,111 @@ document.getElementById("menu-sheet").addEventListener("click", function(ev){
 });
 document.getElementById("sheet-bg").addEventListener("click", closeMenu);
 document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeMenu(); });
-// ---------- push alerts ----------
-var PUSH_KEY="blythe_push_v1";
+// ---------- push alerts (its own page) ----------
+var PUSH_KEY="blythe_push_v1", AL_DUR="always";
 function pushState(){ return store.get(PUSH_KEY)||null; }
 function pushSupported(){ return !!(window.isSecureContext && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window); }
-function isIOS(){ return /iP(hone|ad|od)/.test(navigator.userAgent) && !window.MSStream; }
+function isIOS(){ return (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1)) && !window.MSStream; }
 function isStandalone(){ return window.matchMedia("(display-mode: standalone)").matches || navigator.standalone===true; }
 function b64ToU8(b64){ var pad="=".repeat((4-b64.length%4)%4), s=(b64+pad).replace(/-/g,"+").replace(/_/g,"/"), raw=atob(s), a=new Uint8Array(raw.length); for(var i=0;i<raw.length;i++) a[i]=raw.charCodeAt(i); return a; }
+function hourLabel(h){ h=+h; return (h%12||12)+(h<12?" AM":" PM"); }
+function leadWord(m){ m=+m; return m>=60 ? (m/60)+" h" : m+" min"; }
+// "How long": an end time in Arizona days, or none.
+function durUntil(kind, now){
+  now=now||Date.now(); var mid=dayKey(now)*DAY_MS+OFF_MS; // Arizona midnight that started today
+  if(kind==="today") return mid+DAY_MS-60000;
+  if(kind==="3d") return mid+3*DAY_MS-60000;
+  if(kind==="7d") return mid+7*DAY_MS-60000;
+  if(kind==="weekend"){ var dow=new Date(now-OFF_MS).getUTCDay(), h=new Date(now-OFF_MS).getUTCHours(); var days=(7-dow)%7; if(dow===0 && h>=21) days=7; return mid+days*DAY_MS+21*3600000; }
+  return null;
+}
+function durLabel(kind, until){ if(!until) return "until you turn them off"; return "through "+azTime(until); }
 function alPrefs(){
   var g=function(id){ return document.getElementById(id); }, num=function(id){ var v=g(id).value.trim(); return v===""||isNaN(+v)?null:+v; };
+  var until=durUntil(AL_DUR);
   return { brief:g("al-brief").checked, briefHour:parseInt(g("al-hour").value,10), heads:g("al-heads").checked, stale:g("al-stale").checked,
-    turns:g("al-turns").checked, turnLead:parseInt(g("al-lead").value,10), level:g("al-level").checked, levelHi:num("al-hi"), levelLo:num("al-lo"), weekend:g("al-weekend").checked, quiet:g("al-quiet").checked };
+    turns:g("al-turns").checked, turnLead:parseInt(g("al-lead").value,10), level:g("al-level").checked, levelHi:num("al-hi"), levelLo:num("al-lo"), weekend:g("al-weekend").checked,
+    quiet:g("al-quiet").checked, quietFrom:parseInt(g("al-qfrom").value,10), quietTo:parseInt(g("al-qto").value,10), dur:AL_DUR, until:until?new Date(until).toISOString():null };
 }
-function hourLabel(h){ h=+h; return (h%12||12)+(h<12?" AM":" PM"); }
-function alSummary(p){
+function alItems(p){
   var items=[];
-  if(p.brief) items.push("Daily brief at "+hourLabel(p.briefHour||7));
-  if(p.heads) items.push("Heads-up when tomorrow\u2019s peak will differ from today\u2019s");
-  if(p.turns) items.push("High and low water, "+(+p.turnLead===0?"as the water turns":leadWord(p.turnLead)+" before"));
-  if(p.level && (p.levelHi!=null || p.levelLo!=null)) items.push("When the water "+[p.levelHi!=null?"climbs above "+ftStr(p.levelHi):null, p.levelLo!=null?"drops below "+ftStr(p.levelLo):null].filter(Boolean).join(" or ")+" (vs the week\u2019s average)");
-  if(p.weekend) items.push("Weekend outlook on Friday afternoons");
-  if(p.stale) items.push("Data outages over 8 hours");
+  if(p.brief) items.push({k:"brief", t:"Daily brief at "+hourLabel(p.briefHour||7)});
+  if(p.turns) items.push({k:"turns", t:"High and low water, "+(+p.turnLead===0?"as the water turns":leadWord(p.turnLead)+" before")});
+  if(p.heads) items.push({k:"heads", t:"Heads-up when tomorrow’s peak will differ from today’s"});
+  if(p.level && (p.levelHi!=null || p.levelLo!=null)) items.push({k:"level", t:"When the water "+[p.levelHi!=null?"climbs above "+ftStr(p.levelHi):null, p.levelLo!=null?"drops below "+ftStr(p.levelLo):null].filter(Boolean).join(" or ")+" (vs the week’s average)"});
+  if(p.weekend) items.push({k:"weekend", t:"Weekend outlook on Friday afternoons"});
+  if(p.stale) items.push({k:"stale", t:"Data outages over 8 hours"});
   return items;
 }
-function leadWord(m){ m=+m; return m>=60 ? (m/60)+" h" : m+" min"; }
 function renderAlActive(){
   var el=document.getElementById("al-active"); if(!el) return;
-  var st=pushState(), p=alPrefs(), items=alSummary(p);
-  var head=st ? "On for "+esc(placeByKey(st.spot)?placeByKey(st.spot).name:st.spot)+":" : "You\u2019ll get:";
-  var changed=st && JSON.stringify(st.prefs)!==JSON.stringify(p);
-  el.innerHTML='<b>'+head+'</b>'+(items.length?'<ul>'+items.map(function(t){ return '<li>'+esc(t)+'</li>'; }).join("")+'</ul>':' <span class="muted-sm">nothing selected yet</span>')+(p.quiet&&(p.turns||p.level)?'<div class="muted-sm" style="margin-top:4px">Quiet 10 PM\u20136 AM for the high/low and level pings.</div>':'')+(changed?'<div class="muted-sm" style="margin-top:4px; color:var(--water)">Changes not saved yet \u2014 tap Save changes.</div>':'');
+  var st=pushState(), p=alPrefs(), items=alItems(p);
+  var head=st ? "On for "+esc(placeByKey(st.spot)?placeByKey(st.spot).name:st.spot)+", "+durLabel(p.dur, p.until?new Date(p.until).getTime():null)+":" : "You’ll get, "+durLabel(p.dur, p.until?new Date(p.until).getTime():null)+":";
+  var saved=st&&st.prefs?Object.assign({},st.prefs):null; if(saved){ delete saved.until; } var cur=Object.assign({},p); delete cur.until;
+  var changed=st && JSON.stringify(saved)!==JSON.stringify(cur);
+  var expired=st && st.prefs && st.prefs.until && new Date(st.prefs.until).getTime()<Date.now();
+  el.innerHTML='<b>'+head+'</b>'+(items.length?'<ul>'+items.map(function(it){ return '<li><span>'+esc(it.t)+'</span><button type="button" class="rm" data-rm="'+it.k+'" title="Remove this alert">Remove</button></li>'; }).join("")+'</ul>':' <span class="muted-sm">nothing selected yet</span>')
+    +(p.quiet&&(p.turns||p.level)?'<div class="muted-sm" style="margin-top:4px">Quiet '+hourLabel(p.quietFrom)+'–'+hourLabel(p.quietTo)+' for the high/low and level pings.</div>':'')
+    +(expired?'<div class="muted-sm" style="margin-top:4px; color:var(--house)">These alerts ended '+azTime(new Date(st.prefs.until).getTime())+'. Pick how long and save to start them again.</div>':'')
+    +(changed?'<div class="muted-sm" style="margin-top:4px; color:var(--water)">Changes not saved yet — tap Save changes.</div>':'');
+  var dn=document.getElementById("al-dur-note"); if(dn) dn.textContent = p.until ? "Alerts stop on their own "+durLabel(p.dur, new Date(p.until).getTime())+" (Arizona time). Come back any time to extend them." : "Alerts keep coming until you turn them off here.";
 }
-document.getElementById("al-sheet").addEventListener("change", renderAlActive);
-document.getElementById("al-sheet").addEventListener("input", renderAlActive);
-function openAlerts(){
-  var st=pushState(), pl=currentPlace();
-  document.getElementById("al-spot").textContent=pl.name;
-  var status=document.getElementById("al-status"), save=document.getElementById("al-save"), off=document.getElementById("al-off");
+function removeAlert(k){
   var g=function(id){ return document.getElementById(id); };
-  if(st && st.prefs){ var q=st.prefs; g("al-brief").checked=!!q.brief; g("al-hour").value=String(q.briefHour||7); g("al-heads").checked=!!q.heads; g("al-stale").checked=!!q.stale; g("al-turns").checked=!!q.turns; g("al-lead").value=String([0,30,60,120].indexOf(+q.turnLead)>=0?+q.turnLead:60); g("al-level").checked=!!q.level; g("al-hi").value=q.levelHi!=null?q.levelHi:""; g("al-lo").value=q.levelLo!=null?q.levelLo:""; g("al-weekend").checked=!!q.weekend; g("al-quiet").checked=q.quiet!==false; }
-  else { g("al-brief").checked=true; g("al-heads").checked=true; g("al-stale").checked=false; g("al-turns").checked=false; g("al-lead").value="60"; g("al-level").checked=false; g("al-hi").value=""; g("al-lo").value=""; g("al-weekend").checked=false; g("al-quiet").checked=true; }
+  if(k==="level"){ g("al-level").checked=false; g("al-hi").value=""; g("al-lo").value=""; } else { var box=g("al-"+k); if(box) box.checked=false; }
   renderAlActive();
-  save.disabled=false; off.style.display=st?"":"none"; save.textContent=st?"Save changes":"Turn on alerts";
-  if(!pushSupported()){
-    status.innerHTML= (isIOS() && !isStandalone()) ? "<b>iPhone:</b> add this site to your Home Screen first (Share → Add to Home Screen), then open it from there to turn on alerts." : "This browser can’t receive push notifications.";
-    save.disabled=true;
-  } else if(Notification.permission==="denied"){ status.innerHTML="Notifications are <b>blocked</b> for this site in your browser settings — allow them there, then come back."; save.disabled=true; }
-  else if(st){ status.innerHTML="Alerts are <b>on</b> for <b>"+esc(placeByKey(st.spot)?placeByKey(st.spot).name:st.spot)+"</b>. They follow the spot you have picked."; }
-  else status.innerHTML="Get a notification instead of checking the page.";
-  document.getElementById("al-sheet").classList.add("open"); document.getElementById("sheet-bg").classList.add("open"); document.getElementById("sheet-bg")._al=true;
-  fetch("/api/push/config",{cache:"no-store"}).then(function(r){ return r.json(); }).then(function(c){ if(!c.enabled){ status.innerHTML="Alerts aren’t switched on for this site yet (server keys not set)."; save.disabled=true; } window._pushCfg=c; }).catch(function(){ status.innerHTML="Couldn’t reach the alert service — try again in a minute."; save.disabled=true; });
+  var st=pushState();
+  if(st && st.sub){ postSubscription(st.sub).then(function(){ toast("Removed and saved."); renderAlActive(); }).catch(function(){ toast("Removed here — tap Save changes to keep it.", 4000); }); }
 }
-function closeAlerts(){ document.getElementById("al-sheet").classList.remove("open"); document.getElementById("sheet-bg").classList.remove("open"); }
+function setDur(kind){ AL_DUR=kind; Array.prototype.forEach.call(document.querySelectorAll("#al-dur button"), function(b){ b.classList.toggle("on", b.getAttribute("data-dur")===kind); }); renderAlActive(); }
+var SENT_LABEL={brief:"Daily brief", heads:"Heads-up", "turn:high":"High water", "turn:low":"Low water", "lvl:hi":"Above your level", "lvl:lo":"Below your level", wknd:"Weekend outlook", stale:"Data outage"};
+function renderRecent(rec){
+  var el=document.getElementById("al-recent"); if(!el) return;
+  var sent=rec&&rec.sent?rec.sent:{}, rows=Object.keys(sent).map(function(k){ var lbl=Object.keys(SENT_LABEL).find(function(p){ return k.indexOf(p)===0; }); return {t:sent[k], lbl:lbl?SENT_LABEL[lbl]:k}; }).sort(function(a,b){ return b.t-a.t; }).slice(0,5);
+  if(!rows.length){ el.style.display="none"; el.innerHTML=""; return; }
+  el.style.display="block"; el.innerHTML='<span class="muted-sm">Recently sent:</span> '+rows.map(function(r){ return esc(r.lbl)+' <span class="muted-sm">'+azTime(r.t)+'</span>'; }).join(" · ");
+}
+function iosNotice(){
+  var box=document.getElementById("al-ios"); if(!box) return false;
+  if(isIOS() && !isStandalone()){
+    box.style.display="block";
+    box.innerHTML='<b>iPhone and iPad: one step first.</b> Alerts only work from the Home Screen app, not from Safari. Until you do this, nothing you set here will arrive.<ol><li>Tap the <b>Share</b> button (the square with the arrow).</li><li>Choose <b>Add to Home Screen</b>.</li><li>Open <b>Is The River Up?</b> from your Home Screen and turn alerts on there.</li></ol>';
+    return true;
+  }
+  box.style.display="none"; return false;
+}
+function fillQuietSelects(){
+  var f=document.getElementById("al-qfrom"), t=document.getElementById("al-qto"); if(!f || f.options.length) return;
+  for(var h=0;h<24;h++){ f.appendChild(new Option(hourLabel(h), h)); t.appendChild(new Option(hourLabel(h), h)); }
+  f.value="22"; t.value="6";
+}
+function openAlerts(){
+  var st=pushState(), pl=currentPlace(), g=function(id){ return document.getElementById(id); };
+  fillQuietSelects();
+  g("al-spot").textContent=pl.name;
+  var status=g("al-status"), save=g("al-save"), off=g("al-off"), test=g("al-test");
+  if(st && st.prefs){ var q=st.prefs; g("al-brief").checked=!!q.brief; g("al-hour").value=String(q.briefHour||7); g("al-heads").checked=!!q.heads; g("al-stale").checked=!!q.stale; g("al-turns").checked=!!q.turns; g("al-lead").value=String([0,30,60,120].indexOf(+q.turnLead)>=0?+q.turnLead:60); g("al-level").checked=!!q.level; g("al-hi").value=q.levelHi!=null?q.levelHi:""; g("al-lo").value=q.levelLo!=null?q.levelLo:""; g("al-weekend").checked=!!q.weekend; g("al-quiet").checked=q.quiet!==false; g("al-qfrom").value=String(q.quietFrom!=null?q.quietFrom:22); g("al-qto").value=String(q.quietTo!=null?q.quietTo:6); AL_DUR=(q.until && new Date(q.until).getTime()>Date.now() && q.dur)?q.dur:"always"; }
+  else { g("al-brief").checked=true; g("al-heads").checked=true; g("al-stale").checked=false; g("al-turns").checked=true; g("al-lead").value="60"; g("al-level").checked=false; g("al-hi").value=""; g("al-lo").value=""; g("al-weekend").checked=false; g("al-quiet").checked=true; g("al-qfrom").value="22"; g("al-qto").value="6"; AL_DUR="weekend"; }
+  setDur(AL_DUR);
+  save.disabled=false; off.style.display=st?"":"none"; test.style.display=st?"":"none"; save.textContent=st?"Save changes":"Turn on alerts";
+  var ios=iosNotice();
+  if(ios){ status.innerHTML=""; save.disabled=true; }
+  else if(!pushSupported()){ status.innerHTML="This browser can’t receive push notifications."; save.disabled=true; }
+  else if(Notification.permission==="denied"){ status.innerHTML="Notifications are <b>blocked</b> for this site in your browser settings — allow them there, then come back."; save.disabled=true; }
+  else if(st){ status.innerHTML="Alerts are <b>on</b> for <b>"+esc(placeByKey(st.spot)?placeByKey(st.spot).name:st.spot)+"</b>."; }
+  else status.innerHTML="Get a notification instead of checking the page.";
+  renderAlActive(); renderRecent(null);
+  document.getElementById("alerts-page").classList.add("open"); document.getElementById("alerts-page").setAttribute("aria-hidden","false"); document.body.classList.add("page-open");
+  try{ if(!(history.state && history.state.al)) history.pushState({al:1}, "", "/alerts"); }catch(e){}
+  if(st && st.endpoint){ fetch("/api/push/subscribe?endpoint="+encodeURIComponent(st.endpoint),{cache:"no-store"}).then(function(r){ return r.ok?r.json():null; }).then(function(rec){ if(rec) renderRecent(rec); }).catch(function(){}); }
+  fetch("/api/push/config",{cache:"no-store"}).then(function(r){ return r.json(); }).then(function(c){ if(!c.enabled){ status.innerHTML="Alerts aren’t switched on for this site yet (server keys not set)."; save.disabled=true; } window._pushCfg=c; }).catch(function(){ if(!ios) status.innerHTML="Couldn’t reach the alert service — try again in a minute."; });
+}
+function closeAlerts(fromHistory){
+  var pg=document.getElementById("alerts-page"); if(!pg || !pg.classList.contains("open")) return;
+  pg.classList.remove("open"); pg.setAttribute("aria-hidden","true"); document.body.classList.remove("page-open");
+  if(!fromHistory){ try{ if(history.state && history.state.al && history.state.deep){ var k=currentPlace()&&currentPlace().key; history.replaceState({spot:k}, "", k?"/s/"+k:"/"); } else if(history.state && history.state.al) history.back(); }catch(e){} }
+}
+window.addEventListener("popstate", function(){ var pg=document.getElementById("alerts-page"); if(pg && pg.classList.contains("open") && !(history.state && history.state.al)) closeAlerts(true); });
 function subscribePush(){
   var save=document.getElementById("al-save"); save.disabled=true; save.textContent="Working…";
   var cfg=window._pushCfg;
@@ -1124,7 +1202,7 @@ function subscribePush(){
   navigator.serviceWorker.register("/sw.js").then(function(reg){ return navigator.serviceWorker.ready; })
   .then(function(reg){ return Notification.requestPermission().then(function(p){ if(p!=="granted") throw new Error("Permission not granted"); return reg.pushManager.getSubscription().then(function(s){ return s || reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64ToU8(cfg.publicKey)}); }); }); })
   .then(function(sub){ return postSubscription(sub.toJSON()); })
-  .then(function(){ toast("Alerts are on for "+currentPlace().name+" ✓"); renderAlActive(); closeAlerts(); })
+  .then(function(){ toast("Saved — alerts are on for "+currentPlace().name+" ✓"); var st=pushState(); document.getElementById("al-off").style.display=st?"":"none"; document.getElementById("al-test").style.display=st?"":"none"; document.getElementById("al-status").innerHTML="Alerts are <b>on</b> for <b>"+esc(currentPlace().name)+"</b>."; renderAlActive(); })
   .catch(function(e){ toast(/Permission/.test(String(e))?"Notifications weren’t allowed.":"Couldn’t turn on alerts: "+(e&&e.message||e), 3500); })
   .then(function(){ save.disabled=false; save.textContent=pushState()?"Save changes":"Turn on alerts"; });
 }
@@ -1136,25 +1214,37 @@ function postSubscription(subJson){
 }
 function unsubscribePush(){
   var st=pushState();
-  var done=function(){ store.set(PUSH_KEY, null); toast("Alerts are off."); closeAlerts(); };
+  var done=function(){ store.set(PUSH_KEY, null); toast("All alerts are off."); closeAlerts(); };
   if(!st){ done(); return; }
   fetch("/api/push/subscribe",{method:"DELETE", headers:{"content-type":"application/json"}, body:JSON.stringify({endpoint:st.endpoint})}).catch(function(){})
     .then(function(){ return navigator.serviceWorker.getRegistration().then(function(reg){ return reg && reg.pushManager.getSubscription().then(function(s){ return s && s.unsubscribe(); }); }); }).catch(function(){})
     .then(done);
 }
+function sendTest(){
+  var st=pushState(); if(!st){ toast("Turn alerts on first."); return; }
+  var b=document.getElementById("al-test"); b.disabled=true;
+  fetch("/api/push/test",{method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({endpoint:st.endpoint})}).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||("HTTP "+r.status)); return j; }); })
+    .then(function(){ toast("Test sent — it should pop up in a few seconds.", 4000); }).catch(function(e){ toast("Couldn’t send a test: "+e.message, 5000); }).then(function(){ b.disabled=false; });
+}
 document.getElementById("alerts-btn").addEventListener("click", openAlerts);
-document.getElementById("al-x").addEventListener("click", closeAlerts);
+document.getElementById("al-back").addEventListener("click", function(){ closeAlerts(); });
 document.getElementById("al-save").addEventListener("click", subscribePush);
 document.getElementById("al-off").addEventListener("click", unsubscribePush);
-// Keep the server in step when a subscribed visitor changes spot.
+document.getElementById("al-test").addEventListener("click", sendTest);
+document.getElementById("alerts-page").addEventListener("change", renderAlActive);
+document.getElementById("alerts-page").addEventListener("input", renderAlActive);
+document.getElementById("alerts-page").addEventListener("click", function(ev){ var d=ev.target.closest && ev.target.closest("#al-dur button"); if(d){ setDur(d.getAttribute("data-dur")); return; } var rm=ev.target.closest && ev.target.closest(".rm[data-rm]"); if(rm){ removeAlert(rm.getAttribute("data-rm")); } });
+document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeAlerts(); });
+// Alerts follow the spot: when the spot changes, re-point the subscription.
 var _onPlaceChangePrev=window.onPlaceChange;
 window.onPlaceChange=function(k){ if(_onPlaceChangePrev) _onPlaceChangePrev(k); var st=pushState(); if(st && st.sub && st.spot!==k){ postSubscription(st.sub).catch(function(){}); } };
+if(location.pathname==="/alerts"){ try{ history.replaceState({al:1, deep:1}, "", "/alerts"); }catch(e){} setTimeout(openAlerts, 300); }
 // Links that point into the advanced view switch to it first.
 document.addEventListener("click", function(ev){
   var a=ev.target.closest && ev.target.closest('a[data-adv]'); if(!a) return;
   if(currentMode()!=="advanced") setMode("advanced");
 });
-window.onPlaceChange=function(k){ noteRecent(k); };
+var _onPlaceChangePick=window.onPlaceChange; window.onPlaceChange=function(k){ if(_onPlaceChangePick) _onPlaceChangePick(k); noteRecent(k); };
 window.onRiverRender=function(){ renderSimple(); try{ renderOutlook14(heroModel()); }catch(e){ if(window.console) console.error(e); } };
 // First paint before any data: show the spot name right away.
 (function(){ try{ if(store.get(PLACE_KEY)) document.getElementById("spot-name").textContent=currentPlace().name; renderRibbon(currentPlace()); }catch(e){} })();

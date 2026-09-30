@@ -63,7 +63,9 @@ function messagesFor(M, sub, now, dataAgeMs) {
       }
     }
   }
-  const quiet = prefs.quiet !== false && (mstHour(now) >= 22 || mstHour(now) < 6);
+  if (prefs.until && new Date(prefs.until).getTime() < now) return out; // the person asked for alerts only through a date
+  const qf = Number.isFinite(+prefs.quietFrom) ? +prefs.quietFrom : 22, qt = Number.isFinite(+prefs.quietTo) ? +prefs.quietTo : 6, hr = mstHour(now);
+  const quiet = prefs.quiet !== false && qf !== qt && (qf < qt ? (hr >= qf && hr < qt) : (hr >= qf || hr < qt));
   // High and low water: a ping as the next high and the next low arrive (or a
   // chosen lead time before). The robot runs about every 10 minutes, so the
   // window is a little wider than that; a 3-hour guard stops repeats when the

@@ -1172,12 +1172,12 @@ function heroModel(){
   // Shift the sensor's record onto THIS place's clock and read it up to "now":
   // with an upstream reference, the sensor's newest points describe this spot's
   // FUTURE, so the present lives lag-minutes back in its record.
-  function toPlace(arr){
+  function toPlace(arr, isStage){
     if(!arr || !arr.length || Math.abs(_lagP)<3*60000) return arr;
-    var out=arr.map(function(q){ return {t:q.t+_lagP, v:q.v}; }).filter(function(q){ return q.t<=Date.now()+60000; });
+    var out=toSpotClock(arr, ref.mile, pl, {stage:!!isStage});
     return out.length>=4 ? out : arr;
   }
-  var flowP=toPlace(p.flow), stageP=toPlace(p.stage);
+  var flowP=toPlace(p.flow), stageP=toPlace(p.stage, true);
   var series=flowP.length?flowP:stageP, tr=trend(series), c=cur(series), f=cur(flowP);
   M.flowP=flowP; M.stageP=stageP; M.series=series; M.trend=tr; M.c=c; M.f=f; M.lag=_lagP;
   var detail=(f?'<span class="mono">'+fmt(f.v)+' cfs</span>':'')+' · as of '+azTime(c.t)+' MST'+ageNote(c.t);
@@ -1659,15 +1659,27 @@ function measuredArrival(pl){
 // near gauge's present reading (attenuation varies with flow). We shift the
 // measured window by that seam gap, fading the correction to zero by the
 // horizon, so the outlook starts at reality and ends where the schedule picks up.
+// Value of a time-sorted {t,v} series at t: linear between neighbours, or the
+// nearest point when only one side exists within maxGap; null otherwise.
+function seriesValueAt(arr, t, maxGap){
+  if(!arr || !arr.length) return null;
+  var lo=null, hi=null;
+  for(var i=0;i<arr.length;i++){
+    var p=arr[i];
+    if(p.t<=t){ lo=p; } else { hi=p; break; }
+  }
+  if(lo && hi){
+    if(hi.t-lo.t<=2*maxGap){ var w=(t-lo.t)/((hi.t-lo.t)||1); return lo.v+(hi.v-lo.v)*w; }
+  }
+  var near=null, bd=1e18;
+  [lo,hi].forEach(function(p){ if(p){ var d=Math.abs(p.t-t); if(d<bd){ bd=d; near=p; } } });
+  return (near && bd<=maxGap) ? near.v : null;
+}
 function blendedOutlook(pl){
   var ref=refFor(pl);
   if(!ref || !ref.st) return null;
   var now=Date.now(), lag=lagMsFrom(ref.mile, pl);
-  function toP(arr){
-    if(!arr || !arr.length || Math.abs(lag)<3*60000) return arr;
-    var o=arr.map(function(q){ return {t:q.t+lag, v:q.v}; }).filter(function(q){ return q.t<=now+60000; });
-    return o.length>=4 ? o : arr;
-  }
+  function toP(arr){ return toSpotClock(arr, ref.mile, pl, {now:now}); }
   var flowP=toP(ref.st.flow);
   var cv=flowP.length ? flowP[flowP.length-1].v : null;
   var comp=measuredArrival(pl), fc=forecastSeriesFor(pl);
@@ -1680,7 +1692,7 @@ function blendedOutlook(pl){
     // dam ramps into phantom shelves). With the handoff fades above this is
     // normally ~0.
     var delta=0;
-    if(raw.length>=2 && cv!=null && flowP.length){
+    if(raw.length>=1 && cv!=null && flowP.length){
       var tc=flowP[flowP.length-1].t, bd=1e18, atTc=null;
       for(var ci=0; ci<comp.points.length; ci++){
         var dd=Math.abs(comp.points[ci].t-tc);
@@ -1688,8 +1700,8 @@ function blendedOutlook(pl){
       }
       if(atTc && bd<=90*60000) delta=cv-atTc.v; // same-instant gap only
     }
-    if(raw.length>=2 && Math.abs(delta)>1){
-      var span=Math.max(1, horizon-now);
+    if(raw.length>=1 && Math.abs(delta)>1){
+      var span=Math.max(6*3600000, horizon-now);
       futM=raw.map(function(p){
         var w=1-Math.min(1,(p.t-now)/span);
         return {t:p.t, v:Math.max(0, p.v+delta*w), src:p.src};
@@ -1698,16 +1710,26 @@ function blendedOutlook(pl){
   }
   var futS=fc ? fc.arrival.filter(function(p){ return p.t>Math.max(now, horizon); }) : [];
   // Same continuity treatment where measurement hands off to the schedule —
-  // independent estimates can disagree by thousands of cfs at the horizon;
-  // fade the step into the schedule's first ~6 h.
-  if(futM.length && futS.length){
-    var dS=futM[futM.length-1].v - futS[0].v;
-    if(Math.abs(dS)>1){
-      var s0=futS[0].t, FADE2=6*3600000;
-      futS=futS.map(function(p){
-        var w=1-Math.min(1,(p.t-s0)/FADE2);
-        return mapV(p, function(v){ return Math.max(0, v+dS*w); });
-      });
+  // independent estimates can disagree by thousands of cfs at the horizon.
+  // Compare the two at the SAME instant (the last measured point: the en-route
+  // composite if it reaches past now, else the last reading at the spot when
+  // the data is stale) and fade that offset out over the next ~6 h from that
+  // point. Comparing across an hour of real change used to turn a rising ramp
+  // into a flat shelf followed by a jump.
+  if(fc && futS.length){
+    var aT=null, aV=null;
+    if(futM.length){ aT=futM[futM.length-1].t; aV=futM[futM.length-1].v; }
+    else if(flowP.length && cv!=null){ aT=flowP[flowP.length-1].t; aV=cv; }
+    var sv=aT!=null ? seriesValueAt(fc.arrival, aT, 90*60000) : null;
+    if(sv!=null){
+      var dS=aV-sv;
+      if(Math.abs(dS)>1){
+        var FADE2=6*3600000;
+        futS=futS.map(function(p){
+          var w=1-Math.min(1,(p.t-aT)/FADE2);
+          return mapV(p, function(v){ return Math.max(0, v+dS*w); });
+        });
+      }
     }
   }
   var blend=futM.concat(futS);
@@ -1777,6 +1799,24 @@ function renderHeadgate(){
   noteEl.textContent=(fc.srcNote.indexOf("Headgate report")>=0) ? ((hgData&&hgData.note)||"") : "";
 }
 
+// A gauge's record on the spot's clock. From an upstream gauge, every reading
+// travels at its own speed and spreads and settles by the stretch's measured
+// figures — the same transform the en-route forecast uses, so the measured
+// past and the forecast agree where they meet at "now". From a downstream
+// gauge (which only knows this spot's past) it is a plain shift back in time.
+function toSpotClock(arr, refMile, pl, opts){
+  opts=opts||{}; var now=opts.now||Date.now();
+  if(!arr || !arr.length) return arr||[];
+  var lag=lagMsFrom(refMile, pl); if(Math.abs(lag)<3*60000) return arr;
+  var out;
+  if(refMile>pl.mile+0.5 && !opts.plain){
+    var pts=arr.map(function(q){ return {t:q.t, v:q.v}; });
+    if(opts.stage){ out=disperse(pts.map(function(q){ return {t:q.t+lag, v:q.v}; }), stretchSigmaH(refMile, pl.mile)); } // heights: shift and spread, no flow speed or gain
+    else out=applyGain(disperse(shiftByFlow(pts, refMile, pl.mile), stretchSigmaH(refMile, pl.mile)), stretchGain(refMile, pl.mile));
+  } else out=arr.map(function(q){ return {t:q.t+lag, v:q.v}; });
+  out=out.filter(function(q){ return q.t<=now+60000; });
+  return out.length>=4 ? out : arr;
+}
 // ---------- depth marks: the modeled level at a spot at a moment ----------
 // Flow at the spot at time t (past from the shifted sensor record, future from
 // the blended outlook), and the reference sensor's ABSOLUTE stage for that
@@ -1836,7 +1876,7 @@ function hindcast(pl, backH){
   finally { Date.now=realNow; STATIONS=saved.ST; psData=saved.ps; hgData=saved.hg; dsData=saved.ds; }
   if(!ol || !ol.blend.length) return null;
   var fc=ol.blend.filter(function(p){ return p.t>cut && p.t<=cut+HOLD; }).map(function(p){ return {t:p.t, v:p.v, meas:p.t<=ol.horizon}; });
-  var truth=ref.st.flow.map(function(p){ return {t:p.t+ol.lag, v:p.v}; }).filter(function(p){ return p.t>cut-3*3600000 && p.t<=cut+HOLD; });
+  var truth=toSpotClock(ref.st.flow, ref.mile, pl, {now:end+HOLD}).filter(function(p){ return p.t>cut-3*3600000 && p.t<=cut+HOLD; });
   if(fc.length<6 || truth.length<6) return null;
   // score on matched hours
   var tm={}; truth.forEach(function(p){ tm[Math.round(p.t/3600000)]=p.v; });
@@ -2241,7 +2281,7 @@ function pushSpot(k, replace){
     pushSpot(k, true); // canonicalize legacy ?spot= links to /s/<key>
     try{ document.body.className=document.body.className.replace(/ ?nochoice/,""); }catch(e){} // shared-link first visit: unhide pre-paint
   }
-  else { var cur0=store.get(PLACE_KEY); if(cur0) pushSpot(cur0, true); } // entry pageview carries the spot
+  else if(location.pathname!=="/alerts"){ var cur0=store.get(PLACE_KEY); if(cur0) pushSpot(cur0, true); } // entry pageview carries the spot (not on the /alerts deep link)
   window.addEventListener("popstate", function(){
     var k2=spotFromUrl();
     if(k2){ setPlace(k2, {noPush:true}); }
