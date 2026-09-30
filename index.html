@@ -530,7 +530,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30h</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30i</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -667,7 +667,7 @@ try{
 <div id="photo-lb" role="dialog" aria-label="Photo"><img alt=""></div>
 <div class="toast" id="toast"></div>
 
-<script src="/river.js?v=2026-09-30g"></script>
+<script src="/river.js?v=2026-09-30i"></script>
 <script src="/marks-math.js?v=2026-09-29m"></script>
 <script>
 // ============================================================
@@ -843,12 +843,15 @@ function renderToday(M){
   if(!M.ok || M.lake){ box.style.display="none"; return; }
   window._todayM=M; // re-drawn on resize so the strip's height/dots track the layout
   var now=Date.now(), tk=dayKey(now), t0=tk*DAY_MS+OFF_MS, t1=t0+DAY_MS, hz=(M.outlook&&M.outlook.horizon)||0;
-  var pts=[];
-  (M.flowP||[]).forEach(function(p){ if(p.t>=t0&&p.t<t1) pts.push({t:p.t, v:p.v, k:"meas"}); });
+  var pts=[], lastT=(M.outlook&&M.outlook.lastT)||now;
+  (M.flowP||[]).forEach(function(p){ if(p.t>=t0&&p.t<t1&&p.t<=lastT) pts.push({t:p.t, v:p.v, k:"meas", read:true}); });
   // The same blended series the hero and tide table read: measured en-route
-  // water, then the schedule with the seam faded over ~6 h — no steps.
-  if(M.outlook) M.outlook.blend.forEach(function(p){ if(p.t>now && p.t>=t0 && p.t<t1) pts.push({t:p.t, v:p.v, k:(hz&&p.t<=hz)?"meas":(p.est?"proj":"sched")}); });
-  else { var fc0=forecastSeriesFor(M.pl); if(fc0) fc0.arrival.forEach(function(p){ if(p.t>now && p.t>=t0 && p.t<t1) pts.push({t:p.t, v:p.v, k:p.est?"proj":"sched"}); }); }
+  // water, then the schedule with the seam faded over ~6 h — no steps. It
+  // starts where the readings end, so a late feed leaves no hole before now.
+  if(M.outlook){ var kind=function(p){ return (hz&&p.t<=hz)?"meas":(p.est?"proj":"sched"); };
+    M.outlook.gap.forEach(function(p){ if(p.t>lastT && p.t>=t0 && p.t<t1) pts.push({t:p.t, v:p.v, k:kind(p)}); });
+    M.outlook.blend.forEach(function(p){ if(p.t>now && p.t>=t0 && p.t<t1) pts.push({t:p.t, v:p.v, k:kind(p)}); }); }
+  else { var fc0=forecastSeriesFor(M.pl); if(fc0) fc0.arrival.forEach(function(p){ if(p.t>lastT && p.t>=t0 && p.t<t1) pts.push({t:p.t, v:p.v, k:p.est?"proj":"sched"}); }); }
   pts.sort(function(a,b){ return a.t-b.t; });
   if(pts.length<6){ box.style.display="none"; return; }
   box.style.display="";
@@ -859,13 +862,10 @@ function renderToday(M){
   function Y(v){ return top+(H-top-bot)*(1-(v-min)/span); }
   var g="";
   [6,12,18].forEach(function(h){ var x=X(t0+h*3600000); g+='<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.25)" stroke-width="1" vector-effect="non-scaling-stroke"/>'; });
-  var past=pts.filter(function(p){ return p.t<=now; }), fut=pts.filter(function(p){ return p.t>=now; });
-  // Join the measured and coming curves AT the now bar: interpolate the value
-  // at this instant and make it the last past point and the first future one.
-  if(past.length && fut.length && fut[0].t-past[past.length-1].t<=4*3600000){
-    var a=past[past.length-1], b=fut[0], w=(now-a.t)/((b.t-a.t)||1), vn={t:now, v:a.v+(b.v-a.v)*Math.max(0,Math.min(1,w)), k:"meas"};
-    past=past.concat([vn]); fut=[vn].concat(fut);
-  }
+  // Solid = readings; dashed = everything after the last reading, starting
+  // from that very point so the two always join (even when the feed is hours
+  // behind and the dashed part begins before the now bar).
+  var past=pts.filter(function(p){ return p.read; }), fut=past.length ? [past[past.length-1]].concat(pts.filter(function(p){ return !p.read && p.t>past[past.length-1].t; })) : pts.slice();
   var pastPts=past.map(function(p){ return {x:X(p.t), y:Y(p.v)}; }), futPts=fut.map(function(p){ return {x:X(p.t), y:Y(p.v)}; });
   var allPts=pts.map(function(p){ return {x:X(p.t), y:Y(p.v)}; });
   var area=yrSmoothPath(allPts)+" L"+allPts[allPts.length-1].x.toFixed(1)+" "+H+" L"+allPts[0].x.toFixed(1)+" "+H+" Z";
@@ -905,8 +905,9 @@ function renderToday(M){
   document.getElementById("today-top").innerHTML=rowHtml(topRow);
   document.getElementById("today-bot").innerHTML=rowHtml(botRow);
   svg.innerHTML=g;
-  var nMeas=pts.filter(function(p){ return p.k==="meas"&&p.t>now; }).length, nProj=pts.filter(function(p){ return p.k==="proj"; }).length;
-  note.textContent=(nProj?"dashed = projected":(nMeas?"dashed = en route / scheduled":"dashed = scheduled"));
+  var nMeas=pts.filter(function(p){ return p.k==="meas"&&!p.read; }).length, nProj=pts.filter(function(p){ return p.k==="proj"; }).length;
+  var late=now-lastT>2*3600000 ? " · readings end "+azClock(lastT) : "";
+  note.textContent=(nProj?"dashed = projected":(nMeas?"dashed = en route / scheduled":"dashed = scheduled"))+late;
 }
 (function(){ var tmr=null, lastW=window.innerWidth; window.addEventListener("resize", function(){ clearTimeout(tmr); tmr=setTimeout(function(){ if(window.innerWidth!==lastW && window._todayM){ lastW=window.innerWidth; renderToday(window._todayM); } }, 200); }); })();
 // ---------- next two weeks ----------
@@ -920,7 +921,7 @@ function renderOutlook14(M){
   // schedule, then the projection — the same series the tide table reads.
   var pts=[];
   (M.flowP||[]).forEach(function(p){ if(dayKey(p.t)===tk) pts.push({t:p.t, v:p.v, kind:"meas"}); });
-  if(ol && ol.blend.length) ol.blend.forEach(function(p){ if(p.t>now) pts.push({t:p.t, v:p.v, lo:p.lo, hi:p.hi, kind:(hz&&p.t<=hz)?"meas":(p.est?"proj":"sched")}); });
+  if(ol && ol.blend.length) (ol.gap||[]).concat(ol.blend).forEach(function(p){ if(p.t>(ol.lastT||now)) pts.push({t:p.t, v:p.v, lo:p.lo, hi:p.hi, kind:(hz&&p.t<=hz)?"meas":(p.est?"proj":"sched")}); });
   else fc.arrival.forEach(function(p){ if(p.t>now) pts.push({t:p.t, v:p.v, lo:p.lo, hi:p.hi, kind:p.est?"proj":"sched"}); });
   var days=[];
   for(var d=0; d<14; d++){

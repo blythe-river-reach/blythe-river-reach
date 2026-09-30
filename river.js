@@ -1608,7 +1608,7 @@ function measuredArrival(pl){
     var pts=applyGain(disperse(shiftByFlow(g.flow.map(function(p){ return {t:p.t, v:p.v, src:g.label}; }), g.mile, pl.mile), stretchSigmaH(g.mile, pl.mile)), stretchGain(g.mile, pl.mile));
     if(!pts.length) return;
     if(!base){ base=pts; out=pts.slice(); coverEnd=pts[pts.length-1].t; srcs.push(g.label); return; }
-    var tail=pts.filter(function(p){ return p.t>coverEnd+60000; });
+    var tail=pts.filter(function(p){ return p.t>coverEnd+60000; }), trued=function(v){ return v; };
     if(!tail.length) return;
     // true this gauge to the nearest gauge over their overlap at this spot's clock
     var lo=Math.max(base[0].t, pts[0].t), hi=Math.min(base[base.length-1].t, pts[pts.length-1].t);
@@ -1626,17 +1626,22 @@ function measuredArrival(pl){
         var sc=1;
         if(gSp>300 && bSp>0){ sc=Math.max(0.25, Math.min(1.5, bSp/gSp)); if(sc>0.85&&sc<1.15) sc=1; }
         if(sc!==1 || Math.abs(bMed-gMed)>=Math.max(120,0.04*bMed)){
-          tail=tail.map(function(p){ return {t:p.t, v:Math.max(0, bMed+(p.v-gMed)*sc), src:p.src}; });
+          trued=function(v){ return Math.max(0, bMed+(v-gMed)*sc); };
+          tail=tail.map(function(p){ return {t:p.t, v:trued(p.v), src:p.src}; });
         }
       }
     }
     // Seam continuity: the true-up matches WEEKLY stats, not the instant this
     // gauge takes over — the handoff can step >1,000 cfs and paint a phantom
-    // peak. Fade the residual step out over ~6 h of the tail.
+    // peak. Measure the step at the SAME instant (this gauge's value at the
+    // moment the nearer one runs out) and fade it over ~6 h from there;
+    // comparing across an hour of real change pinned the first tail hour to
+    // the previous value and painted a flat shelf on every ramp.
     if(out.length){
-      var _sd=out[out.length-1].v - tail[0].v;
+      var _last=out[out.length-1], _gAt=seriesValueAt(pts, _last.t, 90*60000);
+      var _sd=_gAt!=null ? _last.v - trued(_gAt) : _last.v - tail[0].v;
       if(Math.abs(_sd)>1){
-        var _st0=tail[0].t, _FADE=6*3600000;
+        var _st0=_gAt!=null ? _last.t : tail[0].t, _FADE=6*3600000;
         tail=tail.map(function(p){
           var w=1-Math.min(1,(p.t-_st0)/_FADE);
           return {t:p.t, v:Math.max(0, p.v+_sd*w), src:p.src};
@@ -1684,9 +1689,13 @@ function blendedOutlook(pl){
   var cv=flowP.length ? flowP[flowP.length-1].v : null;
   var comp=measuredArrival(pl), fc=forecastSeriesFor(pl);
   var horizon=comp ? comp.horizon : 0;
+  // The estimate starts where the readings end (lastT), not at the clock:
+  // when the feed is hours behind, the hours between the last reading and
+  // now are still estimated water and must be drawn.
+  var lastT=flowP.length ? flowP[flowP.length-1].t : now;
   var futM=[];
   if(comp){
-    var raw=comp.points.filter(function(p){ return p.t>now; });
+    var raw=comp.points.filter(function(p){ return p.t>lastT; });
     // Anchor ONLY when the composite disagrees with the reference sensor at
     // the SAME moment (comparing across an hour of real change smears steep
     // dam ramps into phantom shelves). With the handoff fades above this is
@@ -1701,14 +1710,14 @@ function blendedOutlook(pl){
       if(atTc && bd<=90*60000) delta=cv-atTc.v; // same-instant gap only
     }
     if(raw.length>=1 && Math.abs(delta)>1){
-      var span=Math.max(6*3600000, horizon-now);
+      var span=Math.max(6*3600000, horizon-lastT);
       futM=raw.map(function(p){
-        var w=1-Math.min(1,(p.t-now)/span);
+        var w=1-Math.min(1,(p.t-lastT)/span);
         return {t:p.t, v:Math.max(0, p.v+delta*w), src:p.src};
       });
     } else futM=raw;
   }
-  var futS=fc ? fc.arrival.filter(function(p){ return p.t>Math.max(now, horizon); }) : [];
+  var futS=fc ? fc.arrival.filter(function(p){ return p.t>Math.max(lastT, horizon); }) : [];
   // Same continuity treatment where measurement hands off to the schedule —
   // independent estimates can disagree by thousands of cfs at the horizon.
   // Compare the two at the SAME instant (the last measured point: the en-route
@@ -1732,9 +1741,13 @@ function blendedOutlook(pl){
       }
     }
   }
-  var blend=futM.concat(futS);
+  var full=futM.concat(futS);
+  // blend: from now on (what every forecast reader uses); gap: the estimated
+  // hours between the last reading and now, for charts that draw the whole day.
+  var blend=full.filter(function(p){ return p.t>now; }), gap=full.filter(function(p){ return p.t<=now; });
+  futM=futM.filter(function(p){ return p.t>now; });
   var events=blend.length>=6 ? findTides(blend).filter(function(e){ return e.t>now; }) : [];
-  return { ref:ref, lag:lag, flowP:flowP, cv:cv, comp:comp, fc:fc, horizon:horizon, futM:futM, blend:blend, events:events };
+  return { ref:ref, lag:lag, flowP:flowP, cv:cv, comp:comp, fc:fc, horizon:horizon, lastT:lastT, futM:futM, blend:blend, gap:gap, events:events };
 }
 function tideRating(pl){
   var seg=segFor(pl);
