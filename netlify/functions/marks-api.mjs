@@ -63,6 +63,7 @@ export default async (req) => {
       if (req.method === "POST") return send(await C.createMark(S, device, body));
     } else if (path.endsWith("/feedback")) {
       if (req.method === "POST") return send(await C.createFeedback(S, device, Object.assign({}, body, { ua: req.headers.get("user-agent") || "" })));
+      if (req.method === "GET") return json({ ok: true, notes: await C.myFeedback(S, device) });
     } else if (path.endsWith("/marks/pins")) {
       if (req.method === "POST") return send(await C.setPins(S, device, false, String(body.mark || ""), body.pins));
     } else if (path.endsWith("/readings")) {

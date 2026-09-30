@@ -47,15 +47,21 @@
   .top{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
   .brand{display:flex; flex-direction:column; line-height:1.15; margin-right:auto}
   .brand .reach{color:var(--muted); font-size:11.5px}
-  .tools{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end}
-  .tools button, .tbtn{background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:8px 11px; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap}
-  .tools button:hover{border-color:var(--water)}
-  @media (max-width:560px){ #tip-link .lbl, #theme-btn .lbl{display:none} .tools{gap:4px} .tools button, .tbtn, #tip-link{padding:8px 8px} #mode-btn{padding:8px 9px} }
-  @media (max-width:375px){ .tools{gap:3px} .tools button, #tip-link{padding:7px 4px; font-size:12px; border-radius:8px} #mode-btn{padding:7px 7px} }
+  .tools{display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end}
+  .tbtn{background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:8px 11px; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap}
+  /* Toolbar: icon over a one-word caption, so nothing needs guessing. */
+  .tools button, #tip-link{display:inline-flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; min-width:48px; background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:12px; padding:6px 8px; font:inherit; cursor:pointer; white-space:nowrap; text-decoration:none}
+  .tools button:hover, #tip-link:hover{border-color:var(--water)}
+  .tools .ic{font-size:17px; line-height:1.1; position:relative} .tools .cap{font-size:10px; font-weight:700; line-height:1; letter-spacing:.02em; color:var(--muted)}
+  .tools .cap.short{display:none} @media (max-width:400px){ .tools .cap.long{display:none} .tools .cap.short{display:inline} }
+  #fb-btn.has-reply .ic::after{content:""; position:absolute; top:-3px; right:-7px; width:9px; height:9px; border-radius:50%; background:var(--house); border:2px solid var(--panel2)}
+  @media (max-width:560px){ .tools{width:100%; gap:3px; flex-wrap:nowrap} .tools button, #tip-link{flex:1 1 0; min-width:0; padding:5px 2px; border-radius:10px} .tools .ic{font-size:15px} .tools .cap{font-size:8.5px; letter-spacing:0; max-width:100%; overflow:hidden; text-overflow:clip} }
   .tools #refresh:disabled{opacity:.5}
-  #mode-btn{color:var(--water); border-color:var(--water); background:transparent}
-  #tip-link{display:inline-flex; align-items:center; background:rgba(232,150,90,.16); color:var(--house); border:1px solid var(--house); border-radius:10px; padding:8px 11px; font-size:13px; font-weight:700; text-decoration:none; white-space:nowrap}
+  #mode-btn{border-color:var(--water); background:transparent} #mode-btn .cap{color:var(--water)}
+  #tip-link{background:rgba(232,150,90,.16); border-color:var(--house)} #tip-link .cap{color:var(--house)}
   #tip-link:hover{background:rgba(232,150,90,.3)}
+  .fb-note{padding:8px 0; border-top:1px solid var(--border); font-size:14px} .fb-reply{margin-top:6px; padding:7px 10px; border-left:3px solid var(--water); background:var(--panel2); border-radius:8px}
+  .tz-note{font-size:12px; color:var(--muted); margin-top:4px} .tz-note button{background:none; border:0; color:var(--water); font:inherit; cursor:pointer; padding:0; text-decoration:underline}
   .spot-btn{width:100%; margin-top:12px; display:flex; align-items:center; gap:10px; background:var(--panel); border:2px solid var(--water); border-radius:14px; padding:12px 14px; font-size:18px; font-weight:700; color:var(--text); cursor:pointer; box-shadow:0 0 0 4px rgba(56,189,224,.10); text-align:left}
   .spot-btn .pin{font-size:20px}
   .spot-btn .name{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
@@ -322,17 +328,18 @@ try{
 <header class="top">
   <div class="brand"><h1>Is The River Up?</h1><span class="reach">Colorado River · Davis Dam → Martinez Lake</span></div>
   <div class="tools">
-    <a href="https://ko-fi.com/IsTheRiverUp" target="_blank" rel="noopener" id="tip-link" title="This site is free — tips cover the domain and upkeep. Opens the Ko-fi tip jar in a new tab.">🛟<span class="lbl">&nbsp;Tip jar</span></a>
-    <button id="mode-btn" title="Show every sensor, chart and table">Advanced</button>
-    <button id="theme-btn" title="Day / night colors">☀️</button>
-    <button id="alerts-btn" title="Push alerts for this spot">🔔</button>
-    <button id="share-btn" title="Share a link that opens on this spot">📤</button>
-    <button id="fb-btn" title="Tell us what you think">💬</button>
-    <button id="refresh" title="Check for newer data">↻</button>
+    <a href="https://ko-fi.com/IsTheRiverUp" target="_blank" rel="noopener" id="tip-link" title="This site is free — tips cover the domain and upkeep. Opens the Ko-fi tip jar in a new tab."><span class="ic">☕</span><span class="cap long">Tip jar</span><span class="cap short">Tips</span></a>
+    <button id="mode-btn" title="Show every sensor, chart and table"><span class="ic">📊</span><span class="cap long">Advanced</span><span class="cap short">More</span></button>
+    <button id="theme-btn" title="Day / night colors"><span class="ic">☀️</span><span class="cap long">Day</span><span class="cap short">Day</span></button>
+    <button id="alerts-btn" title="Push alerts for this spot"><span class="ic">🔔</span><span class="cap long">Alerts</span><span class="cap short">Alerts</span></button>
+    <button id="share-btn" title="Share a link that opens on this spot"><span class="ic">📤</span><span class="cap long">Share</span><span class="cap short">Share</span></button>
+    <button id="fb-btn" title="Tell us what you think"><span class="ic">💬</span><span class="cap long">Feedback</span><span class="cap short">Notes</span></button>
+    <button id="refresh" title="Check for newer data"><span class="ic">↻</span><span class="cap long">Refresh</span><span class="cap short">Reload</span></button>
   </div>
   <button class="spot-btn" id="spot-btn" aria-haspopup="dialog"><span class="pin">📍</span><span class="name" id="spot-name">Pick your spot</span><span class="chev">change ▾</span></button>
 </header>
 <div class="status-line"><span id="load-spin" class="spin" style="display:none"></span><span id="updated" aria-live="polite">Loading…</span></div>
+<div class="tz-note" id="tz-note" style="display:none"></div>
 <div class="banner" id="banner"></div>
 <div class="site-notice" id="site-notice" style="display:none"></div>
 
@@ -490,7 +497,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30a</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30c</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -589,14 +596,15 @@ try{
     <label class="fld">Your note<textarea id="fb-text" maxlength="2000" placeholder="e.g. The forecast at Aha Quin runs a couple of hours early on weekends…" style="min-height:110px"></textarea></label>
     <label class="fld">How to reach you (optional)<input id="fb-contact" maxlength="120" placeholder="email or name, if you’d like a reply"></label>
     <button class="btn-water" id="fb-send">Send</button>
-    <p class="note">Sent with the spot you’re looking at and the page version, nothing else.</p>
+    <p class="note">Sent with the spot you’re looking at and the page version, nothing else. Replies show up here, on this device.</p>
+    <div id="fb-mine" style="display:none"></div>
   </div>
 </div>
 <input id="ms-photo-file" type="file" accept="image/*" capture="environment" style="display:none">
 <div id="photo-lb" role="dialog" aria-label="Photo"><img alt=""></div>
 <div class="toast" id="toast"></div>
 
-<script src="/river.js?v=2026-09-29i"></script>
+<script src="/river.js?v=2026-09-30b"></script>
 <script src="/marks-math.js?v=2026-09-29m"></script>
 <script>
 // ============================================================
@@ -874,13 +882,13 @@ function renderOutlook14(M){
   var fy=function(v){ if(toFt){ var f=toFt(v); return f!=null?(f<0.05?"0":"+"+f.toFixed(1))+"ft":""; } return (Math.abs(v)>=9500 ? Math.round(v/1000)+"k" : (v/1000).toFixed(1)+"k"); };
   var yT=fy(max), yM=fy((max+min)/2), yB=fy(min);
   yl.innerHTML='<span class="yl-top" style="top:2px">'+yT+'</span>'+(yM!==yT&&yM!==yB?'<span class="yl-mid" style="top:50%;transform:translateY(-50%)">'+yM+'</span>':'')+'<span class="yl-bot" style="bottom:2px">'+yB+'</span>';
-  document.getElementById("ol14-days").innerHTML=days.map(function(x,i){ var t=(tk+i)*DAY_MS+OFF_MS+12*3600000; var lab=new Date(t).toLocaleDateString([], {timeZone:"America/Phoenix", weekday:"short"}).slice(0,2)+' '+new Date(t).toLocaleDateString([], {timeZone:"America/Phoenix", day:"numeric"}); return '<span class="'+(i===0?'today':'')+'">'+(i===0?'Today':lab)+'</span>'; }).join("");
+  document.getElementById("ol14-days").innerHTML=days.map(function(x,i){ var t=(tk+i)*DAY_MS+OFF_MS+12*3600000; var lab=new Date(t).toLocaleDateString([], {timeZone:tzName(), weekday:"short"}).slice(0,2)+' '+new Date(t).toLocaleDateString([], {timeZone:tzName(), day:"numeric"}); return '<span class="'+(i===0?'today':'')+'">'+(i===0?'Today':lab)+'</span>'; }).join("");
   // text
   var schedEnd=fc.schedEndAt, firstProj=days.findIndex(function(x){ return x && x.proj; });
   var dam=(M.seg==="upper")?"davis":"parker", sk=outlookData && outlookData.skill && outlookData.skill[dam] || {};
   var peakDay=null; have.forEach(function(x){ if(!peakDay||x.hi>peakDay.hi) peakDay=x; });
   var lowDay=null; have.forEach(function(x){ if(!lowDay||x.lo<lowDay.lo) lowDay=x; });
-  var dayName=function(x){ var t=x.t0+12*3600000; return x.k===tk?"today":(x.k===tk+1?"tomorrow":new Date(t).toLocaleDateString([], {timeZone:"America/Phoenix", weekday:"long"})+(x.k-tk>6?" "+new Date(t).toLocaleDateString([], {timeZone:"America/Phoenix", month:"short", day:"numeric"}):"")); };
+  var dayName=function(x){ var t=x.t0+12*3600000; return x.k===tk?"today":(x.k===tk+1?"tomorrow":new Date(t).toLocaleDateString([], {timeZone:tzName(), weekday:"long"})+(x.k-tk>6?" "+new Date(t).toLocaleDateString([], {timeZone:tzName(), month:"short", day:"numeric"}):"")); };
   var lvl=function(v){ return lvlOf(M, v); };
   var lead='Each bar is one day’s low-to-high swing at '+esc(pl.name)+' (tick = daily average). '+(schedEnd?'Solid bars follow Reclamation’s published schedule through <b>'+azDay(schedEnd)+'</b>; ':'')+(firstProj>=0?'lighter dashed bars from <b>'+dayName(days[firstProj])+'</b> on are projected from the dams’ weekly release rhythm, with the band showing where 8 days in 10 should land. ':'')+'Biggest day ahead: <b>'+dayName(peakDay)+'</b> (up to '+lvl(peakDay.hi)+'); lowest water: <b>'+dayName(lowDay)+'</b> (down to '+lvl(lowDay.lo)+').';
   document.getElementById("ol14-lead").innerHTML=lead;
@@ -1073,6 +1081,6 @@ window.onRiverRender=function(){ renderSimple(); try{ renderOutlook14(heroModel(
 // First paint before any data: show the spot name right away.
 (function(){ try{ if(store.get(PLACE_KEY)) document.getElementById("spot-name").textContent=currentPlace().name; renderRibbon(currentPlace()); }catch(e){} })();
 </script>
-<script src="/marks-ui.js?v=2026-09-29q"></script>
+<script src="/marks-ui.js?v=2026-09-30a"></script>
 </body>
 </html>

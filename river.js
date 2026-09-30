@@ -376,7 +376,30 @@ function stageSwing(stageSeries){
 
 // ---------- helpers ----------
 function fmt(n){ return n==null ? "\u2014" : Math.round(n).toLocaleString(); }
-function azTime(ms){ return new Date(ms).toLocaleString([], {timeZone:"America/Phoenix", month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}); }
+// Every time on the page is Arizona time (no daylight saving), which is what
+// the dams and sensors report in. A visitor whose phone runs on a different
+// clock (California in winter) can switch the display to their own zone.
+var TZ_KEY="blythe_tz_v1";
+function tzPref(){ return store.get(TZ_KEY)==="local" ? "local" : "az"; }
+function deviceTz(){ try{ return Intl.DateTimeFormat().resolvedOptions().timeZone||null; }catch(e){ return null; } }
+function tzName(){ var d=deviceTz(); return (tzPref()==="local" && d) ? d : "America/Phoenix"; }
+function tzOffsetMin(zone, t){ var p=new Intl.DateTimeFormat("en-US",{timeZone:zone, hour12:false, year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit"}).formatToParts(new Date(t)), m={}; p.forEach(function(x){ m[x.type]=x.value; }); var h=+m.hour; if(h===24) h=0; return Math.round((Date.UTC(+m.year, +m.month-1, +m.day, h, +m.minute) - Math.floor(t/60000)*60000)/60000); }
+// minutes the phone's clock is ahead of Arizona at time t (0 when they agree, e.g. Pacific in summer)
+function tzGapMinutes(t){ var d=deviceTz(); if(!d || d==="America/Phoenix") return 0; try{ return tzOffsetMin(d, t)-tzOffsetMin("America/Phoenix", t); }catch(e){ return 0; } }
+function tzNoteText(gap, pref, zone){
+  var h=Math.abs(gap)/60, hs=(h===1?"1 h":h+" h");
+  if(pref==="local") return {text:"Times shown in your phone\u2019s time ("+(zone||"local")+")"+(gap?", "+hs+(gap>0?" ahead of":" behind")+" Arizona":"")+".", link:"Show Arizona time"};
+  if(!gap) return null;
+  return {text:"Times are Arizona time, "+hs+(gap>0?" behind":" ahead of")+" your phone right now.", link:"Show in my time"};
+}
+function renderTzNote(){
+  var el=document.getElementById("tz-note"); if(!el) return;
+  var gap=tzGapMinutes(Date.now()), pref=tzPref(), n=tzNoteText(gap, pref, deviceTz());
+  if(!n){ el.style.display="none"; el.innerHTML=""; return; }
+  el.style.display="block"; el.innerHTML=esc(n.text)+' <button type="button" id="tz-toggle">'+n.link+'</button>';
+  el.querySelector("#tz-toggle").addEventListener("click", function(){ store.set(TZ_KEY, pref==="local"?"az":"local"); rebuild(); });
+}
+function azTime(ms){ return new Date(ms).toLocaleString([], {timeZone:tzName(), month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}); }
 var store = {
   get:function(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } },
   set:function(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
@@ -428,8 +451,8 @@ function ageNote(t){
   var a=(m<120 ? m+" min" : (m/60).toFixed(1).replace(/\.0$/,"")+" h");
   return ' <span class="agechip">('+a+' ago \u2014 '+(m>240 ? "Reclamation is running further behind than usual" : "normal publishing delay for Reclamation\u2019s feed")+')</span>';
 }
-function azClock(ms){ return new Date(ms).toLocaleTimeString([], {timeZone:"America/Phoenix", hour:"numeric", minute:"2-digit"}); }
-function azDay(ms){ return new Date(ms).toLocaleDateString([], {timeZone:"America/Phoenix", weekday:"short", month:"numeric", day:"numeric"}).replace(",", ""); }
+function azClock(ms){ return new Date(ms).toLocaleTimeString([], {timeZone:tzName(), hour:"numeric", minute:"2-digit"}); }
+function azDay(ms){ return new Date(ms).toLocaleDateString([], {timeZone:tzName(), weekday:"short", month:"numeric", day:"numeric"}).replace(",", ""); }
 function clockDay(ms){
   var OFF=7*3600000, DAY=86400000;
   var d=Math.floor((ms-OFF)/DAY)-Math.floor((Date.now()-OFF)/DAY);
@@ -695,7 +718,7 @@ function rebuild(){
   st.forEach(function(s){ if(RIVER_ORDER[s.key]!=null) s.order=RIVER_ORDER[s.key]; });
   st.sort(function(a,b){ return (a.order==null?99:a.order)-(b.order==null?99:b.order); });
   STATIONS=st;
-  renderCards(); renderHero(); renderHeadgate(); renderHindcast(); renderReach(); renderYear(); renderTide(); renderCal();
+  renderCards(); renderHero(); renderHeadgate(); renderHindcast(); renderReach(); renderYear(); renderTide(); renderCal(); try{ renderTzNote(); }catch(e){}
   if(typeof window.onRiverRender==="function"){ try{ window.onRiverRender(); }catch(e){ if(window.console) console.error(e); } }
   var _sl=document.getElementById("sched-link");
   if(_sl) _sl.textContent=(segFor(currentPlace())==="upper" ? "Davis Dam" : "Parker Dam")+" projected schedule (PDF) \u2197";
@@ -1035,7 +1058,7 @@ function yearChart(svg, yc, axisId){
     if(mT>=t1) break;
     var x=X(mT);
     marks+='<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.35)" stroke-width="1"/>';
-    if(k%(yrRangeMonths()<=6?1:2)===0) labels.push({pct:x/W*100, txt:new Date(mT).toLocaleDateString([], {timeZone:"America/Phoenix", month:"short"})});
+    if(k%(yrRangeMonths()<=6?1:2)===0) labels.push({pct:x/W*100, txt:new Date(mT).toLocaleDateString([], {timeZone:tzName(), month:"short"})});
     k++;
   }
   marks+='<line x1="0" y1="'+(H/2).toFixed(0)+'" x2="'+W+'" y2="'+(H/2).toFixed(0)+'" stroke="rgba(150,185,215,0.16)" stroke-width="1"/>';
@@ -1074,7 +1097,7 @@ function yearChart(svg, yc, axisId){
   svg._yVal=function(p){ return p.sv!=null ? p.sv : p.v; };
   var _kind=yc.kind;
   svg._chip=function(p){
-    var d=new Date(p.t).toLocaleDateString([], {timeZone:"America/Phoenix", month:"short", day:"numeric", year:"numeric"});
+    var d=new Date(p.t).toLocaleDateString([], {timeZone:tzName(), month:"short", day:"numeric", year:"numeric"});
     var s=d+" · avg "+histFmt(p.v, _kind);
     if(p.lo!=null && p.hi!=null) s+=" · swing "+histRange(p.lo, p.hi, _kind);
     return s;
@@ -2185,7 +2208,7 @@ function currentMode(){ return store.get(MODE_KEY)==="advanced" ? "advanced" : "
 function setMode(m){
   store.set(MODE_KEY, m);
   document.body.className = document.body.className.replace(/ ?simple/,"") + ((m==="advanced") ? "" : " simple");
-  var btn=document.getElementById("mode-btn"); if(btn) btn.textContent = (m==="advanced") ? "Simple view" : "Advanced";
+  var btn=document.getElementById("mode-btn"); if(btn) btn.innerHTML = (m==="advanced") ? '<span class="ic">\ud83d\udcc4</span><span class="cap long">Simple</span><span class="cap short">Simple</span>' : '<span class="ic">\ud83d\udcca</span><span class="cap long">Advanced</span><span class="cap short">More</span>';
   if(typeof window.onModeChange==="function"){ try{ window.onModeChange(m); }catch(e){} }
 }
 (function initMode(){
@@ -2264,7 +2287,7 @@ function applyTheme(){
   var day=(themeNow()==="day");
   document.body.className=document.body.className.replace(/ ?day/,"")+(day?" day":"");
   var b=document.getElementById("theme-btn");
-  if(b) b.innerHTML=day ? "\uD83C\uDF19<span class=\"lbl\"> Night</span>" : "\u2600\uFE0F<span class=\"lbl\"> Day</span>";
+  if(b) b.innerHTML=day ? '<span class="ic">\uD83C\uDF19</span><span class="cap long">Night</span><span class="cap short">Night</span>' : '<span class="ic">\u2600\uFE0F</span><span class="cap long">Day</span><span class="cap short">Day</span>';
   var mt=document.querySelector('meta[name="theme-color"]');
   if(mt) mt.setAttribute("content", day ? "#eef2f6" : "#0d1521");
 }

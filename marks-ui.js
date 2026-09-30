@@ -19,6 +19,7 @@
   var ENABLED=null;
   function showNotice(n){ var el=$("site-notice"); if(!el) return; if(!n || !n.text){ el.style.display="none"; return; } el.className="site-notice "+(n.level==="warn"?"warn":"info"); el.innerHTML='<b>Notice:</b> '+esc(n.text)+(n.until?' <span class="muted-sm">(through '+azTime(new Date(n.until).getTime())+')</span>':''); el.style.display="block"; }
   function load(){
+    loadMyNotes();
     return api("GET","/api/marks/config").then(function(c){ ENABLED=!!c.marksEnabled; showNotice(c.notice); }).catch(function(){ ENABLED=false; }).then(function(){
       if(!ENABLED){ MARKS=[]; MARKS_BY_SPOT={}; UPLACES=[]; loaded=true; document.body.classList.add("marks-off"); if(typeof rebuild==="function") setTimeout(rebuild,0); return; }
       document.body.classList.remove("marks-off");
@@ -298,14 +299,32 @@
     }).catch(function(e){ btn.disabled=false; toast(e.message, 5000); });
   }
   // ---- feedback sheet (independent of the marks switch) ----
-  var FB_KIND="like";
-  function openFeedback(){ FB_KIND="like"; $("fb-text").value=""; $("fb-contact").value=""; setFbKind("like"); openS("fb-sheet"); setTimeout(function(){ try{ $("fb-text").focus(); }catch(e){} }, 80); }
+  var FB_KIND="like", FB_SENT_KEY="blythe_fb_sent_v1", FB_SEEN_KEY="blythe_fb_seen_v1", MY_NOTES=[];
+  function fbSeen(){ return +(store.get(FB_SEEN_KEY)||0); }
+  function loadMyNotes(){
+    if(!store.get(FB_SENT_KEY)) return;
+    api("GET","/api/feedback").then(function(j){ MY_NOTES=j.notes||[]; var unseen=MY_NOTES.filter(function(n){ return n.reply && new Date(n.reply.at).getTime()>fbSeen(); });
+      var btn=$("fb-btn"); if(btn) btn.classList.toggle("has-reply", unseen.length>0);
+      if(unseen.length && !sessionStorage.getItem("fb_toasted")){ try{ sessionStorage.setItem("fb_toasted","1"); }catch(e){} toast("There\u2019s a reply to your feedback \u2014 tap \ud83d\udcac to read it.", 6000); }
+    }).catch(function(){});
+  }
+  function renderMyNotes(){
+    var el=$("fb-mine"); if(!el) return;
+    if(!MY_NOTES.length){ el.style.display="none"; el.innerHTML=""; return; }
+    var KL={like:"\ud83d\udc4d", dislike:"\ud83d\udc4e", idea:"\ud83d\udca1", bug:"\ud83d\udc1b"};
+    el.style.display="block";
+    el.innerHTML='<div class="grp" style="padding-left:0">Your notes</div>'+MY_NOTES.map(function(n){ return '<div class="fb-note"><div class="muted-sm">'+(KL[n.kind]||"")+' '+azTime(new Date(n.createdAt).getTime())+(n.status==="done"?' \u00b7 done':'')+'</div><div>'+esc(n.text)+'</div>'+(n.reply?'<div class="fb-reply"><b>Reply</b> <span class="muted-sm">'+azTime(new Date(n.reply.at).getTime())+'</span><div>'+esc(n.reply.text)+'</div></div>':'')+'</div>'; }).join("");
+    var latest=Math.max.apply(null, MY_NOTES.map(function(n){ return n.reply?new Date(n.reply.at).getTime():0; }));
+    if(latest>fbSeen()) store.set(FB_SEEN_KEY, latest);
+    var btn=$("fb-btn"); if(btn) btn.classList.remove("has-reply");
+  }
+  function openFeedback(){ FB_KIND="like"; $("fb-text").value=""; $("fb-contact").value=""; setFbKind("like"); renderMyNotes(); openS("fb-sheet"); setTimeout(function(){ try{ $("fb-text").focus(); }catch(e){} }, 80); }
   function setFbKind(k){ FB_KIND=k; Array.prototype.forEach.call(document.querySelectorAll("#fb-sheet [data-fb]"), function(b){ b.classList.toggle("on", b.getAttribute("data-fb")===k); }); }
   function sendFeedback(){
     var text=$("fb-text").value.trim(); if(text.length<5){ toast("Say a little more first."); return; }
     var build=(document.querySelector("footer .adv-only span")||{}).textContent||"";
     var btn=$("fb-send"); btn.disabled=true;
-    api("POST","/api/feedback",{kind:FB_KIND, text:text, contact:$("fb-contact").value.trim(), spot:store.get(PLACE_KEY)||null, build:build.slice(0,40), page:location.pathname+(typeof currentMode==="function"?" "+currentMode():"")}).then(function(){ btn.disabled=false; closeAll(); toast("Thank you \u2014 sent.", 3000); }).catch(function(e){ btn.disabled=false; toast(e.message, 5000); });
+    api("POST","/api/feedback",{kind:FB_KIND, text:text, contact:$("fb-contact").value.trim(), spot:store.get(PLACE_KEY)||null, build:build.slice(0,40), page:location.pathname+(typeof currentMode==="function"?" "+currentMode():"")}).then(function(){ btn.disabled=false; closeAll(); store.set(FB_SENT_KEY, 1); toast("Thank you \u2014 sent.", 3000); loadMyNotes(); }).catch(function(e){ btn.disabled=false; toast(e.message, 5000); });
   }
   // ---- wiring ----
   document.addEventListener("click", function(ev){

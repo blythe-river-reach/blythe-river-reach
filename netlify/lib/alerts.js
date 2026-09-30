@@ -41,6 +41,7 @@ function messagesFor(M, sub, now, dataAgeMs) {
         if (e0) body += " Next " + e0.type + " " + lvl(M, e0.v) + " " + relTime(e0.t, now) + (e1 ? ", then " + e1.type + " " + lvl(M, e1.v) + " " + relTime(e1.t, now) : "") + ".";
         if (M.yc) body += " " + M.yc.phrase.charAt(0).toUpperCase() + M.yc.phrase.slice(1) + ".";
       }
+      if (/\d:\d\d [AP]M/.test(body)) body += " (Arizona time)";
       out.push({ key: "brief:" + tk, title: name + ": " + plain(M.head.t), body, url, tag: "brief" });
     }
   }

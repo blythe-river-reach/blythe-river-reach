@@ -152,6 +152,17 @@ async function createFeedback(stores, device, body) {
   await stores.feedback.setJSON(rec.createdAt.replace(/[-:.TZ]/g, "").slice(0, 14) + "-" + rec.id, rec);
   return { ok: true, id: rec.id };
 }
+async function replyFeedback(stores, id, text) {
+  const all = await listAll(stores.feedback, ""), rec = all.find((r) => r.id === id); if (!rec) return { error: "not found", status: 404 };
+  const key = rec._key; delete rec._key; const t = clean(text, 1000);
+  if (!t) delete rec.reply; else { rec.reply = { text: t, at: new Date().toISOString() }; if (rec.status === "new") rec.status = "read"; }
+  await stores.feedback.setJSON(key, rec); return { ok: true, record: rec };
+}
+// A visitor's own notes, with any reply — how a reply reaches someone who left no contact.
+async function myFeedback(stores, device) {
+  if (!DEVICE_RE.test(device || "")) return [];
+  return (await listAll(stores.feedback, "")).filter((r) => r.owner === device).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice(0, 20).map((r) => ({ id: r.id, kind: r.kind, text: r.text, createdAt: r.createdAt, status: r.status, reply: r.reply || null }));
+}
 async function listFeedback(stores) { return (await listAll(stores.feedback, "")).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)); }
 // ---- site settings: marksEnabled hides the whole feature from visitors ----
 const DEFAULT_FLAGS = { marksEnabled: false };
@@ -184,6 +195,7 @@ async function act(stores, body) {
   const store = { place: stores.places, mark: stores.marks, reading: stores.readings, feedback: stores.feedback }[type]; if (!store) return { error: "type", status: 400 };
   const all = await listAll(store, ""); const rec = all.find((r) => r.id === id); if (!rec) return { error: "not found", status: 404 };
   const key = rec._key; delete rec._key;
+  if (action === "reply") { if (type !== "feedback") return { error: "reply applies to feedback", status: 400 }; return replyFeedback(stores, id, body.text); }
   if (action === "delete") { await store.delete(key); if (type === "mark") await stores.photos.delete(id).catch(() => {}); return { ok: true, deleted: id }; }
   if (action === "unphoto") { if (type !== "mark") return { error: "photos belong to marks", status: 400 }; await stores.photos.delete(id).catch(() => {}); delete rec.photo; await store.setJSON(key, rec); return { ok: true, record: rec }; }
   if (action === "setmile") { if (type !== "place") return { error: "mile only applies to places", status: 400 }; const mile = +body.mile; if (!(mile >= 40 && mile <= 280)) return { error: "mile out of range", status: 400 }; rec.mile = +mile.toFixed(2); rec.mileEditedAt = new Date().toISOString(); await store.setJSON(key, rec); return { ok: true, record: rec }; }
@@ -192,4 +204,4 @@ async function act(stores, body) {
   rec.status = allowed[action]; rec.reviewedAt = new Date().toISOString();
   await store.setJSON(key, rec); return { ok: true, record: rec };
 }
-module.exports = { listPlaces, createPlace, listMarks, createMark, getMark, listReadings, createReading, setPhoto, photoFor, setPins, getFlags, setFlags, createFeedback, listFeedback, queue, act, summarize, DEVICE_RE };
+module.exports = { listPlaces, createPlace, listMarks, createMark, getMark, listReadings, createReading, setPhoto, photoFor, setPins, getFlags, setFlags, createFeedback, listFeedback, myFeedback, replyFeedback, queue, act, summarize, DEVICE_RE };
