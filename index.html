@@ -530,7 +530,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30i</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30j</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -862,15 +862,21 @@ function renderToday(M){
   function Y(v){ return top+(H-top-bot)*(1-(v-min)/span); }
   var g="";
   [6,12,18].forEach(function(h){ var x=X(t0+h*3600000); g+='<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.25)" stroke-width="1" vector-effect="non-scaling-stroke"/>'; });
-  // Solid = readings; dashed = everything after the last reading, starting
-  // from that very point so the two always join (even when the feed is hours
-  // behind and the dashed part begins before the now bar).
-  var past=pts.filter(function(p){ return p.read; }), fut=past.length ? [past[past.length-1]].concat(pts.filter(function(p){ return !p.read && p.t>past[past.length-1].t; })) : pts.slice();
-  var pastPts=past.map(function(p){ return {x:X(p.t), y:Y(p.v)}; }), futPts=fut.map(function(p){ return {x:X(p.t), y:Y(p.v)}; });
+  // Solid = readings. When the feed is behind, the hours from the last
+  // reading up to the now bar are estimated: drawn solid but lighter. Dashed
+  // = only what is still to come, from the now bar on. The three pieces share
+  // their end points (the value at "now" is interpolated) so they always join.
+  var past=pts.filter(function(p){ return p.read; }), lastRead=past.length?past[past.length-1]:null;
+  var est=pts.filter(function(p){ return !p.read; }), before=est.filter(function(p){ return p.t<=now; }), after=est.filter(function(p){ return p.t>now; });
+  var vNow=null; (function(){ var a=before.length?before[before.length-1]:lastRead, b=after[0]; if(a&&b){ var w=(now-a.t)/((b.t-a.t)||1); vNow={t:now, v:a.v+(b.v-a.v)*Math.max(0,Math.min(1,w))}; } else if(a) vNow={t:now, v:a.v}; })();
+  var gapSeg=(lastRead?[lastRead]:[]).concat(before, vNow?[vNow]:[]), fut=(vNow?[vNow]:[]).concat(after);
+  if(!lastRead && !before.length) gapSeg=[];
+  var pastPts=past.map(function(p){ return {x:X(p.t), y:Y(p.v)}; }), futPts=fut.map(function(p){ return {x:X(p.t), y:Y(p.v)}; }), gapPts=gapSeg.map(function(p){ return {x:X(p.t), y:Y(p.v)}; });
   var allPts=pts.map(function(p){ return {x:X(p.t), y:Y(p.v)}; });
   var area=yrSmoothPath(allPts)+" L"+allPts[allPts.length-1].x.toFixed(1)+" "+H+" L"+allPts[0].x.toFixed(1)+" "+H+" Z";
   g+='<path d="'+area+'" fill="var(--water)" opacity="0.13"/>';
   if(pastPts.length>1) g+='<path d="'+yrSmoothPath(pastPts)+'" fill="none" stroke="var(--water)" stroke-width="2.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>';
+  if(gapPts.length>1) g+='<path d="'+yrSmoothPath(gapPts)+'" fill="none" stroke="var(--water)" stroke-width="2.4" stroke-linejoin="round" opacity="0.45" vector-effect="non-scaling-stroke"/>';
   if(futPts.length>1) g+='<path d="'+yrSmoothPath(futPts)+'" fill="none" stroke="var(--water)" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round" opacity="0.85" vector-effect="non-scaling-stroke"/>';
   // highs & lows today, labelled on the curve
   var ex=findTides(pts);
@@ -906,7 +912,7 @@ function renderToday(M){
   document.getElementById("today-bot").innerHTML=rowHtml(botRow);
   svg.innerHTML=g;
   var nMeas=pts.filter(function(p){ return p.k==="meas"&&!p.read; }).length, nProj=pts.filter(function(p){ return p.k==="proj"; }).length;
-  var late=now-lastT>2*3600000 ? " · readings end "+azClock(lastT) : "";
+  var late=now-lastT>2*3600000 ? " · lighter = estimated since "+azClock(lastT).replace(/:00 /," ") : "";
   note.textContent=(nProj?"dashed = projected":(nMeas?"dashed = en route / scheduled":"dashed = scheduled"))+late;
 }
 (function(){ var tmr=null, lastW=window.innerWidth; window.addEventListener("resize", function(){ clearTimeout(tmr); tmr=setTimeout(function(){ if(window.innerWidth!==lastW && window._todayM){ lastW=window.innerWidth; renderToday(window._todayM); } }, 200); }); })();
