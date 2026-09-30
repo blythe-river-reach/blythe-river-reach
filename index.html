@@ -260,7 +260,7 @@
   .sheet-search button{background:var(--panel2); border:1px solid var(--border); color:var(--text); border-radius:12px; padding:0 13px; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap}
   .sheet-body{overflow-y:auto; padding:4px 10px 24px; -webkit-overflow-scrolling:touch}
   .grp{color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; padding:12px 8px 4px}
-  .pick-chips{display:flex; gap:6px; overflow-x:auto; padding:2px 8px 10px; -webkit-overflow-scrolling:touch; scrollbar-width:none} .pick-chips::-webkit-scrollbar{display:none} .pick-chips .chip{flex:0 0 auto; padding:6px 11px; font-size:13px; cursor:pointer} .pick-chips .chip.on{border-color:var(--water); color:var(--water)}
+  .pick-chips{display:flex; gap:6px; overflow-x:auto; padding:2px 8px 10px; -webkit-overflow-scrolling:touch; scrollbar-width:none} .pick-chips::-webkit-scrollbar{display:none} .pick-chips .chip{flex:0 0 auto; padding:6px 11px; font-size:13px; cursor:pointer; color:var(--text); font:inherit; font-size:13px; font-weight:600} .pick-chips .chip.on{border-color:var(--water); color:var(--water)}
   .rv{position:relative; padding-left:22px; margin:0 4px 6px 8px}
   .rv:before{content:""; position:absolute; left:9px; top:14px; bottom:14px; width:3px; border-radius:2px; background:var(--water); opacity:.4}
   .rv .seghd{position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:8px; width:calc(100% + 22px); border:0; background:var(--panel); padding:10px 6px 6px; font:inherit; font-size:11.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-left:-22px; padding-left:24px; cursor:pointer; text-align:left}
@@ -301,7 +301,7 @@
   .al-row input{width:20px; height:20px; margin-top:2px; flex-shrink:0; accent-color:var(--water)}
   .al-row span{flex:1}
   .al-sub{display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:0 0 12px 32px; border-bottom:1px solid var(--border); font-size:13px; color:var(--muted)} .al-sub label{display:flex; gap:6px; align-items:center} .al-sub input{width:76px}
-  .page{position:fixed; inset:0; background:var(--bg); z-index:45; display:none; flex-direction:column} .page.open{display:flex} body.page-open{overflow:hidden}
+  .page{position:fixed; inset:0; background:var(--bg); z-index:45; display:none; flex-direction:column} .page.open{display:flex} body.page-open{overflow:hidden; position:fixed; left:0; right:0; width:100%}
   .page-hd{display:flex; align-items:center; gap:10px; padding:12px 16px 8px; border-bottom:1px solid var(--border); background:var(--panel)} .page-hd h2{margin:0; flex:1; font-size:18px} .page-hd .x{background:var(--panel2); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:7px 12px; cursor:pointer; font-size:14px}
   .page-body{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:8px 16px calc(40px + env(safe-area-inset-bottom)); width:100%; max-width:760px; margin:0 auto; box-sizing:border-box}
   .al-h{font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:20px 0 4px}
@@ -535,7 +535,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30k</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30l</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -1114,7 +1114,7 @@ document.getElementById("menu-x").addEventListener("click", function(){ closeMen
 document.getElementById("menu-sheet").addEventListener("click", function(ev){
   var row=ev.target.closest && ev.target.closest(".mrow[data-proxy]"); if(!row) return;
   var target=document.getElementById(row.getAttribute("data-proxy")); closeMenu();
-  var opensSheet=/^(alerts-btn|fb-btn)$/.test(row.getAttribute("data-proxy"));
+  var opensSheet=/^(fb-btn)$/.test(row.getAttribute("data-proxy")); // feedback is still a sheet (keeps the shade); alerts is its own page
   if(!opensSheet) document.getElementById("sheet-bg").classList.remove("open");
   if(target) setTimeout(function(){ target.click(); }, opensSheet?0:60);
 });
@@ -1297,14 +1297,19 @@ function openAlerts(){
   fillQuietSelects();
   fillAlertsForm();
   var ios=renderAlStatus(); renderAlSpots(); renderAlActive(); loadRecent();
-  document.getElementById("alerts-page").classList.add("open"); document.getElementById("alerts-page").setAttribute("aria-hidden","false"); document.body.classList.add("page-open");
+  document.getElementById("alerts-page").classList.add("open"); document.getElementById("alerts-page").setAttribute("aria-hidden","false"); lockPage();
   document.getElementById("alerts-page").scrollTop=0;
   try{ if(!(history.state && history.state.al)) history.pushState({al:1}, "", "/alerts"); }catch(e){}
   fetch("/api/push/config",{cache:"no-store"}).then(function(r){ return r.json(); }).then(function(c){ window._pushCfg=c; renderAlStatus(); }).catch(function(){ if(!ios) document.getElementById("al-status").innerHTML="Couldn’t reach the alert service — try again in a minute."; });
 }
+// iOS Safari ignores overflow:hidden on the body for touch scrolling, so a
+// full-screen page pins the body at its current scroll offset and restores it.
+var _pageScrollY=0;
+function lockPage(){ if(document.body.classList.contains("page-open")) return; _pageScrollY=window.scrollY||0; document.body.style.top=(-_pageScrollY)+"px"; document.body.classList.add("page-open"); }
+function unlockPage(){ if(!document.body.classList.contains("page-open")) return; document.body.classList.remove("page-open"); document.body.style.top=""; window.scrollTo(0,_pageScrollY); }
 function closeAlerts(fromHistory){
   var pg=document.getElementById("alerts-page"); if(!pg || !pg.classList.contains("open")) return;
-  pg.classList.remove("open"); pg.setAttribute("aria-hidden","true"); document.body.classList.remove("page-open");
+  pg.classList.remove("open"); pg.setAttribute("aria-hidden","true"); unlockPage();
   if(!fromHistory){ try{ if(history.state && history.state.al && history.state.deep){ var k=currentPlace()&&currentPlace().key; history.replaceState({spot:k}, "", k?"/s/"+k:"/"); } else if(history.state && history.state.al) history.back(); }catch(e){} }
 }
 window.addEventListener("popstate", function(){ var pg=document.getElementById("alerts-page"); if(pg && pg.classList.contains("open") && !(history.state && history.state.al)) closeAlerts(true); });
