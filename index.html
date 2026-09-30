@@ -886,7 +886,7 @@ function renderToday(M){
   var topRow=[], botRow=[], lastTop=-1e9, lastBot=-1e9, MINGAP=0.19; // fraction of width
   var xnP=X(now)/W;
   // A label near an edge is pushed inward by CSS, so its footprint is one-sided.
-  var lspan=function(xp){ return xp<0.08?[xp,xp+0.28]:(xp>0.92?[xp-0.28,xp]:[xp-0.14,xp+0.14]); };
+  var lspan=function(xp){ return xp<0.1?[xp,xp+0.28]:(xp>0.85?[xp-0.28,xp]:[xp-0.14,xp+0.14]); };
   labels.forEach(function(l){
     var xp=X(l.t)/W, up=(l.type==="high");
     g+='<ellipse cx="'+X(l.t).toFixed(1)+'" cy="'+Y(l.v).toFixed(1)+'" rx="'+rx+'" ry="4" fill="'+(up?"var(--rise)":"var(--fall)")+'"/>';
@@ -901,7 +901,7 @@ function renderToday(M){
   var clear=function(row){ return !row.some(function(it){ var sp=lspan(it.xp); return xnP>sp[0]-0.05 && xnP<sp[1]+0.05; }); };
   if(clear(topRow)) topRow.push({xp:xnP, cls:"now", txt:"now"});
   else if(clear(botRow)) botRow.push({xp:xnP, cls:"now", txt:"now"});
-  var rowHtml=function(items){ return items.map(function(it){ var edge=it.xp<0.08?" edge-l":(it.xp>0.92?" edge-r":""); return '<span class="'+it.cls+edge+'" style="left:'+(it.xp*100).toFixed(1)+'%">'+it.txt+'</span>'; }).join(""); };
+  var rowHtml=function(items){ return items.map(function(it){ var edge=it.xp<0.1?" edge-l":(it.xp>0.85?" edge-r":""); return '<span class="'+it.cls+edge+'" style="left:'+(it.xp*100).toFixed(1)+'%">'+it.txt+'</span>'; }).join(""); };
   document.getElementById("today-top").innerHTML=rowHtml(topRow);
   document.getElementById("today-bot").innerHTML=rowHtml(botRow);
   svg.innerHTML=g;
