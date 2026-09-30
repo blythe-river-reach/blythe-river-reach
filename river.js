@@ -1603,11 +1603,12 @@ function measuredArrival(pl){
   if(!gs.length) return null;
   gs.sort(function(a,b){ return a.mile-b.mile; }); // nearest upstream first
   function q(a,f){ var s=a.slice().sort(function(x,y){return x-y;}); return s[Math.max(0,Math.min(s.length-1,Math.floor(s.length*f)))]; }
-  var base=null, out=[], coverEnd=0, srcs=[];
+  var base=null, out=[], coverEnd=0, srcs=[], lastSig=0;
   gs.forEach(function(g){
-    var pts=applyGain(disperse(shiftByFlow(g.flow.map(function(p){ return {t:p.t, v:p.v, src:g.label}; }), g.mile, pl.mile), stretchSigmaH(g.mile, pl.mile)), stretchGain(g.mile, pl.mile));
+    var sig=stretchSigmaH(g.mile, pl.mile);
+    var pts=applyGain(disperse(shiftByFlow(g.flow.map(function(p){ return {t:p.t, v:p.v, src:g.label}; }), g.mile, pl.mile), sig), stretchGain(g.mile, pl.mile));
     if(!pts.length) return;
-    if(!base){ base=pts; out=pts.slice(); coverEnd=pts[pts.length-1].t; srcs.push(g.label); return; }
+    if(!base){ base=pts; out=pts.slice(); coverEnd=pts[pts.length-1].t; srcs.push(g.label); lastSig=sig; return; }
     var tail=pts.filter(function(p){ return p.t>coverEnd+60000; }), trued=function(v){ return v; };
     if(!tail.length) return;
     // true this gauge to the nearest gauge over their overlap at this spot's clock
@@ -1650,10 +1651,12 @@ function measuredArrival(pl){
     }
     out=out.concat(tail);
     coverEnd=tail[tail.length-1].t;
-    srcs.push(g.label);
+    srcs.push(g.label); lastSig=sig;
   });
   out.sort(function(a,b){ return a.t-b.t; });
-  return {points:out, horizon:coverEnd, srcs:srcs};
+  // edgeH: the spread (sigma, hours) of the farthest gauge that contributed —
+  // the last edgeH hours of the composite are its thinning, spread-out edge.
+  return {points:out, horizon:coverEnd, srcs:srcs, edgeH:lastSig};
 }
 // ONE source of truth for "what's next": the measured en-route water, anchored
 // to the current reading, with the trued dam schedule appended beyond the
@@ -1724,7 +1727,9 @@ function blendedOutlook(pl){
   // composite if it reaches past now, else the last reading at the spot when
   // the data is stale) and fade that offset out over the next ~6 h from that
   // point. Comparing across an hour of real change used to turn a rising ramp
-  // into a flat shelf followed by a jump.
+  // into a flat shelf followed by a jump. (Trimming the composite's edge or
+  // cross-fading it into the schedule both scored worse on the holdout
+  // backtest: the measured water wins right up to the horizon.)
   if(fc && futS.length){
     var aT=null, aV=null;
     if(futM.length){ aT=futM[futM.length-1].t; aV=futM[futM.length-1].v; }
@@ -1779,19 +1784,21 @@ function renderHeadgate(){
   }
   // Show ~5 h of context before "now" so the solid measured line has some
   // history to stand on instead of hugging the left edge.
-  var now=Date.now(), fut=fc.arrival.filter(function(p){ return p.t >= now - 5*3600*1000 && p.t <= now + 5*86400000; }), series=fut.length>=4?fut:fc.arrival;
-  // Solid line = ACTUAL readings for the past 5 h, then the measured en-route
-  // water, drawn over the dashed schedule — so you can also see how well the
-  // schedule has been tracking reality. Same blended outlook as hero and tide.
+  var now=Date.now(), END=now+5*86400000, fut=fc.arrival.filter(function(p){ return p.t >= now - 5*3600*1000 && p.t <= END; }), series=fut.length>=4?fut:fc.arrival;
+  // ONE line, the same blended outlook the hero and tide table read: actual
+  // readings for the past 5 h, then the measured en-route water (solid, good
+  // through the horizon), then the schedule faded on at the horizon (dashed).
+  // Drawing the raw schedule underneath used to show two disagreeing lines.
   var ol=blendedOutlook(pl);
-  var ovPts=null;
+  var ovPts=null, _blend=series;
   if(ol){
     var _past=ol.flowP.filter(function(p2){ return p2.t>=now-5*3600*1000; });
-    var _ov=_past.concat(ol.futM);
+    var _ov=_past.concat((ol.gap||[]).filter(function(p2){ return p2.t<=ol.horizon; }), ol.futM);
     if(_ov.length>=3) ovPts=_ov;
+    var _all=_past.concat(ol.gap||[], ol.blend).filter(function(p2){ return p2.t<=END; });
+    if(_all.length>=4){ series=_all; _blend=_all; }
   }
   var r=areaChart(svg, series, "var(--house)", true, "hg-axis", true, false, ovPts);
-  var _blend=ovPts ? ovPts.concat(series.filter(function(p2){ return p2.t>ol.horizon; })) : series;
   svg._series=_blend; // crosshair reads measured values inside the horizon, schedule beyond
   var toFt=tideRating(pl);
   function lvlTxt(v){
