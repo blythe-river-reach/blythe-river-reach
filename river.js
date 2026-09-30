@@ -2264,7 +2264,7 @@ function applyTheme(){
   var day=(themeNow()==="day");
   document.body.className=document.body.className.replace(/ ?day/,"")+(day?" day":"");
   var b=document.getElementById("theme-btn");
-  if(b) b.textContent=day ? "\uD83C\uDF19 Night" : "\u2600\uFE0F Day";
+  if(b) b.innerHTML=day ? "\uD83C\uDF19<span class=\"lbl\"> Night</span>" : "\u2600\uFE0F<span class=\"lbl\"> Day</span>";
   var mt=document.querySelector('meta[name="theme-color"]');
   if(mt) mt.setAttribute("content", day ? "#eef2f6" : "#0d1521");
 }

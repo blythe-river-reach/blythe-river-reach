@@ -48,7 +48,8 @@
   .brand{display:flex; flex-direction:column; line-height:1.15; margin-right:auto}
   .brand .reach{color:var(--muted); font-size:11.5px}
   .tools{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end}
-  @media (max-width:430px){ #tip-link .lbl{display:none} .tools button, .tbtn, #tip-link{padding:8px 9px} }
+  @media (max-width:560px){ #tip-link .lbl, #theme-btn .lbl{display:none} .tools{gap:4px} .tools button, .tbtn, #tip-link{padding:8px 8px} #mode-btn{padding:8px 9px} }
+  @media (max-width:375px){ .tools{gap:3px} .tools button, #tip-link{padding:7px 4px; font-size:12px; border-radius:8px} #mode-btn{padding:7px 7px} }
   .tools button, .tbtn{background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:8px 11px; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap}
   .tools button:hover{border-color:var(--water)}
   .tools #refresh:disabled{opacity:.5}
@@ -489,7 +490,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-29z</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30a</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -595,7 +596,7 @@ try{
 <div id="photo-lb" role="dialog" aria-label="Photo"><img alt=""></div>
 <div class="toast" id="toast"></div>
 
-<script src="/river.js?v=2026-09-29h"></script>
+<script src="/river.js?v=2026-09-29i"></script>
 <script src="/marks-math.js?v=2026-09-29m"></script>
 <script>
 // ============================================================
