@@ -8,6 +8,7 @@ import webpush from "web-push";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const alerts = require("../lib/alerts.js");
+const { spotsOf, expand } = require("../lib/push-subs.js");
 
 const REPO = "blythe-river-reach/blythe-river-reach";
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
@@ -29,32 +30,50 @@ export default async (req) => {
 
   const store = getStore({ name: "push-subs", consistency: "strong" });
   const { blobs } = await store.list();
-  const subs = []; let expired = 0;
+  // One record per device; each carries a settings block per spot. Spots whose
+  // chosen end passed more than a week ago are dropped (and the record with
+  // them when none is left).
+  const subs = [], recs = {}; let expired = 0, devices = 0;
   for (const b of blobs) {
     const rec = await store.get(b.key, { type: "json" }).catch(() => null); if (!(rec && rec.subscription)) continue;
-    if (rec.prefs && rec.prefs.until && Date.now() - new Date(rec.prefs.until).getTime() > 7 * 86400000) { await store.delete(b.key).catch(() => {}); expired++; continue; }
-    subs.push(Object.assign(rec, { _key: b.key }));
+    const spots = Object.assign({}, spotsOf(rec)); let dropped = 0;
+    for (const k of Object.keys(spots)) {
+      const u = spots[k] && spots[k].prefs && spots[k].prefs.until;
+      if (u && Date.now() - new Date(u).getTime() > 7 * 86400000) { delete spots[k]; dropped++; }
+    }
+    if (dropped) {
+      expired += dropped;
+      if (!Object.keys(spots).length) { await store.delete(b.key).catch(() => {}); continue; }
+      rec.spots = spots; delete rec.spot; delete rec.prefs; delete rec.sent; await store.setJSON(b.key, rec).catch(() => {});
+    }
+    devices++;
+    const norm = { subscription: rec.subscription, spots, createdAt: rec.createdAt, updatedAt: rec.updatedAt, ua: rec.ua, testAt: rec.testAt };
+    recs[b.key] = norm;
+    for (const v of expand(norm, b.key)) subs.push(v);
   }
 
   const due = alerts.evaluate(data, subs, Date.now());
-  let sent = 0, failed = 0, removed = 0;
+  let sent = 0, failed = 0, removed = 0; const dirty = {}, gone = {};
   for (const { sub, messages } of due) {
+    if (gone[sub._key]) continue;
     for (const m of messages) {
       try {
-        await webpush.sendNotification(sub.subscription, JSON.stringify({ title: m.title, body: m.body, url: m.url, tag: m.tag }), { TTL: 6 * 3600 });
-        sub.sent = sub.sent || {}; for (const k of (m.keys || [m.key])) sub.sent[k] = Date.now(); sent++;
+        // the tag carries the spot so pings for two spots don't replace each other
+        await webpush.sendNotification(sub.subscription, JSON.stringify({ title: m.title, body: m.body, url: m.url, tag: m.tag + ":" + sub.spot }), { TTL: 6 * 3600 });
+        sub.sent = sub.sent || {}; for (const k of (m.keys || [m.key])) sub.sent[k] = Date.now(); sent++; dirty[sub._key] = true;
       } catch (e) {
         failed++;
-        if (e && (e.statusCode === 404 || e.statusCode === 410)) { await store.delete(sub._key).catch(() => {}); removed++; sub._gone = true; break; }
+        if (e && (e.statusCode === 404 || e.statusCode === 410)) { await store.delete(sub._key).catch(() => {}); removed++; gone[sub._key] = true; break; }
       }
     }
-    if (!sub._gone) {
+    if (!gone[sub._key]) {
       // keep the dedupe log small: drop keys older than 3 days
       const cut = Date.now() - 3 * 86400000; for (const k of Object.keys(sub.sent || {})) if (sub.sent[k] < cut) delete sub.sent[k];
-      const { _key, _gone, ...rec } = sub; await store.setJSON(_key, rec).catch(() => {});
+      const rec = recs[sub._key]; if (rec && rec.spots[sub.spot]) rec.spots[sub.spot].sent = sub.sent;
     }
   }
-  return json({ ok: true, branch, subscribers: subs.length, due: due.length, sent, failed, removed, expired, generatedAt: data.generatedAt });
+  for (const k of Object.keys(dirty)) if (!gone[k]) await store.setJSON(k, recs[k]).catch(() => {});
+  return json({ ok: true, branch, subscribers: devices, spots: subs.length, due: due.length, sent, failed, removed, expired, generatedAt: data.generatedAt });
 };
 
 export const config = { path: "/api/push/run" };

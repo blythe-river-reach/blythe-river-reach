@@ -18,8 +18,9 @@ export default async (req) => {
   // at most one test a minute per subscription
   if (rec.testAt && Date.now() - rec.testAt < 60000) return json({ error: "give it a minute between tests" }, 429);
   webpush.setVapidDetails(subject, pub, priv);
+  const nSpots = Object.keys(rec.spots || {}).length || (rec.spot ? 1 : 0);
   try {
-    await webpush.sendNotification(rec.subscription, JSON.stringify({ title: "Is The River Up? \u2014 test", body: "Alerts are working on this device for " + (rec.spot || "your spot") + ".", url: "/alerts", tag: "test" }), { TTL: 600 });
+    await webpush.sendNotification(rec.subscription, JSON.stringify({ title: "Is The River Up? \u2014 test", body: "Alerts are working on this device" + (nSpots ? " for " + nSpots + " spot" + (nSpots === 1 ? "" : "s") : "") + ".", url: "/alerts", tag: "test" }), { TTL: 600 });
   } catch (e) {
     if (e && (e.statusCode === 404 || e.statusCode === 410)) { await store.delete(keyFor(body.endpoint)).catch(() => {}); return json({ error: "this device is no longer subscribed \u2014 turn alerts on again" }, 410); }
     return json({ error: "send failed (" + (e && e.statusCode || "?") + ")" }, 502);

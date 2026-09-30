@@ -36,7 +36,7 @@
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%}
   body{margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; line-height:1.45; padding:14px 16px 40px; max-width:760px; margin:0 auto}
-  @media (min-width:1100px){ body{max-width:1080px; padding:20px 28px 48px} .h2-title{font-size:30px} #today-svg{height:96px} #hg-chart,#fc-chart,#yr-chart{height:150px} }
+  @media (min-width:1100px){ body{max-width:1080px; padding:20px 28px 48px} .h2-title{font-size:30px} #today-svg{height:140px} #hg-chart,#fc-chart,#yr-chart{height:150px} }
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-variant-numeric:tabular-nums}
   h1{font-size:19px; font-weight:700; letter-spacing:-.02em; margin:0}
   h2{font-size:16px; font-weight:650; margin:0 0 4px}
@@ -107,7 +107,8 @@
   .today{margin-top:14px; background:var(--tile); border:1px solid var(--border); border-radius:14px; padding:10px 12px 8px}
   .today-hd{display:flex; justify-content:space-between; gap:8px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.07em}
   .today-hd span:last-child{text-transform:none; letter-spacing:0}
-  #today-svg{width:100%; height:70px; display:block}
+  #today-svg{width:100%; height:96px; display:block}
+  @media (min-width:700px){ #today-svg{height:120px} }
   .today-row{position:relative; height:18px; font-size:11.5px; font-weight:700; color:var(--text)}
   .today-row span{position:absolute; top:0; white-space:nowrap; transform:translateX(-50%)}
   .today-row span.edge-l{transform:none} .today-row span.edge-r{transform:translateX(-100%)}
@@ -304,6 +305,7 @@
   .ios-note{background:#3a2a10; border:2px solid #f2b64a; color:#ffe2a8; border-radius:12px; padding:12px 14px; font-size:15px; margin:10px 0 12px; line-height:1.45} .ios-note ol{margin:8px 0 0; padding-left:22px} .ios-note li{margin:3px 0} body.day .ios-note{background:#fff3d6; border-color:#d99a1a; color:#5a3d00}
   .al-recent{font-size:13px; color:var(--text); margin:6px 0 2px}
   .al-active li{display:flex; gap:8px; align-items:flex-start} .al-active li span{flex:1} .al-active .rm{background:none; border:1px solid var(--border); color:var(--muted); border-radius:8px; padding:2px 8px; font-size:12px; cursor:pointer; flex-shrink:0} .al-active .rm:hover{border-color:var(--bad, #f27b7b); color:var(--text)}
+  .al-spots{background:var(--tile); border:1px solid var(--border); border-radius:12px; padding:10px 12px; font-size:13.5px; margin-bottom:8px} .al-spots b{color:var(--text)} .al-spots ul{list-style:none; margin:4px 0 0; padding:0} .al-spots li{display:flex; gap:8px; align-items:center; padding:5px 0; border-top:1px solid var(--border)} .al-spots li:first-child{border-top:0} .al-spots li > span{flex:1} .al-spots .sp{background:none; border:0; padding:0; color:var(--water); font:inherit; font-weight:700; font-size:14px; cursor:pointer; text-align:left} .al-spots li.cur .sp{color:var(--text)} .al-spots .rm{background:none; border:1px solid var(--border); color:var(--muted); border-radius:8px; padding:2px 8px; font-size:12px; cursor:pointer; flex-shrink:0} .al-spots .rm:hover{border-color:var(--bad, #f27b7b); color:var(--text)}
   .al-active{background:var(--tile); border:1px solid var(--border); border-radius:12px; padding:10px 12px; font-size:13.5px; margin-bottom:6px} .al-active b{color:var(--text)} .al-active ul{margin:4px 0 0; padding-left:18px} .al-active li{margin:2px 0}
   .mark-strip{margin-top:12px; background:var(--tile); border:1px solid var(--border); border-radius:14px; padding:11px 13px}
   .ms-hd{display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--muted)} .ms-hd b{color:var(--text)} .ms-hd .tbtn{margin-left:auto; padding:6px 10px; font-size:12.5px}
@@ -519,7 +521,7 @@ try{
 </section>
 
 <footer>
-  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30f</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
+  <span class="adv-only"><span style="color:var(--water)">Build 2026-09-30g</span> — redesign preview · 14-day outlook · push alerts · <a href="/classic.html">classic layout</a> · <a href="#" id="fb-link">send feedback</a> · GitHub data relay · no server functions.<br>
   Place timing is estimated from Reclamation river miles and the measured pulse travel speed.<span id="cal-note"></span><br>
   How the data flows: your browser fetches the USGS gauges live on every load. Reclamation’s servers don’t allow browser access, so a GitHub robot gathers their river sensors, Lake Havasu’s level, and the dam-schedule PDFs several times an hour and publishes them for this page.<br></span>
   All values are provisional. This is not a flood-warning system. Times are Arizona (MST).
@@ -541,6 +543,7 @@ try{
   <div class="page-body">
     <div class="ios-note" id="al-ios" style="display:none"></div>
     <p class="lead" id="al-status" style="margin:6px 0 10px"></p>
+    <div class="al-spots" id="al-spots" style="display:none"></div>
     <div class="al-active" id="al-active"></div>
     <div class="al-recent" id="al-recent" style="display:none"></div>
     <h3 class="al-h">How long</h3>
@@ -562,7 +565,7 @@ try{
       <button class="tbtn" id="al-test" style="display:none">Send a test</button>
       <button class="tbtn" id="al-off" style="display:none">Turn off all</button>
     </div>
-    <p class="note" id="al-note">Alerts arrive as normal phone or desktop notifications, checked about every 10 minutes as new sensor data lands. They follow the spot you have picked on the main page.</p>
+    <p class="note" id="al-note">Alerts arrive as normal phone or desktop notifications, checked about every 10 minutes as new sensor data lands. Each spot you add keeps its own settings; pick another spot on the main page and come back here to add it too.</p>
   </div>
 </div>
 <div class="sheet" id="pl-sheet" role="dialog" aria-modal="true" aria-label="Add a place">
@@ -653,7 +656,7 @@ try{
 <div id="photo-lb" role="dialog" aria-label="Photo"><img alt=""></div>
 <div class="toast" id="toast"></div>
 
-<script src="/river.js?v=2026-09-30f"></script>
+<script src="/river.js?v=2026-09-30g"></script>
 <script src="/marks-math.js?v=2026-09-29m"></script>
 <script>
 // ============================================================
@@ -704,7 +707,7 @@ function renderSimple(){
   var M=heroModel();
   var pl=M.pl;
   var chosen=!!store.get(PLACE_KEY), _ps=pushState();
-  document.getElementById("spot-name").innerHTML=chosen?(esc(pl.name)+((_ps&&_ps.spot===pl.key)?' <span class="bell" title="Push alerts are on for this spot">🔔</span>':'')):"Pick your spot";
+  document.getElementById("spot-name").innerHTML=chosen?(esc(pl.name)+((_ps&&_ps.spots&&_ps.spots[pl.key])?' <span class="bell" title="Push alerts are on for this spot">🔔</span>':'')):"Pick your spot";
   document.title=chosen?("Is The River Up? — "+pl.name):"Is The River Up? — Colorado River levels, Davis Dam to Martinez Lake";
   document.getElementById("h2-eyebrow").textContent="Near "+pl.name+" right now";
   var pillEl=document.getElementById("h2-pill");
@@ -827,6 +830,7 @@ function renderToday(M){
   var box=document.getElementById("today"), svg=document.getElementById("today-svg"), note=document.getElementById("today-note");
   if(!box) return;
   if(!M.ok || M.lake){ box.style.display="none"; return; }
+  window._todayM=M; // re-drawn on resize so the strip's height/dots track the layout
   var now=Date.now(), tk=dayKey(now), t0=tk*DAY_MS+OFF_MS, t1=t0+DAY_MS, hz=(M.outlook&&M.outlook.horizon)||0;
   var pts=[];
   (M.flowP||[]).forEach(function(p){ if(p.t>=t0&&p.t<t1) pts.push({t:p.t, v:p.v, k:"meas"}); });
@@ -837,11 +841,13 @@ function renderToday(M){
   pts.sort(function(a,b){ return a.t-b.t; });
   if(pts.length<6){ box.style.display="none"; return; }
   box.style.display="";
-  var W=900,H=70,top=6,bot=4, vals=pts.map(function(p){ return p.v; }), min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), span=(max-min)||1;
+  var W=900,H=Math.max(60, Math.round(svg.clientHeight||90)),top=6,bot=4, vals=pts.map(function(p){ return p.v; }), min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), span=(max-min)||1;
+  svg.setAttribute("viewBox","0 0 "+W+" "+H);
+  var rx=(4*W/Math.max(200, svg.clientWidth||W)).toFixed(2); // dots stay round under the horizontal stretch
   function X(t){ return (t-t0)/DAY_MS*W; }
   function Y(v){ return top+(H-top-bot)*(1-(v-min)/span); }
   var g="";
-  [6,12,18].forEach(function(h){ var x=X(t0+h*3600000); g+='<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.25)" stroke-width="1"/>'; });
+  [6,12,18].forEach(function(h){ var x=X(t0+h*3600000); g+='<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+H+'" stroke="rgba(150,185,215,0.25)" stroke-width="1" vector-effect="non-scaling-stroke"/>'; });
   var past=pts.filter(function(p){ return p.t<=now; }), fut=pts.filter(function(p){ return p.t>=now; });
   // Join the measured and coming curves AT the now bar: interpolate the value
   // at this instant and make it the last past point and the first future one.
@@ -853,8 +859,8 @@ function renderToday(M){
   var allPts=pts.map(function(p){ return {x:X(p.t), y:Y(p.v)}; });
   var area=yrSmoothPath(allPts)+" L"+allPts[allPts.length-1].x.toFixed(1)+" "+H+" L"+allPts[0].x.toFixed(1)+" "+H+" Z";
   g+='<path d="'+area+'" fill="var(--water)" opacity="0.13"/>';
-  if(pastPts.length>1) g+='<path d="'+yrSmoothPath(pastPts)+'" fill="none" stroke="var(--water)" stroke-width="2.4" stroke-linejoin="round"/>';
-  if(futPts.length>1) g+='<path d="'+yrSmoothPath(futPts)+'" fill="none" stroke="var(--water)" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round" opacity="0.85"/>';
+  if(pastPts.length>1) g+='<path d="'+yrSmoothPath(pastPts)+'" fill="none" stroke="var(--water)" stroke-width="2.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>';
+  if(futPts.length>1) g+='<path d="'+yrSmoothPath(futPts)+'" fill="none" stroke="var(--water)" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round" opacity="0.85" vector-effect="non-scaling-stroke"/>';
   // highs & lows today, labelled on the curve
   var ex=findTides(pts);
   var labels=[];
@@ -869,19 +875,19 @@ function renderToday(M){
   var topRow=[], botRow=[], lastTop=-1e9, lastBot=-1e9, MINGAP=0.19; // fraction of width
   var xnP=X(now)/W;
   // A label near an edge is pushed inward by CSS, so its footprint is one-sided.
-  var span=function(xp){ return xp<0.08?[xp,xp+0.28]:(xp>0.92?[xp-0.28,xp]:[xp-0.14,xp+0.14]); };
+  var lspan=function(xp){ return xp<0.08?[xp,xp+0.28]:(xp>0.92?[xp-0.28,xp]:[xp-0.14,xp+0.14]); };
   labels.forEach(function(l){
     var xp=X(l.t)/W, up=(l.type==="high");
-    g+='<circle cx="'+X(l.t).toFixed(1)+'" cy="'+Y(l.v).toFixed(1)+'" r="4" fill="'+(up?"var(--rise)":"var(--fall)")+'"/>';
+    g+='<ellipse cx="'+X(l.t).toFixed(1)+'" cy="'+Y(l.v).toFixed(1)+'" rx="'+rx+'" ry="4" fill="'+(up?"var(--rise)":"var(--fall)")+'"/>';
     var txt=(up?"▲ ":"▼ ")+"<b>"+lvlOf(M,l.v)+"</b> "+azClock(l.t).replace(/:00 /," ");
     if(up){ if(xp-lastTop<MINGAP) return; lastTop=xp; topRow.push({xp:xp, cls:"hi", txt:txt}); }
     else { if(xp-lastBot<MINGAP) return; lastBot=xp; botRow.push({xp:xp, cls:"lo", txt:txt}); }
   });
-  g+='<line x1="'+X(now).toFixed(1)+'" y1="0" x2="'+X(now).toFixed(1)+'" y2="'+H+'" stroke="var(--house)" stroke-width="2"/>';
+  g+='<line x1="'+X(now).toFixed(1)+'" y1="0" x2="'+X(now).toFixed(1)+'" y2="'+H+'" stroke="var(--house)" stroke-width="2" vector-effect="non-scaling-stroke"/>';
   // The "now" word goes above the bar when nothing sits there, below it when
   // a high label does, and stays off when both rows are busy (the bar itself
   // is unmistakable). Highs and lows are never dropped for it.
-  var clear=function(row){ return !row.some(function(it){ var sp=span(it.xp); return xnP>sp[0]-0.05 && xnP<sp[1]+0.05; }); };
+  var clear=function(row){ return !row.some(function(it){ var sp=lspan(it.xp); return xnP>sp[0]-0.05 && xnP<sp[1]+0.05; }); };
   if(clear(topRow)) topRow.push({xp:xnP, cls:"now", txt:"now"});
   else if(clear(botRow)) botRow.push({xp:xnP, cls:"now", txt:"now"});
   var rowHtml=function(items){ return items.map(function(it){ var edge=it.xp<0.08?" edge-l":(it.xp>0.92?" edge-r":""); return '<span class="'+it.cls+edge+'" style="left:'+(it.xp*100).toFixed(1)+'%">'+it.txt+'</span>'; }).join(""); };
@@ -891,6 +897,7 @@ function renderToday(M){
   var nMeas=pts.filter(function(p){ return p.k==="meas"&&p.t>now; }).length, nProj=pts.filter(function(p){ return p.k==="proj"; }).length;
   note.textContent=(nProj?"dashed = projected":(nMeas?"dashed = en route / scheduled":"dashed = scheduled"));
 }
+(function(){ var tmr=null, lastW=window.innerWidth; window.addEventListener("resize", function(){ clearTimeout(tmr); tmr=setTimeout(function(){ if(window.innerWidth!==lastW && window._todayM){ lastW=window.innerWidth; renderToday(window._todayM); } }, 200); }); })();
 // ---------- next two weeks ----------
 function renderOutlook14(M){
   var sec=document.getElementById("ol14-sec"); if(!sec) return;
@@ -995,7 +1002,7 @@ var PLACE_ALIAS={i10fwy:"blythe ehrenberg interstate bridge", hiddenbeach:"blyth
 function placeMatch(p, q){ return p.name.toLowerCase().indexOf(q)>=0 || (PLACE_ALIAS[p.key]||"").indexOf(q)>=0; }
 function sensorAt(p){ try{ var r=refFor(p); return !!(r && r.d<=2.5); }catch(e){ return false; } }
 function rowHtml(p, on){
-  var f=favs().indexOf(p.key)>=0, ps=pushState(), bell=(ps && ps.spot===p.key), dam=!!DAM_KEYS[p.key], gauge=sensorAt(p);
+  var f=favs().indexOf(p.key)>=0, ps=pushState(), bell=!!(ps && ps.spots && ps.spots[p.key]), dam=!!DAM_KEYS[p.key], gauge=sensorAt(p);
   var lt=(on||gauge)?levelText(p):"";
   var nMk=(window.MarksUI?MarksUI.marksFor(p.key).length:0);
   return '<button class="row stop'+(on?' on':'')+(dam?' dam':'')+(f?' fav':'')+(p.user?' user':'')+'" data-k="'+p.key+'"><span class="dot" aria-hidden="true"></span>'+
@@ -1091,14 +1098,22 @@ document.getElementById("menu-sheet").addEventListener("click", function(ev){
 document.getElementById("sheet-bg").addEventListener("click", closeMenu);
 document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeMenu(); });
 // ---------- push alerts (its own page) ----------
-var PUSH_KEY="blythe_push_v1", AL_DUR="always";
-function pushState(){ return store.get(PUSH_KEY)||null; }
+// One subscription per device; each spot on it has its own settings block.
+var PUSH_KEY="blythe_push_v1", AL_DUR="always", AL_MAX_SPOTS=6;
+function pushState(){
+  var st=store.get(PUSH_KEY)||null;
+  if(st && !st.spots){ st.spots={}; if(st.spot) st.spots[st.spot]={prefs:st.prefs||{}}; delete st.spot; delete st.prefs; } // older single-spot shape
+  return st;
+}
+function pushSpots(st){ return st&&st.spots?Object.keys(st.spots):[]; }
+function spotSubscribed(k){ var st=pushState(); return !!(st && st.spots && st.spots[k]); }
 function pushSupported(){ return !!(window.isSecureContext && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window); }
 function isIOS(){ return (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1)) && !window.MSStream; }
 function isStandalone(){ return window.matchMedia("(display-mode: standalone)").matches || navigator.standalone===true; }
 function b64ToU8(b64){ var pad="=".repeat((4-b64.length%4)%4), s=(b64+pad).replace(/-/g,"+").replace(/_/g,"/"), raw=atob(s), a=new Uint8Array(raw.length); for(var i=0;i<raw.length;i++) a[i]=raw.charCodeAt(i); return a; }
 function hourLabel(h){ h=+h; return (h%12||12)+(h<12?" AM":" PM"); }
 function leadWord(m){ m=+m; return m>=60 ? (m/60)+" h" : m+" min"; }
+function spotName(k){ var p=placeByKey(k); return p?p.name:k; }
 // "How long": an end time in Arizona days, or none.
 function durUntil(kind, now){
   now=now||Date.now(); var mid=dayKey(now)*DAY_MS+OFF_MS; // Arizona midnight that started today
@@ -1126,25 +1141,49 @@ function alItems(p){
   if(p.stale) items.push({k:"stale", t:"Data outages over 8 hours"});
   return items;
 }
+// The spots this device gets alerts for, with a switch to edit each and a Remove.
+function renderAlSpots(){
+  var el=document.getElementById("al-spots"); if(!el) return;
+  var st=pushState(), keys=pushSpots(st), cur=currentPlace().key;
+  if(!st || !keys.length){ el.style.display="none"; el.innerHTML=""; return; }
+  el.style.display="block";
+  el.innerHTML='<b>Alerts are on for '+(keys.length===1?'one spot':keys.length+' spots')+'</b><ul>'+keys.map(function(k){
+      var q=(st.spots[k]&&st.spots[k].prefs)||{}, n=alItems(q).length, u=q.until?new Date(q.until).getTime():null, ended=u&&u<Date.now();
+      var thru=u?(ended?'ended '+azTime(u):'through '+azTime(u)):'until turned off';
+      return '<li'+(k===cur?' class="cur"':'')+'><span><button type="button" class="sp" data-spot="'+k+'">'+esc(spotName(k))+'</button><br><span class="muted-sm">'+n+' alert'+(n===1?'':'s')+' · '+thru+(k===cur?' · <b>editing below</b>':' · tap to edit')+'</span></span><button type="button" class="rm" data-rmspot="'+k+'" title="Turn off alerts for this spot">Remove</button></li>';
+    }).join('')+'</ul>'
+    +(st.spots[cur]?'':'<div class="muted-sm" style="margin-top:6px">'+esc(currentPlace().name)+' isn’t on the list yet — choose what you want below and tap <b>Add '+esc(currentPlace().name)+'</b>.'+(keys.length>=AL_MAX_SPOTS?' You have the most spots one phone can hold ('+AL_MAX_SPOTS+'); remove one first.':'')+'</div>');
+}
 function renderAlActive(){
   var el=document.getElementById("al-active"); if(!el) return;
-  var st=pushState(), p=alPrefs(), items=alItems(p);
-  var head=st ? "On for "+esc(placeByKey(st.spot)?placeByKey(st.spot).name:st.spot)+", "+durLabel(p.dur, p.until?new Date(p.until).getTime():null)+":" : "You’ll get, "+durLabel(p.dur, p.until?new Date(p.until).getTime():null)+":";
-  var saved=st&&st.prefs?Object.assign({},st.prefs):null; if(saved){ delete saved.until; } var cur=Object.assign({},p); delete cur.until;
-  var changed=st && JSON.stringify(saved)!==JSON.stringify(cur);
-  var expired=st && st.prefs && st.prefs.until && new Date(st.prefs.until).getTime()<Date.now();
+  var st=pushState(), pl=currentPlace(), on=spotSubscribed(pl.key), p=alPrefs(), items=alItems(p), thru=durLabel(p.dur, p.until?new Date(p.until).getTime():null);
+  var head=(on ? "On for "+esc(pl.name) : "You’ll get for "+esc(pl.name))+", "+thru+":";
+  var savedP=on?st.spots[pl.key].prefs:null, saved=savedP?Object.assign({},savedP):null; if(saved){ delete saved.until; } var cur=Object.assign({},p); delete cur.until;
+  var changed=on && JSON.stringify(saved)!==JSON.stringify(cur);
+  var expired=on && savedP.until && new Date(savedP.until).getTime()<Date.now();
   el.innerHTML='<b>'+head+'</b>'+(items.length?'<ul>'+items.map(function(it){ return '<li><span>'+esc(it.t)+'</span><button type="button" class="rm" data-rm="'+it.k+'" title="Remove this alert">Remove</button></li>'; }).join("")+'</ul>':' <span class="muted-sm">nothing selected yet</span>')
     +(p.quiet&&(p.turns||p.level)?'<div class="muted-sm" style="margin-top:4px">Quiet '+hourLabel(p.quietFrom)+'–'+hourLabel(p.quietTo)+' for the high/low and level pings.</div>':'')
-    +(expired?'<div class="muted-sm" style="margin-top:4px; color:var(--house)">These alerts ended '+azTime(new Date(st.prefs.until).getTime())+'. Pick how long and save to start them again.</div>':'')
+    +(expired?'<div class="muted-sm" style="margin-top:4px; color:var(--house)">These alerts ended '+azTime(new Date(savedP.until).getTime())+'. Pick how long and save to start them again.</div>':'')
     +(changed?'<div class="muted-sm" style="margin-top:4px; color:var(--water)">Changes not saved yet — tap Save changes.</div>':'');
-  var dn=document.getElementById("al-dur-note"); if(dn) dn.textContent = p.until ? "Alerts stop on their own "+durLabel(p.dur, new Date(p.until).getTime())+" (Arizona time). Come back any time to extend them." : "Alerts keep coming until you turn them off here.";
+  var dn=document.getElementById("al-dur-note"); if(dn) dn.textContent = p.until ? "Alerts for this spot stop on their own "+durLabel(p.dur, new Date(p.until).getTime())+" (Arizona time). Come back any time to extend them." : "Alerts for this spot keep coming until you turn them off here.";
 }
 function removeAlert(k){
   var g=function(id){ return document.getElementById(id); };
   if(k==="level"){ g("al-level").checked=false; g("al-hi").value=""; g("al-lo").value=""; } else { var box=g("al-"+k); if(box) box.checked=false; }
   renderAlActive();
   var st=pushState();
-  if(st && st.sub){ postSubscription(st.sub).then(function(){ toast("Removed and saved."); renderAlActive(); }).catch(function(){ toast("Removed here — tap Save changes to keep it.", 4000); }); }
+  if(st && st.sub && spotSubscribed(currentPlace().key)){ postSubscription(st.sub).then(function(){ toast("Removed and saved."); refreshAlerts(); }).catch(function(){ toast("Removed here — tap Save changes to keep it.", 4000); }); }
+}
+function removeSpot(k){
+  var st=pushState(); if(!st) return;
+  var name=spotName(k);
+  fetch("/api/push/subscribe",{method:"DELETE", headers:{"content-type":"application/json"}, body:JSON.stringify({endpoint:st.endpoint, spot:k})}).catch(function(){})
+    .then(function(){
+      delete st.spots[k];
+      if(!pushSpots(st).length){ store.set(PUSH_KEY, null); toast("All alerts are off."); }
+      else { store.set(PUSH_KEY, st); toast("Alerts are off for "+name+"."); }
+      refreshAlerts();
+    });
 }
 function setDur(kind){ AL_DUR=kind; Array.prototype.forEach.call(document.querySelectorAll("#al-dur button"), function(b){ b.classList.toggle("on", b.getAttribute("data-dur")===kind); }); renderAlActive(); }
 var SENT_LABEL={brief:"Daily brief", heads:"Heads-up", "turn:high":"High water", "turn:low":"Low water", "lvl:hi":"Above your level", "lvl:lo":"Below your level", wknd:"Weekend outlook", stale:"Data outage"};
@@ -1152,7 +1191,13 @@ function renderRecent(rec){
   var el=document.getElementById("al-recent"); if(!el) return;
   var sent=rec&&rec.sent?rec.sent:{}, rows=Object.keys(sent).map(function(k){ var lbl=Object.keys(SENT_LABEL).find(function(p){ return k.indexOf(p)===0; }); return {t:sent[k], lbl:lbl?SENT_LABEL[lbl]:k}; }).sort(function(a,b){ return b.t-a.t; }).slice(0,5);
   if(!rows.length){ el.style.display="none"; el.innerHTML=""; return; }
-  el.style.display="block"; el.innerHTML='<span class="muted-sm">Recently sent:</span> '+rows.map(function(r){ return esc(r.lbl)+' <span class="muted-sm">'+azTime(r.t)+'</span>'; }).join(" · ");
+  el.style.display="block"; el.innerHTML='<span class="muted-sm">Recently sent for '+esc(currentPlace().name)+':</span> '+rows.map(function(r){ return esc(r.lbl)+' <span class="muted-sm">'+azTime(r.t)+'</span>'; }).join(" · ");
+}
+function loadRecent(){
+  var st=pushState(); renderRecent(null);
+  if(!(st && st.endpoint)) return;
+  fetch("/api/push/subscribe?endpoint="+encodeURIComponent(st.endpoint),{cache:"no-store"}).then(function(r){ return r.ok?r.json():null; })
+    .then(function(rec){ if(rec && rec.spots) renderRecent(rec.spots[currentPlace().key]||null); }).catch(function(){});
 }
 function iosNotice(){
   var box=document.getElementById("al-ios"); if(!box) return false;
@@ -1168,26 +1213,46 @@ function fillQuietSelects(){
   for(var h=0;h<24;h++){ f.appendChild(new Option(hourLabel(h), h)); t.appendChild(new Option(hourLabel(h), h)); }
   f.value="22"; t.value="6";
 }
-function openAlerts(){
+// Fill the form for the current spot: its saved settings, or sensible defaults
+// (borrowing quiet hours and duration from another spot on this device).
+function fillAlertsForm(){
   var st=pushState(), pl=currentPlace(), g=function(id){ return document.getElementById(id); };
-  fillQuietSelects();
-  g("al-spot").textContent=pl.name;
-  var status=g("al-status"), save=g("al-save"), off=g("al-off"), test=g("al-test");
-  if(st && st.prefs){ var q=st.prefs; g("al-brief").checked=!!q.brief; g("al-hour").value=String(q.briefHour||7); g("al-heads").checked=!!q.heads; g("al-stale").checked=!!q.stale; g("al-turns").checked=!!q.turns; g("al-lead").value=String([0,30,60,120].indexOf(+q.turnLead)>=0?+q.turnLead:60); g("al-level").checked=!!q.level; g("al-hi").value=q.levelHi!=null?q.levelHi:""; g("al-lo").value=q.levelLo!=null?q.levelLo:""; g("al-weekend").checked=!!q.weekend; g("al-quiet").checked=q.quiet!==false; g("al-qfrom").value=String(q.quietFrom!=null?q.quietFrom:22); g("al-qto").value=String(q.quietTo!=null?q.quietTo:6); AL_DUR=(q.until && new Date(q.until).getTime()>Date.now() && q.dur)?q.dur:"always"; }
-  else { g("al-brief").checked=true; g("al-heads").checked=true; g("al-stale").checked=false; g("al-turns").checked=true; g("al-lead").value="60"; g("al-level").checked=false; g("al-hi").value=""; g("al-lo").value=""; g("al-weekend").checked=false; g("al-quiet").checked=true; g("al-qfrom").value="22"; g("al-qto").value="6"; AL_DUR="weekend"; }
+  var q=(st && st.spots && st.spots[pl.key]) ? st.spots[pl.key].prefs : null;
+  if(q){ g("al-brief").checked=!!q.brief; g("al-hour").value=String(q.briefHour||7); g("al-heads").checked=!!q.heads; g("al-stale").checked=!!q.stale; g("al-turns").checked=!!q.turns; g("al-lead").value=String([0,30,60,120].indexOf(+q.turnLead)>=0?+q.turnLead:60); g("al-level").checked=!!q.level; g("al-hi").value=q.levelHi!=null?q.levelHi:""; g("al-lo").value=q.levelLo!=null?q.levelLo:""; g("al-weekend").checked=!!q.weekend; g("al-quiet").checked=q.quiet!==false; g("al-qfrom").value=String(q.quietFrom!=null?q.quietFrom:22); g("al-qto").value=String(q.quietTo!=null?q.quietTo:6); AL_DUR=(q.until && new Date(q.until).getTime()>Date.now() && q.dur)?q.dur:"always"; }
+  else {
+    var other=null; pushSpots(st).forEach(function(k){ if(!other && st.spots[k] && st.spots[k].prefs) other=st.spots[k].prefs; });
+    g("al-brief").checked=true; g("al-heads").checked=true; g("al-stale").checked=false; g("al-turns").checked=true; g("al-lead").value="60"; g("al-level").checked=false; g("al-hi").value=""; g("al-lo").value=""; g("al-weekend").checked=false;
+    g("al-quiet").checked=other?other.quiet!==false:true; g("al-qfrom").value=String(other&&other.quietFrom!=null?other.quietFrom:22); g("al-qto").value=String(other&&other.quietTo!=null?other.quietTo:6);
+    AL_DUR=(other && other.until && new Date(other.until).getTime()>Date.now() && other.dur)?other.dur:"weekend";
+  }
   setDur(AL_DUR);
-  save.disabled=false; off.style.display=st?"":"none"; test.style.display=st?"":"none"; save.textContent=st?"Save changes":"Turn on alerts";
+}
+// Status line and buttons for the current spot. Returns true on iPhone Safari (alerts can't work there).
+function renderAlStatus(){
+  var st=pushState(), pl=currentPlace(), on=spotSubscribed(pl.key), keys=pushSpots(st), g=function(id){ return document.getElementById(id); };
+  var status=g("al-status"), save=g("al-save"), off=g("al-off"), test=g("al-test");
+  save.disabled=false; off.style.display=keys.length?"":"none"; test.style.display=keys.length?"":"none";
+  save.textContent=on?"Save changes":(keys.length?"Add "+pl.name:"Turn on alerts");
   var ios=iosNotice();
   if(ios){ status.innerHTML=""; save.disabled=true; }
   else if(!pushSupported()){ status.innerHTML="This browser can’t receive push notifications."; save.disabled=true; }
   else if(Notification.permission==="denied"){ status.innerHTML="Notifications are <b>blocked</b> for this site in your browser settings — allow them there, then come back."; save.disabled=true; }
-  else if(st){ status.innerHTML="Alerts are <b>on</b> for <b>"+esc(placeByKey(st.spot)?placeByKey(st.spot).name:st.spot)+"</b>."; }
-  else status.innerHTML="Get a notification instead of checking the page.";
-  renderAlActive(); renderRecent(null);
+  else if(window._pushCfg && !window._pushCfg.enabled){ status.innerHTML="Alerts aren’t switched on for this site yet (server keys not set)."; save.disabled=true; }
+  else if(on) status.innerHTML="Alerts are <b>on</b> for <b>"+esc(pl.name)+"</b>"+(keys.length>1?" and "+(keys.length-1)+" other spot"+(keys.length>2?"s":""):"")+". Each spot keeps its own settings.";
+  else if(keys.length){ status.innerHTML="Not on for <b>"+esc(pl.name)+"</b> yet. Choose what you want below and add it."; if(keys.length>=AL_MAX_SPOTS) save.disabled=true; }
+  else status.innerHTML="Get a notification instead of checking the page. Add as many spots as you like — each has its own settings.";
+  return ios;
+}
+function refreshAlerts(){ renderAlStatus(); renderAlSpots(); renderAlActive(); }
+function openAlerts(){
+  fillQuietSelects();
+  document.getElementById("al-spot").textContent=currentPlace().name;
+  fillAlertsForm();
+  var ios=renderAlStatus(); renderAlSpots(); renderAlActive(); loadRecent();
   document.getElementById("alerts-page").classList.add("open"); document.getElementById("alerts-page").setAttribute("aria-hidden","false"); document.body.classList.add("page-open");
+  document.getElementById("alerts-page").scrollTop=0;
   try{ if(!(history.state && history.state.al)) history.pushState({al:1}, "", "/alerts"); }catch(e){}
-  if(st && st.endpoint){ fetch("/api/push/subscribe?endpoint="+encodeURIComponent(st.endpoint),{cache:"no-store"}).then(function(r){ return r.ok?r.json():null; }).then(function(rec){ if(rec) renderRecent(rec); }).catch(function(){}); }
-  fetch("/api/push/config",{cache:"no-store"}).then(function(r){ return r.json(); }).then(function(c){ if(!c.enabled){ status.innerHTML="Alerts aren’t switched on for this site yet (server keys not set)."; save.disabled=true; } window._pushCfg=c; }).catch(function(){ if(!ios) status.innerHTML="Couldn’t reach the alert service — try again in a minute."; });
+  fetch("/api/push/config",{cache:"no-store"}).then(function(r){ return r.json(); }).then(function(c){ window._pushCfg=c; renderAlStatus(); }).catch(function(){ if(!ios) document.getElementById("al-status").innerHTML="Couldn’t reach the alert service — try again in a minute."; });
 }
 function closeAlerts(fromHistory){
   var pg=document.getElementById("alerts-page"); if(!pg || !pg.classList.contains("open")) return;
@@ -1196,21 +1261,21 @@ function closeAlerts(fromHistory){
 }
 window.addEventListener("popstate", function(){ var pg=document.getElementById("alerts-page"); if(pg && pg.classList.contains("open") && !(history.state && history.state.al)) closeAlerts(true); });
 function subscribePush(){
-  var save=document.getElementById("al-save"); save.disabled=true; save.textContent="Working…";
+  var save=document.getElementById("al-save"), label=save.textContent; save.disabled=true; save.textContent="Working…";
   var cfg=window._pushCfg;
-  if(!cfg || !cfg.publicKey){ toast("Alert service isn’t configured yet."); save.disabled=false; save.textContent="Turn on alerts"; return; }
+  if(!cfg || !cfg.publicKey){ toast("Alert service isn’t configured yet."); save.disabled=false; save.textContent=label; return; }
   navigator.serviceWorker.register("/sw.js").then(function(reg){ return navigator.serviceWorker.ready; })
   .then(function(reg){ return Notification.requestPermission().then(function(p){ if(p!=="granted") throw new Error("Permission not granted"); return reg.pushManager.getSubscription().then(function(s){ return s || reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64ToU8(cfg.publicKey)}); }); }); })
   .then(function(sub){ return postSubscription(sub.toJSON()); })
-  .then(function(){ toast("Saved — alerts are on for "+currentPlace().name+" ✓"); var st=pushState(); document.getElementById("al-off").style.display=st?"":"none"; document.getElementById("al-test").style.display=st?"":"none"; document.getElementById("al-status").innerHTML="Alerts are <b>on</b> for <b>"+esc(currentPlace().name)+"</b>."; renderAlActive(); })
+  .then(function(){ toast("Saved — alerts are on for "+currentPlace().name+" ✓"); })
   .catch(function(e){ toast(/Permission/.test(String(e))?"Notifications weren’t allowed.":"Couldn’t turn on alerts: "+(e&&e.message||e), 3500); })
-  .then(function(){ save.disabled=false; save.textContent=pushState()?"Save changes":"Turn on alerts"; });
+  .then(function(){ save.disabled=false; refreshAlerts(); });
 }
 function postSubscription(subJson){
   var spot=currentPlace().key, prefs=alPrefs();
   return fetch("/api/push/subscribe",{method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({subscription:subJson, spot:spot, prefs:prefs})})
-    .then(function(r){ if(!r.ok) throw new Error("server "+r.status); return r.json(); })
-    .then(function(){ store.set(PUSH_KEY, {endpoint:subJson.endpoint, spot:spot, prefs:prefs, sub:subJson, at:Date.now()}); });
+    .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ if(!r.ok) throw new Error(j.error==="too many spots"?"one phone can hold "+(j.max||AL_MAX_SPOTS)+" spots — remove one first":(j.error||"server "+r.status)); return j; }); })
+    .then(function(){ var st=pushState()||{spots:{}}; st.endpoint=subJson.endpoint; st.sub=subJson; st.at=Date.now(); st.spots=st.spots||{}; st.spots[spot]={prefs:prefs}; store.set(PUSH_KEY, st); });
 }
 function unsubscribePush(){
   var st=pushState();
@@ -1233,11 +1298,17 @@ document.getElementById("al-off").addEventListener("click", unsubscribePush);
 document.getElementById("al-test").addEventListener("click", sendTest);
 document.getElementById("alerts-page").addEventListener("change", renderAlActive);
 document.getElementById("alerts-page").addEventListener("input", renderAlActive);
-document.getElementById("alerts-page").addEventListener("click", function(ev){ var d=ev.target.closest && ev.target.closest("#al-dur button"); if(d){ setDur(d.getAttribute("data-dur")); return; } var rm=ev.target.closest && ev.target.closest(".rm[data-rm]"); if(rm){ removeAlert(rm.getAttribute("data-rm")); } });
+document.getElementById("alerts-page").addEventListener("click", function(ev){
+  var c=function(sel){ return ev.target.closest && ev.target.closest(sel); };
+  var d=c("#al-dur button"); if(d){ setDur(d.getAttribute("data-dur")); return; }
+  var rm=c(".rm[data-rm]"); if(rm){ removeAlert(rm.getAttribute("data-rm")); return; }
+  var rs=c(".rm[data-rmspot]"); if(rs){ removeSpot(rs.getAttribute("data-rmspot")); return; }
+  var sp=c(".sp[data-spot]"); if(sp){ var k=sp.getAttribute("data-spot"); if(k!==currentPlace().key && typeof setPlace==="function") setPlace(k, {replace:true}); }
+});
 document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeAlerts(); });
-// Alerts follow the spot: when the spot changes, re-point the subscription.
+// Changing the spot while the page is open switches which spot is being edited.
 var _onPlaceChangePrev=window.onPlaceChange;
-window.onPlaceChange=function(k){ if(_onPlaceChangePrev) _onPlaceChangePrev(k); var st=pushState(); if(st && st.sub && st.spot!==k){ postSubscription(st.sub).catch(function(){}); } };
+window.onPlaceChange=function(k){ if(_onPlaceChangePrev) _onPlaceChangePrev(k); var pg=document.getElementById("alerts-page"); if(pg && pg.classList.contains("open")){ document.getElementById("al-spot").textContent=currentPlace().name; fillAlertsForm(); refreshAlerts(); loadRecent(); pg.scrollTop=0; } };
 if(location.pathname==="/alerts"){ try{ history.replaceState({al:1, deep:1}, "", "/alerts"); }catch(e){} setTimeout(openAlerts, 300); }
 // Links that point into the advanced view switch to it first.
 document.addEventListener("click", function(ev){

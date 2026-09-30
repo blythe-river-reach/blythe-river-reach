@@ -23,7 +23,7 @@ export default async (req) => {
       let push = null;
       try {
         const ps = getStore({ name: "push-subs", consistency: "strong" }); const { blobs } = await ps.list(); const bySpot = {}; let n = 0;
-        for (const b of blobs) { const rec = await ps.get(b.key, { type: "json" }).catch(() => null); if (rec && rec.subscription) { n++; bySpot[rec.spot] = (bySpot[rec.spot] || 0) + 1; } }
+        for (const b of blobs) { const rec = await ps.get(b.key, { type: "json" }).catch(() => null); if (rec && rec.subscription) { n++; const sp = rec.spots && typeof rec.spots === "object" ? Object.keys(rec.spots) : (rec.spot ? [rec.spot] : []); for (const k of sp) bySpot[k] = (bySpot[k] || 0) + 1; } }
         push = { total: n, bySpot };
       } catch (e) { push = { error: String(e && e.message || e) }; }
       return json({ ok: true, spots: spots(), push, ...(await C.queue(S)) });

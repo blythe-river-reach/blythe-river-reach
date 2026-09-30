@@ -1,7 +1,11 @@
-// POST   { subscription, spot, prefs }  -> stores/updates the subscription
-// DELETE { endpoint }                   -> removes it
+// GET    ?endpoint=                      -> the device's spots (prefs + what was sent)
+// POST   { subscription, spot, prefs }   -> adds/updates that spot on the device (up to MAX_SPOTS)
+// DELETE { endpoint, spot? }             -> removes one spot, or the whole device when no spot is given
 import { getStore } from "@netlify/blobs";
 import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const { MAX_SPOTS, spotsOf } = require("../lib/push-subs.js");
 
 const keyFor = (endpoint) => createHash("sha256").update(String(endpoint)).digest("hex");
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
@@ -13,14 +17,23 @@ export default async (req) => {
     if (!ep) return json({ error: "endpoint required" }, 400);
     const rec = await store.get(keyFor(ep), { type: "json" }).catch(() => null);
     if (!rec) return json({ error: "not subscribed" }, 404);
-    return json({ ok: true, spot: rec.spot, prefs: rec.prefs, sent: rec.sent || {}, updatedAt: rec.updatedAt });
+    return json({ ok: true, spots: spotsOf(rec), updatedAt: rec.updatedAt });
   }
   let body = null;
   try { body = await req.json(); } catch (e) { return json({ error: "bad json" }, 400); }
   if (req.method === "DELETE") {
     if (!body || !body.endpoint) return json({ error: "endpoint required" }, 400);
-    await store.delete(keyFor(body.endpoint));
-    return json({ ok: true });
+    const k = keyFor(body.endpoint);
+    if (body.spot) {
+      const rec = await store.get(k, { type: "json" }).catch(() => null);
+      if (!rec) return json({ ok: true, spots: [] });
+      const spots = Object.assign({}, spotsOf(rec)); delete spots[String(body.spot)];
+      if (!Object.keys(spots).length) { await store.delete(k); return json({ ok: true, spots: [] }); }
+      await store.setJSON(k, { subscription: rec.subscription, spots, createdAt: rec.createdAt, updatedAt: new Date().toISOString(), ua: rec.ua, testAt: rec.testAt });
+      return json({ ok: true, spots: Object.keys(spots) });
+    }
+    await store.delete(k);
+    return json({ ok: true, spots: [] });
   }
   if (req.method !== "POST") return json({ error: "method" }, 405);
   const sub = body && body.subscription;
@@ -40,9 +53,12 @@ export default async (req) => {
   if (!("quietFrom" in p)) { prefs.quietFrom = 22; prefs.quietTo = 6; }
   const key = keyFor(sub.endpoint);
   const prev = await store.get(key, { type: "json" }).catch(() => null);
-  const rec = { subscription: { endpoint: sub.endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth }, expirationTime: sub.expirationTime || null }, spot: body.spot, prefs, sent: (prev && prev.sent) || {}, createdAt: (prev && prev.createdAt) || new Date().toISOString(), updatedAt: new Date().toISOString(), ua: String(req.headers.get("user-agent") || "").slice(0, 160) };
+  const spots = Object.assign({}, spotsOf(prev));
+  if (!spots[body.spot] && Object.keys(spots).length >= MAX_SPOTS) return json({ error: "too many spots", max: MAX_SPOTS }, 400);
+  spots[body.spot] = { prefs, sent: (spots[body.spot] && spots[body.spot].sent) || {}, updatedAt: new Date().toISOString() };
+  const rec = { subscription: { endpoint: sub.endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth }, expirationTime: sub.expirationTime || null }, spots, createdAt: (prev && prev.createdAt) || new Date().toISOString(), updatedAt: new Date().toISOString(), ua: String(req.headers.get("user-agent") || "").slice(0, 160), testAt: prev && prev.testAt };
   await store.setJSON(key, rec);
-  return json({ ok: true, spot: rec.spot, prefs: rec.prefs });
+  return json({ ok: true, spot: body.spot, prefs, spots: Object.keys(spots) });
 };
 
 export const config = { path: "/api/push/subscribe" };
